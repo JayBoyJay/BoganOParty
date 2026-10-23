@@ -43,6 +43,7 @@ export class Game {
   async play() {
     this.view.placeAll(this.players);
     this.refresh();
+    this.hud.setRound(1, this.settings.maxRounds);
     await this.banner(this.map.name, `First to ${this.target} ${this.item.plural} wins`, { ms: 2600 });
     await this.placeItem(true);
     while (!this.over) {
