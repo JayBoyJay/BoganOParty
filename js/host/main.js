@@ -217,6 +217,7 @@ function showLobbyBoard() {
   const map = MAP_BY_ID[state.settings.map];
   if (lobbyBoard?.map === map) return;
   lobbyBoard = new BoardView(stage, map, buildBoard(map.board));
+  window.__lobbyBoard = lobbyBoard; // for screenshots and debugging
   lobbyBoard.placeAll([]);
   let t = 0;
   const up = lobbyBoard.update.bind(lobbyBoard);

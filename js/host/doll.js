@@ -72,16 +72,29 @@ export function faceDataUrl(player, mood = 'neutral') {
 
 // ---------- body ----------
 function vinyl(color) {
-  return new THREE.MeshPhysicalMaterial({ color, roughness: 0.28, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.15, sheen: 0.4 });
+  // glossy PVC: a hard clear coat over a slightly soft, sheeny base
+  return new THREE.MeshPhysicalMaterial({ color, roughness: 0.32, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.06, sheen: 0.35, sheenRoughness: 0.5, sheenColor: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.4), specularIntensity: 0.7 });
 }
-const capsule = (r, len, m) => { const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 6, 14), m); mesh.castShadow = true; return mesh; };
+// an inflated tube along +y from a [radius, y] profile (arms and legs), seam rings where it pinches
+function tube(profile, m, seamMat) {
+  const g = new THREE.Group();
+  const mesh = new THREE.Mesh(new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 22), m);
+  mesh.castShadow = true;
+  g.add(mesh);
+  for (const [r, y, pinch] of profile) if (pinch) { const ring = new THREE.Mesh(new THREE.TorusGeometry(r + 0.004, 0.009, 6, 24), seamMat); ring.rotation.x = Math.PI / 2; ring.position.y = y; g.add(ring); }
+  return g;
+}
 
 export class Doll {
-  constructor(player, { tag = true } = {}) {
+  constructor(player, opts = {}) {
+    const tag = opts.tag ?? true;
     this.player = player;
     this.group = new THREE.Group();
+    this.scaler = new THREE.Group(); // overall size (bigger on the board so faces read on the TV)
+    this.scaler.scale.setScalar(opts.scale || 1);
+    this.group.add(this.scaler);
     this.body = new THREE.Group(); // wobbles; group stays put for game logic
-    this.group.add(this.body);
+    this.scaler.add(this.body);
     const tint = new THREE.Color(player.color || '#ff9fb8');
     const skinCol = new THREE.Color('#ffc9b5').lerp(tint, 0.35);
     this.skinCss = '#' + skinCol.getHexString();
@@ -107,9 +120,20 @@ export class Doll {
     const skull = new THREE.Mesh(new THREE.SphereGeometry(0.44, 28, 20), skin);
     skull.castShadow = true;
     this.head.add(skull);
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.47, 28, 16, 0, Math.PI * 2, 0, Math.PI * 0.42), vinyl(player.hair || 0x3a2418));
+    // moulded plastic hair: a glossy cap with a fringe and a few curls round the back
+    const hairMat = vinyl(player.hair || 0x3a2418);
+    hairMat.roughness = 0.18;
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.47, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.42), hairMat);
     hair.rotation.x = -0.35;
     this.head.add(hair);
+    for (let i = 0; i < 9; i++) {
+      const a = Math.PI * 0.55 + i / 8 * Math.PI * 0.9;
+      const curl = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), hairMat);
+      curl.position.set(Math.cos(a) * 0.4, 0.02 - Math.abs(Math.sin(i)) * 0.06, Math.sin(a) * -0.4 - 0.02);
+      this.head.add(curl);
+    }
+    // ears
+    for (const sd of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), skin); ear.scale.set(0.5, 1, 0.8); ear.position.set(sd * 0.44, -0.02, 0); this.head.add(ear); }
     this.faceMat = new THREE.MeshStandardMaterial({ roughness: 0.55 });
     // a patch of sphere centred on +z (phi 0.2π–0.8π), so the doll looks down its +z axis
     const face = new THREE.Mesh(new THREE.SphereGeometry(0.452, 32, 20, Math.PI * 0.2, Math.PI * 0.6, Math.PI * 0.2, Math.PI * 0.6), this.faceMat);
@@ -120,33 +144,41 @@ export class Doll {
     for (const s of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(s * 0.36, 1.78, 0);
-      const arm = capsule(0.12, 0.72, skin);
-      arm.rotation.z = Math.PI / 2;
-      arm.position.x = s * 0.48;
+      // inflated arm with a pinched elbow, and a mitten hand with a thumb
+      const arm = tube([[0, 0], [0.12, 0.02], [0.135, 0.15], [0.125, 0.36], [0.1, 0.42, true], [0.125, 0.48], [0.12, 0.7], [0.09, 0.8, true], [0, 0.82]], skin, seam);
+      arm.rotation.z = -s * Math.PI / 2;
+      arm.position.x = s * 0.06;
       pivot.add(arm);
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), skin);
-      hand.position.x = s * 0.92;
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), skin);
+      hand.scale.set(1.15, 0.6, 1); hand.position.x = s * 0.98; hand.castShadow = true;
       pivot.add(hand);
+      const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), skin);
+      thumb.scale.set(1.4, 0.8, 0.8); thumb.position.set(s * 0.92, 0.02, 0.13);
+      pivot.add(thumb);
       pivot.userData.side = s;
       this.body.add(pivot);
       this.arms.push(pivot);
     }
     this.setArms();
     for (const s of [-1, 1]) {
-      const leg = capsule(0.15, 0.7, skin);
-      leg.position.set(s * 0.24, 0.5, 0);
-      leg.rotation.z = s * 0.16;
+      // legs: thick inflated tubes, pinched knee, flat-soled feet
+      const leg = tube([[0, 0.1], [0.13, 0.12], [0.16, 0.3], [0.13, 0.48, true], [0.17, 0.62], [0.19, 0.86], [0, 0.96]], skin, seam);
+      leg.position.set(s * 0.22, 0, 0);
+      leg.rotation.z = s * 0.1;
       this.body.add(leg);
+      const foot = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), skin);
+      foot.scale.set(0.9, 0.5, 1.5); foot.position.set(s * 0.21, 0.08, 0.1); foot.castShadow = true;
+      this.body.add(foot);
     }
     this.buildBits(player.body || 'smooth', skin, tint);
 
     // colour ring and name tag
     if (tag) {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.68, 32), new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 32), new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
       this.group.add(ring);
       this.tag = makeTag(player.name, player.color);
-      this.tag.position.y = 3.35;
+      this.tag.position.y = 2.75 * (opts.scale || 1) + 0.55;
       this.group.add(this.tag);
     }
     this.mood = 'neutral';

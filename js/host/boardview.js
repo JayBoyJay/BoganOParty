@@ -2,7 +2,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from '../../vendor/GLTFLoader.js';
 import { SPACE, mulberry32 } from '../board.js';
-import { makeKit, textTexture } from './kit.js';
+import { makeKit, textTexture, surf, mat } from './kit.js';
+import { TEX } from './textures.js';
+import { Batch } from './props.js';
+import { Sky } from '../../vendor/Sky.js';
+import { ImprovedNoise } from '../../vendor/ImprovedNoise.js';
 import { Doll } from './doll.js';
 import { Tweens, easeInOut, easeOut } from './stage.js';
 
@@ -10,16 +14,45 @@ const SPACE_R = 1.25;
 const iconTex = {};
 function spaceIcon(type) {
   if (iconTex[type]) return iconTex[type];
-  const text = { shop: '🛒', event: '❗', start: 'GO', red: '−', blue: '+' }[type] || '';
-  const tex = textTexture(text, { w: 128, h: 128, bg: null, fg: '#fff', font: type === 'start' ? '900 58px system-ui' : '900 76px system-ui, "Apple Color Emoji", "Segoe UI Emoji"' });
-  return (iconTex[type] = tex);
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.translate(128, 128);
+  g.fillStyle = 'rgba(255,255,255,0.92)'; g.strokeStyle = 'rgba(255,255,255,0.92)'; g.lineCap = 'round';
+  g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 8;
+  if (type === 'blue' || type === 'red') { g.lineWidth = 26; g.beginPath(); g.moveTo(-50, 0); g.lineTo(50, 0); if (type === 'blue') { g.moveTo(0, -50); g.lineTo(0, 50); } g.stroke(); }
+  else { g.font = type === 'start' ? '900 86px system-ui' : '900 130px system-ui, "Apple Color Emoji", "Segoe UI Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText({ shop: '🛒', event: '?', start: 'GO' }[type] || '', 0, 6); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  return (iconTex[type] = t);
+}
+
+// gentle hills that flatten out under the board and the landmarks
+function makeTerrain(map, board) {
+  const noise = new ImprovedNoise();
+  const look = map.look;
+  const flats = [...board.nodes.map((n) => [n.x, n.z, 5]), ...(map.landmarks || []).map((l) => [l.x, l.z, l.flat ?? 16 * (l.scale || 1)])];
+  const hill = look.hills ?? 4;
+  return (x, z) => {
+    let d = Infinity;
+    for (const [fx, fz, r] of flats) { const dd = Math.hypot(x - fx, z - fz) - r; if (dd < d) d = dd; }
+    const t = Math.max(0, Math.min(1, d / 22));
+    const k = t * t * (3 - 2 * t);
+    const far = Math.max(0, Math.hypot(x, z) - 150) / 120; // ranges on the horizon
+    const h = (noise.noise(x * 0.02, 0.5, z * 0.02) * 0.6 + noise.noise(x * 0.06, 1.5, z * 0.06) * 0.25 + noise.noise(x * 0.2, 2.5, z * 0.2) * 0.05) * hill;
+    const land = k * (h + hill * 0.4) + far * far * (look.ranges ?? 25) * (0.6 + noise.noise(x * 0.01, 9, z * 0.01));
+    if (look.sea == null || z > look.sea + 16) return land;
+    // flatten to a beach for the last 12 m, then shelve down under the water
+    if (z > look.sea + 4) return land * Math.min(1, (z - look.sea - 4) / 12);
+    // shelve down under the water past the coastline
+    const s = Math.min(1, (look.sea + 4 - z) / 10);
+    return land * (1 - s) - 2.5 * s;
+  };
 }
 
 export class BoardView {
   constructor(stage, map, board) {
     this.stage = stage; this.map = map; this.board = board;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.5, 900);
+    this.camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.5, 1400);
     this.tweens = new Tweens();
     this.dolls = new Map();
     this.updaters = [];
@@ -30,80 +63,139 @@ export class BoardView {
     this.build();
   }
 
-  pos(idx) { const n = this.board.nodes[idx]; return new THREE.Vector3(n.x, 0.3, n.z); }
+  pos(idx) { const n = this.board.nodes[idx]; return new THREE.Vector3(n.x, 0.42, n.z); }
 
   build() {
     const { look } = this.map;
     const s = this.scene;
-    s.background = new THREE.Color(look.sky);
-    s.fog = new THREE.Fog(look.fog, 110, 320);
-    s.add(new THREE.HemisphereLight(0xffffff, look.ground, 1.1));
-    const sun = new THREE.DirectionalLight(look.sun, 2.2);
-    sun.position.set(40, 80, 30);
+    const sky = look.sky || {};
+
+    // ----- sky, sun and reflections -----
+    const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - (sky.elevation ?? 35)), THREE.MathUtils.degToRad(sky.azimuth ?? 160));
+    const dome = new Sky();
+    dome.scale.setScalar(4000);
+    dome.material.uniforms.turbidity.value = sky.turbidity ?? 4;
+    dome.material.uniforms.rayleigh.value = sky.rayleigh ?? 1.5;
+    dome.material.uniforms.mieCoefficient.value = sky.mie ?? 0.005;
+    dome.material.uniforms.mieDirectionalG.value = 0.8;
+    dome.material.uniforms.sunPosition.value.copy(sunDir);
+    s.add(dome);
+    // image-based lighting from the same sky, so metal and glass reflect it
+    const pmrem = new THREE.PMREMGenerator(this.stage.renderer);
+    const envScene = new THREE.Scene();
+    const envSky = new Sky(); envSky.scale.setScalar(1000); envSky.material.uniforms = THREE.UniformsUtils.clone(dome.material.uniforms); envScene.add(envSky);
+    s.environment = pmrem.fromScene(envScene, 0, 0.1, 2000).texture;
+    s.environmentIntensity = look.envIntensity ?? 0.6;
+    s.fog = new THREE.Fog(look.fog, 160, 700);
+
+    s.add(new THREE.HemisphereLight(look.skyLight ?? 0xcfe4ff, look.ground, 0.5));
+    const sun = new THREE.DirectionalLight(look.sun, look.sunIntensity ?? 3.2);
+    sun.position.copy(sunDir).multiplyScalar(150);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -90, right: 90, top: 90, bottom: -90, far: 250 });
+    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+    Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 1, far: 400 });
     s.add(sun);
 
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(400, 64), new THREE.MeshStandardMaterial({ color: look.ground, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+    // ----- ground -----
+    this.heightAt = makeTerrain(this.map, this.board);
+    const SIZE = 1400, SEG = 260;
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+    geo.rotateX(-Math.PI / 2);
+    const P = geo.attributes.position, UV = geo.attributes.uv;
+    const colors = new Float32Array(P.count * 3);
+    const tint = new ImprovedNoise();
+    for (let i = 0; i < P.count; i++) {
+      const x = P.getX(i), z = P.getZ(i);
+      P.setY(i, this.heightAt(x, z));
+      UV.setXY(i, x / 7, z / 7);
+      const v = 0.85 + tint.noise(x * 0.015, 4, z * 0.015) * 0.3 + tint.noise(x * 0.08, 5, z * 0.08) * 0.08;
+      colors[i * 3] = v; colors[i * 3 + 1] = v * (0.97 + tint.noise(x * 0.02, 6, z * 0.02) * 0.1); colors[i * 3 + 2] = v;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const groundSet = TEX[look.groundTex || 'redDirt']();
+    const gm = new THREE.MeshStandardMaterial({ map: groundSet.map, normalMap: groundSet.normalMap, roughnessMap: groundSet.roughnessMap, vertexColors: true, roughness: 1, normalScale: new THREE.Vector2(1.5, 1.5) });
+    for (const t of [gm.map, gm.normalMap, gm.roughnessMap]) t.repeat.set(1, 1);
+    const ground = new THREE.Mesh(geo, gm);
+    ground.receiveShadow = true;
     s.add(ground);
 
-    const kit = makeKit(s);
+    const kit = makeKit(s, { heightAt: this.heightAt });
     this.kit = kit;
-    // paths between spaces
-    const pathMat = new THREE.MeshStandardMaterial({ color: look.path, roughness: 0.9 });
+    // is a spot free for scenery (clear of the board, the landmarks and the middle of the map)?
+    const lms = this.map.landmarks || [];
+    kit.isClear = (x, z, r = 4) => this.board.nodes.every((n) => Math.hypot(n.x - x, n.z - z) > r + 4)
+      && lms.every((l) => Math.hypot(l.x - x, l.z - z) > (l.flat ?? 16 * (l.scale || 1)) + r);
+
+    // ----- paths: a gravel (or paved) track with stone edging, one strip per link -----
+    const pathM = surf(look.pathTex || 'gravel', { unit: 2.2, tint: look.path ?? 0xffffff });
+    const edgeM = surf(look.edgeTex || 'sandstone', { unit: 1.2 });
     for (const n of this.board.nodes) for (const j of n.next) {
-      const a = this.pos(n.idx), b = this.pos(j);
+      const a = this.pos(n.idx).setY(0), b = this.pos(j).setY(0);
       const len = a.distanceTo(b);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, len), pathMat);
-      m.position.copy(a).add(b).multiplyScalar(0.5).setY(0.06);
-      m.lookAt(b.x, 0.06, b.z);
-      m.receiveShadow = true;
-      s.add(m);
-      // little arrow so the one-way direction is obvious
-      const arr = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.6, 3), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }));
-      arr.position.copy(a).lerp(b, 0.5).setY(0.2);
-      arr.lookAt(b.x, 0.2, b.z); arr.rotateX(Math.PI / 2);
-      s.add(arr);
+      const strip = new THREE.Group();
+      strip.position.copy(a).add(b).multiplyScalar(0.5);
+      strip.lookAt(b);
+      kit.box(1.9, 0.08, len, pathM, 0, 0, 0, strip).receiveShadow = true;
+      for (const sx of [-1, 1]) kit.box(0.22, 0.16, len - 2.4, edgeM, sx * 1.02, 0, 0, strip);
+      // a faint painted arrow so the one-way direction is obvious
+      const arr = new THREE.Mesh(new THREE.CircleGeometry(0.42, 3), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, roughness: 0.6 }));
+      arr.rotation.set(-Math.PI / 2, 0, Math.PI / 2); arr.position.y = 0.09;
+      strip.add(arr);
+      s.add(strip);
     }
-    // spaces
+
+    // ----- spaces: a stone plinth with a glossy enamel top -----
+    const plinthGeo = new THREE.LatheGeometry([[0, 0], [1.6, 0], [1.62, 0.12], [1.52, 0.3], [1.42, 0.34], [0, 0.34]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
+    const plinthM = surf(look.plinthTex || 'concrete', { unit: 1.2 });
+    const topGeo = new THREE.LatheGeometry([[0, 0.4], [0.9, 0.39], [1.25, 0.36], [1.3, 0.3], [1.3, 0.26]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
+    const ringGeo = new THREE.TorusGeometry(1.33, 0.06, 8, 48);
+    const brass = mat(0xd4a64a, { metalness: 1, roughness: 0.3 });
     for (const n of this.board.nodes) {
       const col = SPACE[n.type]?.color ?? 0xffffff;
       const g = new THREE.Group();
       g.position.set(n.x, 0, n.z);
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(SPACE_R, SPACE_R * 1.08, 0.3, 32), new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, emissive: col, emissiveIntensity: 0.15 }));
-      disc.position.y = 0.15; disc.castShadow = true; disc.receiveShadow = true;
-      g.add(disc);
-      const icon = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: spaceIcon(n.type), transparent: true, depthWrite: false }));
-      icon.rotation.x = -Math.PI / 2; icon.position.y = 0.31;
+      const plinth = new THREE.Mesh(plinthGeo, plinthM); plinth.castShadow = true; plinth.receiveShadow = true; g.add(plinth);
+      const top = new THREE.Mesh(topGeo, new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1, emissive: col, emissiveIntensity: 0.12 }));
+      top.receiveShadow = true; g.add(top);
+      const ring = new THREE.Mesh(ringGeo, brass); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.3; g.add(ring);
+      const icon = new THREE.Mesh(new THREE.CircleGeometry(0.85, 32), new THREE.MeshStandardMaterial({ map: spaceIcon(n.type), transparent: true, depthWrite: false, roughness: 0.4 }));
+      icon.rotation.x = -Math.PI / 2; icon.position.y = 0.405;
       g.add(icon);
       s.add(g);
     }
-    // landmarks: a .glb model if the map names one, otherwise the built-in placeholder
+
+    // ----- landmarks: a .glb model if the map names one, otherwise the built-in model -----
     const loader = new GLTFLoader();
     for (const lm of this.map.landmarks || []) {
-      const g = kit.group(lm.x, 0, lm.z, lm.rot || 0, lm.scale || 1);
+      const g = kit.group(lm.x, lm.y ?? 0, lm.z, lm.rot || 0, lm.scale || 1);
       if (lm.glb) {
         loader.load(lm.glb, (gltf) => { gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); g.add(gltf.scene); },
           undefined, () => lm.build?.(kit, g));
       } else lm.build?.(kit, g);
-      if (g.userData.spin) this.updaters.push((dt) => { g.userData.spin.rotation.x += dt * 1.5; });
-      if (g.userData.bob) { const b = g.userData.bob, x0 = b.position.x; let t = 0; this.updaters.push((dt) => { t += dt; b.position.x = x0 + Math.sin(t * 0.2) * 20; b.position.y = 0.2 + Math.sin(t * 2) * 0.05; }); }
+      g.userData._hooked = true;
+      if (g.userData.spin) { const sp = [].concat(g.userData.spin); this.updaters.push((dt) => sp.forEach((o) => { o.rotation.x += dt * 1.5; })); }
+      if (g.userData.update) this.updaters.push(g.userData.update);
     }
+    // scenery: trees, bushes, rocks, houses
+    this.batch = new Batch(s);
+    kit.batch = this.batch;
     this.map.scatter?.(kit, mulberry32(7));
+    this.batch.build();
+    s.traverse((o) => { if (o.userData.spin && o !== s && !o.userData._hooked) { o.userData._hooked = true; const f = o.userData.spin; this.updaters.push((dt) => { f.rotation.z += dt * 2; }); } });
 
-    // the item: model + light pillar so it can be spotted from anywhere
+    // ----- the item: model + light pillar so it can be spotted from anywhere -----
     this.item = new THREE.Group();
     const model = this.map.item.build(kit);
-    model.position.y = 2.2;
+    model.position.y = 2.4;
     this.item.add(model);
     this.itemModel = model;
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 60, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1a0, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 60, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1a0, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     pillar.position.y = 30;
     this.item.add(pillar);
-    const glow = new THREE.PointLight(0xffe08a, 30, 14);
-    glow.position.y = 2.5;
+    const glow = new THREE.PointLight(0xffe08a, 40, 12);
+    glow.position.y = 2.6;
     this.item.add(glow);
     this.item.visible = false;
     s.add(this.item);
@@ -118,7 +210,7 @@ export class BoardView {
   // ---------- players ----------
   placeAll(players) {
     for (const p of players) {
-      if (!this.dolls.has(p.id)) { const d = new Doll(p); this.dolls.set(p.id, d); this.scene.add(d.group); }
+      if (!this.dolls.has(p.id)) { const d = new Doll(p, { scale: 1.3 }); this.dolls.set(p.id, d); this.scene.add(d.group); }
     }
     this.players = players;
     this.layout(true);
@@ -219,7 +311,7 @@ export class BoardView {
     for (const idx of spaces) {
       const m = new THREE.Mesh(new THREE.RingGeometry(SPACE_R * 1.1, SPACE_R * 1.45, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: idx === cursor ? 1 : 0.6, side: THREE.DoubleSide, depthWrite: false }));
       m.rotation.x = -Math.PI / 2;
-      m.position.copy(this.pos(idx)).setY(0.4);
+      m.position.copy(this.pos(idx)).setY(0.47);
       m.userData.pulse = idx === cursor;
       this.scene.add(m);
       this.rings.push(m);

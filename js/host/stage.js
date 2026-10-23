@@ -1,6 +1,10 @@
 // One WebGL renderer for the whole game. The board and each minigame are "views":
 // { scene, camera, update(dt) }, and the stage draws whichever one is showing.
 import * as THREE from 'three';
+import { EffectComposer } from '../../vendor/postprocessing/EffectComposer.js';
+import { RenderPass } from '../../vendor/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../../vendor/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../../vendor/postprocessing/OutputPass.js';
 
 export class Stage {
   constructor(canvas) {
@@ -9,8 +13,19 @@ export class Stage {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.view = null;
+    // bloom makes neon signs, the item's glow and explosions pop; add ?low to the address to turn it off
+    this.fancy = !new URLSearchParams(location.search).has('low');
+    if (this.fancy) {
+      this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 }));
+      this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.5, 0.92);
+      this.composer.addPass(this.renderPass);
+      this.composer.addPass(this.bloom);
+      this.composer.addPass(new OutputPass());
+    }
     this.clock = new THREE.Clock();
     this.resize();
     addEventListener('resize', () => this.resize());
@@ -19,7 +34,8 @@ export class Stage {
       const dt = Math.min(0.05, this.clock.getDelta());
       if (!this.view) return;
       this.view.update?.(dt);
-      this.renderer.render(this.view.scene, this.view.camera);
+      if (this.composer) { this.renderPass.scene = this.view.scene; this.renderPass.camera = this.view.camera; this.composer.render(dt); }
+      else this.renderer.render(this.view.scene, this.view.camera);
     };
     loop();
   }
@@ -27,6 +43,7 @@ export class Stage {
   resize() {
     const w = innerWidth, h = innerHeight;
     this.renderer.setSize(w, h, false);
+    this.composer?.setSize(w, h);
     this.aspect = w / h;
     if (this.view?.camera) { this.view.camera.aspect = this.aspect; this.view.camera.updateProjectionMatrix(); }
   }
