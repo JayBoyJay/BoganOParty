@@ -68,29 +68,34 @@ export default {
     const punters = players.map((p, i) => {
       // spread round the front of the ring so everyone faces the camera
       const a = Math.PI * (0.12 + 0.76 * (n === 1 ? 0.5 : i / (n - 1)));
-      const x = -Math.cos(a) * (RING + 0.5), z = Math.sin(a) * (RING + 0.5) * 0.55 + 0.6;
-      const doll = mg.makeDoll(p, { scale: DOLL });
+      const big = n > 5, rx = big ? RING + 1.6 : RING + 0.5; // a full ring stands wider
+      const x = big ? (-1 + (2 * i) / (n - 1)) * rx * 0.92 : -Math.cos(a) * rx; // a full ring is evenly spaced across the screen
+      const z = (big ? Math.sqrt(1 - (x / rx) ** 2) : Math.sin(a)) * (RING + 0.5) * 0.55 + 0.6;
+      const doll = mg.makeDoll(p, { scale: DOLL, tag: false }); // the name's on the card instead
       doll.group.position.set(x, 0, z); scene.add(doll.group);
       // a card over their head showing chips and bet
-      const c = document.createElement('canvas'); c.width = 320; c.height = 160;
+      const c = document.createElement('canvas'); c.width = 320; c.height = 200;
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-      const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false })); card.scale.set(1.5, 0.75, 1); card.renderOrder = 15;
-      card.position.set(x, 2.95, z); scene.add(card);
+      const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false })); card.scale.set(1.5, 0.94, 1); card.renderOrder = 15;
+      card.position.set(x, 2.75 + (big && i % 2 ? 1.15 : 0), z); scene.add(card); // staggered so a full ring's cards don't overlap
       const stack = new THREE.Group(); stack.position.set(x + 0.55, 0, z + 0.2); scene.add(stack);
       return { p, x, z, doll, c, t, card, stack, chips: START, size: 1, call: null, stake: 0, lastWin: 0, broke: false,
         bot: p.bot ? { style: rng(), when: 0 } : null };
     });
     const chipGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.035, 18);
     const drawCard = (P) => {
-      const g = P.c.getContext('2d'); g.clearRect(0, 0, 320, 160);
-      g.fillStyle = 'rgba(26,18,10,0.85)'; g.beginPath(); g.roundRect(4, 4, 312, 152, 26); g.fill(); g.strokeStyle = P.p.color; g.lineWidth = 6; g.stroke();
+      const g = P.c.getContext('2d'); g.clearRect(0, 0, 320, 200);
+      g.fillStyle = 'rgba(26,18,10,0.85)'; g.beginPath(); g.roundRect(4, 4, 312, 192, 26); g.fill(); g.strokeStyle = P.p.color; g.lineWidth = 6; g.stroke();
       g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = P.p.color; g.font = '900 34px system-ui'; g.fillText(P.p.name, 160, 34, 290);
+      g.translate(0, 40);
       g.fillStyle = '#ffd23f'; g.font = '900 54px system-ui'; g.fillText(`${P.chips}`, 70, 56);
       g.fillStyle = '#d8c8a8'; g.font = '700 22px system-ui'; g.fillText('chips', 70, 98);
       const lab = P.broke ? 'BROKE' : !P.call && P.shout ? 'SHOUT' : P.call ? `${P.call.toUpperCase()}` : '...';
       g.fillStyle = P.call === 'heads' ? '#ffd23f' : P.call === 'tails' ? '#9ad8ff' : P.call === 'odds' ? '#c8a8ff' : '#888';
       g.font = '900 40px system-ui'; g.fillText(lab, 222, 56, 180);
       if (P.call) { g.fillStyle = '#fff'; g.font = '800 30px system-ui'; g.fillText(`x${P.stake}`, 222, 106); }
+      g.setTransform(1, 0, 0, 1, 0, 0);
       P.t.needsUpdate = true;
       // a little stack of chips on the ground beside them
       P.stack.clear();
@@ -113,7 +118,7 @@ export default {
     banner('COME IN SPINNER!', '#ffd23f');
 
     const camera = new THREE.PerspectiveCamera(40, 16 / 9, 0.3, 200);
-    camera.position.set(0, 6.2, 10.6);
+    camera.position.set(0, n > 5 ? 7.2 : 6.2, n > 5 ? 12.6 : 10.6);
     camera.lookAt(0, 1.4, -0.6);
 
     return {

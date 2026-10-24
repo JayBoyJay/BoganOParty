@@ -168,8 +168,8 @@ export default {
     };
 
     const camera = new THREE.PerspectiveCamera(36, 16 / 9, 0.3, 200);
-    camera.position.set(0, 6.4, 9.6);
-    camera.lookAt(0, 0.2, -6.8);
+    camera.position.set(0, 7.8, 12.2); // far enough back that the whole line of throwers is in shot
+    camera.lookAt(0, 0.4, -5.6);
 
     let tAll = 0, finishAt = null;
     const v3 = new THREE.Vector3();

@@ -94,8 +94,9 @@ export default {
 
     // ----- the fishers -----
     const lineMat = new THREE.LineBasicMaterial({ color: 0xf8f8f8, transparent: true, opacity: 0.85 });
+    const SPACE = n > 5 ? 2.75 : 3.4, CARD = n > 5 ? 0.88 : 1; // a full jetty packs in tighter
     const fishers = players.map((p, k) => {
-      const x = (k - (n - 1) / 2) * 3.4;
+      const x = (k - (n - 1) / 2) * SPACE;
       const doll = mg.makeDoll(p, { scale: DOLL, tag: false });
       doll.group.position.set(x, DECK, 0.35); scene.add(doll.group);
       // rod: a pivot at the hands, pointing out over the water
@@ -111,7 +112,7 @@ export default {
       // the card over their head
       const c = document.createElement('canvas'); c.width = 320; c.height = 170;
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-      const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); card.scale.set(2.6, 1.38, 1); card.renderOrder = 900;
+      const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); card.scale.set(2.6 * CARD, 1.38 * CARD, 1); card.renderOrder = 900;
       card.position.set(x, DECK + 3.3, 0.4); scene.add(card);
       return { p, k, x, doll, rod, float, line, lg, c, t, card, kg: 0, best: null, state: 'ready', T: 0, power: 0, pdir: 1, dist: 0, fx: x, fz: 0, fish: null, tension: 0, surge: 0, nextSurge: 0, held: null, heldT: 0, caught: [], biteSpin: 0, clickT: 0, lowAt: null, prevY: null, prevA: null,
         bot: p.bot ? { react: 0.25 + rng() * 0.45, spin: 8 + rng() * 6, care: 0.5 + rng() * 0.45, nextT: 0.5 + rng() * 1.5 } : null };
@@ -163,7 +164,8 @@ export default {
     };
 
     const camera = new THREE.PerspectiveCamera(46, 16 / 9, 0.3, 300);
-    camera.position.set(0, 6.2, 16.5);
+    const camZ = Math.max(16.5, ((n - 1) * SPACE / 2 + 2.2) / 0.755 + 3.2);
+    camera.position.set(0, 6.2 * camZ / 16.5, camZ);
     camera.lookAt(0, 2.0, 3.2);
 
     let tAll = 0, cardT = 0;
