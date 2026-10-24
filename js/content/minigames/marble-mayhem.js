@@ -71,7 +71,7 @@ export default {
         for (const [id, h] of heads) {
           const m = world.marbles.get(id).mesh;
           h.position.copy(m.position);
-          h.rotation.y = Math.atan2(world.camera.position.x - m.position.x, world.camera.position.z - m.position.z);
+          h.quaternion.copy(m.quaternion); // the head tumbles with the marble it's sealed in
           h.visible = m.material.opacity > 0.1;
         }
         world.animate(t0, started, t, started ? sim.t : t0);
