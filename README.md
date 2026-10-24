@@ -50,7 +50,7 @@ Phones: games played with the stick or tilt suggest turning the phone sideways (
 | Minigame | Controls |
 |---|---|
 | ✈️ Plane Instructor | Hold the phone like a steering wheel and tilt to bank your arms like the instructor. Score while you're in line. Past halfway, your doll takes off. One minute. (Slider fallback if a phone has no tilt.) |
-| ⛩️ Chad's Japanese Adventure | Running through the torii tunnels in Kyoto. JUMP the cats, DUCK under the low gates. Every one cleared scores; hit one and you go flying. 55 seconds. |
+| ⛩️ Chad's Japanese Adventure | Running through the torii tunnels in Kyoto. JUMP the cats, DUCK under the low gates. Every one cleared scores; hit one and you go flying and drop back. A fog bank follows the pack and creeps closer: fall into it and you're out. Survivors +5. 55 seconds. |
 | 🍪 The Great Biscuit Heist | Myles is asleep on the couch with the Scotch Fingers in front of him. Slide up to sneak (higher is faster), grab one and sneak it back to the front door for a point, then go again. When he snorts and stirs, drop the slider and freeze: if he rolls over and sees you move, OI! Back to the door, biscuit lost. |
 | 🍔 Burger Boys | Order tickets on the rail. Tap the ingredients in order, bottom bun up. One wrong tap and the burger hits the floor. Bigger burgers score more. |
 | 🔮 Marble Mayhem | The MarbleDrinks race on a fresh short track. You're a glass marble with your doll's head inside. BOOST three times; roll through a vape for a power, then USE POWER. |

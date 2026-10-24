@@ -1,7 +1,8 @@
 // Chad's Japanese Adventure: everyone runs down a shrine path in Kyoto, straight at the camera.
 // Cats sit in the way (jump them) and low torii gates span each lane (duck under them).
 // Everyone gets the same obstacles, so it's fair. Each one cleared scores a point; hit one and your
-// doll goes flying, misses a beat and has to catch back up.
+// doll goes flying and loses ground. A bank of fog follows the pack and creeps closer as the run goes
+// on: fall far enough behind to be swallowed by it and you're out.
 import { addSky } from '../../host/sky.js';
 import { cherryTreeParts } from '../../host/props.js';
 import { mergeGeometries } from '../../../vendor/BufferGeometryUtils.js';
@@ -10,7 +11,9 @@ const LANE = 2.6; // metres per lane
 const DOLL = 0.8; // doll scale
 const JUMP_T = 0.6, JUMP_H = 1.75, DUCK_T = 0.75, STUN_T = 1.1;
 const CAT_CLEAR = 0.95; // how high the doll's feet must be over a cat
-const SPAN = 160; // scenery loops over this many metres
+const SPAN = 90; // scenery loops over this many metres (the fog hides anything further back)
+const FOG_GAP = [18, 12]; // how far behind the leader the fog sits, at the start and at the end
+const STUN_SLOW = 0.3; // a tumble drops you to this fraction of the pace for STUN_T
 const OFF = 6; // the pack runs this far back from the camera's focus, so obstacles show up in the foreground early
 
 // One torii, merged into three geometries (red, black, the ink on the pillars), with its span along z.
@@ -62,7 +65,7 @@ export default {
   id: 'chads-japanese-adventure',
   name: "Chad's Japanese Adventure",
   blurb: 'Chad is running late through Kyoto. Jump the cats, duck under the torii gates.',
-  howTo: 'Tap JUMP to hop over the cats and DUCK to squash under the low torii gates. Every one you clear scores. Hit one and you go flying.',
+  howTo: 'Tap JUMP to hop over the cats and DUCK to squash under the low torii gates. Every one you clear scores. Hit one and you go flying and drop back. There\'s a fog rolling along behind the pack, and it creeps closer as you go: fall back into it and you\'re out. Still running at the end? +5.',
   padText: 'Jump the cats, duck the gates!',
   duration: 55,
   pad: { kind: 'buttons', buttons: [{ id: 'jump', label: '⬆️ JUMP', tone: 'go', wide: true }, { id: 'duck', label: '⬇️ DUCK', wide: true }] },
@@ -74,7 +77,7 @@ export default {
     const FRONT = 14 + W * 0.45 + 10; // scenery re-enters just past the camera
 
     // ----- sky: late afternoon, sun low behind the camera -----
-    const { sun } = addSky(scene, renderer, { elevation: 22, azimuth: 62, turbidity: 6, rayleigh: 2.4, mie: 0.006, sun: 0xffd2a0, sunIntensity: 3.2, sky: 0xffe2c8, ground: 0x6a5a48, hemi: 0.55, env: 0.55, shadowSize: 34, fog: [0xf0d2bc, 45, 170] });
+    const { sun } = addSky(scene, renderer, { elevation: 22, azimuth: 62, turbidity: 6, rayleigh: 2.4, mie: 0.006, sun: 0xffd2a0, sunIntensity: 3.2, sky: 0xffe2c8, ground: 0x6a5a48, hemi: 0.55, env: 0.55, shadowSize: 34, fog: [0xf2e6dc, 30, 95] });
     sun.target.position.set(-4, 0, 0);
 
     // ----- ground: flagstone path over raked gravel, both scroll as we run -----
@@ -129,7 +132,7 @@ export default {
     {
       const T = torii(THREE, { span: 3.0, h: 3.7, r: 0.2 });
       const items = [];
-      for (const side of [-1, 1]) for (const g of spread(1.05)) items.push({ g, z: side * (W / 2 + 3.6) });
+      for (const side of [-1, 1]) for (const g of spread(1.2)) items.push({ g, z: side * (W / 2 + 3.6) });
       const meshes = instanced([{ geo: T.red, material: vermilion }, { geo: T.dark, material: black }, { geo: T.ink, material: ink, shadow: false }], items);
       // weathering: no two gates quite the same red
       const c = new THREE.Color();
@@ -222,7 +225,7 @@ export default {
 
     // falling petals
     const petals = (() => {
-      const N = 500, pos = new Float32Array(N * 3), vel = [];
+      const N = 260, pos = new Float32Array(N * 3), vel = [];
       for (let i = 0; i < N; i++) { pos.set([-40 + rng() * (FRONT + 40), rng() * 9, (rng() - 0.5) * (W + 16)], i * 3); vel.push([rng() * 0.6 - 0.3, -0.35 - rng() * 0.4, rng() * 0.6 - 0.3, rng() * 6]); }
       const c = document.createElement('canvas'); c.width = c.height = 32;
       const g = c.getContext('2d'); g.fillStyle = '#ffd1e0'; g.beginPath(); g.ellipse(16, 16, 13, 8, 0.5, 0, 7); g.fill();
@@ -302,7 +305,7 @@ export default {
       const holder = new THREE.Group(); holder.rotation.y = Math.PI / 2; scene.add(holder); // dolls face the camera
       const doll = mg.makeDoll(p, { scale: DOLL });
       holder.add(doll.group);
-      return { p, doll, holder, z: laneZ(i), d: 0, jt: 0, duck: 0, stun: 0, phase: rng() * 6, idx: 0, score: 0, hits: 0, squash: 1, bot: p.bot ? { skill: 0.8 + rng() * 0.14, plan: new Map() } : null };
+      return { p, doll, holder, z: laneZ(i), d: 0, jt: 0, duck: 0, stun: 0, phase: rng() * 6, idx: 0, score: 0, hits: 0, squash: 1, out: false, gone: 0, bot: p.bot ? { skill: 0.8 + rng() * 0.14, plan: new Map() } : null };
     });
     const pops = []; // floating "MEOW!" / "BONK!" words
     const pop = (r, text, color) => {
@@ -319,6 +322,19 @@ export default {
       if (what === 'duck' && r.jt === 0) { r.duck = DUCK_T; if (!r.p.bot) mg.sfx.play('squeak'); }
     };
 
+    // the fog bank: layers of soft billowing sprites right across the path, sitting behind the pack
+    const fogTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      for (let i = 0; i < 9; i++) { const x = 20 + rng() * 88, y = 30 + rng() * 68, r = 24 + rng() * 26, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    const fogBank = [];
+    for (let i = 0; i < 26; i++) {
+      const m = new THREE.SpriteMaterial({ map: fogTex, transparent: true, depthWrite: false, fog: false, color: 0xf6eee8, opacity: 0.9 });
+      const sp = new THREE.Sprite(m); const sz = 7 + rng() * 6; sp.scale.set(sz, sz * 0.75, 1); sp.renderOrder = 5; scene.add(sp);
+      fogBank.push({ sp, z: (rng() - 0.5) * (W + 14), y: 0.8 + rng() * 3.5, dx: -rng() * 6, ph: rng() * 9 });
+    }
+    const fogGap = (t) => FOG_GAP[0] + (FOG_GAP[1] - FOG_GAP[0]) * Math.min(1, t / mg.duration);
     let R = 0, speed = 0;
     return {
       camera,
@@ -330,7 +346,8 @@ export default {
         let lead = R;
         for (const r of runners) {
           // stragglers run a little faster to get back in the pack
-          const v = r.stun > 0 ? 0 : speed * (1 + Math.min(0.4, Math.max(0, R - r.d) * 0.05));
+          if (r.out) { r.gone += dt; continue; }
+          const v = speed * (r.stun > 0 ? STUN_SLOW : 1 + Math.min(0.3, Math.max(0, R - r.d) * 0.03));
           r.d += v * dt;
           lead = Math.max(lead, r.d);
           if (r.bot && running) {
@@ -364,6 +381,12 @@ export default {
           }
         }
         R = lead;
+        // swallowed by the fog?
+        if (running) for (const r of runners) if (!r.out && R - r.d > fogGap(t)) {
+          r.out = true; r.stun = 0; pop(r, 'LOST IN THE FOG', '#c8c8d8'); mg.sfx.play('deflate');
+        }
+        { const fx = -fogGap(t) - OFF - 1.5;
+          for (const f of fogBank) { f.sp.position.set(fx + f.dx + Math.sin(t * 0.4 + f.ph) * 0.8, f.y + Math.sin(t * 0.6 + f.ph) * 0.2, f.z + Math.cos(t * 0.3 + f.ph) * 0.6); } }
 
         // place the runners
         for (const r of runners) {
@@ -372,7 +395,8 @@ export default {
           let y = r.jt > 0 ? JUMP_H * 4 * p * (1 - p) : speed > 0.5 && r.duck <= 0 && r.stun <= 0 ? Math.abs(Math.sin(r.phase)) * 0.22 : 0;
           const tumble = r.stun > 0 ? Math.sin((1 - r.stun / STUN_T) * Math.PI) : 0;
           y += tumble * 0.9;
-          r.holder.position.set(Math.max(-30, r.d - R) - OFF, y, r.z);
+          r.holder.position.set(Math.max(-40, r.d - R) - OFF - (r.out ? r.gone * 6 : 0), y, r.z);
+          r.holder.visible = !r.out || r.gone < 1.5;
           r.doll.group.rotation.x = r.stun > 0 ? -tumble * 1.3 : Math.min(0.25, speed * 0.02); // lean into the run, or flail backwards
           r.squash += ((r.duck > 0 ? 0.45 : 1) - r.squash) * Math.min(1, dt * 18);
           r.doll.body.scale.set(1 / Math.sqrt(r.squash), r.squash, 1 / Math.sqrt(r.squash));
@@ -380,7 +404,7 @@ export default {
         }
 
         // obstacles: one copy per lane, made when they come into view, dropped once everyone's past
-        const tail = Math.min(...runners.map((r) => r.d));
+        const tail = Math.min(...runners.filter((r) => !r.out).map((r) => r.d).concat([R]));
         for (let i = obstacles.length - 1; i >= 0; i--) {
           const o = obstacles[i];
           if (!o.meshes) o.meshes = runners.map((r) => { const m = o.type === 'cat' ? makeCat(o.cat) : makeGate(); m.position.z = r.z; scene.add(m); return m; });
@@ -410,7 +434,8 @@ export default {
         camera.lookAt(-9, 0.6, 0);
       },
       input(p, m) { const r = runners.find((x) => x.p === p); if (r && (m.b === 'jump' || m.b === 'duck')) act(r, m.b); },
-      scores() { return Object.fromEntries(runners.map((r) => [r.p.id, r.score])); },
+      scores() { return Object.fromEntries(runners.map((r) => [r.p.id, r.score + (r.out ? 0 : 5)])); },
+      done: () => runners.every((r) => r.out),
     };
   },
 };

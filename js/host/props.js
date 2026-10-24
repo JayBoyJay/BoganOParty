@@ -270,8 +270,8 @@ export function cherryTreeParts(seed = 1) {
     for (let j = 0; j < 4; j++) {
       const cx = tip[0] * (0.6 + rng() * 0.5) + (rng() - 0.5), cy = tip[1] + (rng() - 0.2) * 1.4, cz = tip[2] * (0.6 + rng() * 0.5) + (rng() - 0.5), size = 2.2 + rng() * 1.4;
       // solid, lumpy clouds of blossom (flat cards read as cardboard from the low cameras)
-      for (let q = 0; q < 3; q++) {
-        const r = size * (0.26 + rng() * 0.12), puff = new THREE.IcosahedronGeometry(r, 2), P = puff.attributes.position, ph = rng() * 9;
+      for (let q = 0; q < 2; q++) {
+        const r = size * (0.3 + rng() * 0.12), puff = new THREE.IcosahedronGeometry(r, 1), P = puff.attributes.position, ph = rng() * 9;
         for (let k = 0; k < P.count; k++) { const x = P.getX(k), y = P.getY(k), z = P.getZ(k), f = 1 + 0.16 * Math.sin(x * 5 / r + ph) * Math.sin(y * 4 / r + z * 3 / r); P.setXYZ(k, x * f, y * f * 0.72, z * f); }
         puff.computeVertexNormals();
         puff.translate(cx + (rng() - 0.5) * size * 0.45, cy + (rng() - 0.5) * size * 0.2, cz + (rng() - 0.5) * size * 0.45); bloom.push(puff);
