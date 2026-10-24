@@ -21,7 +21,8 @@ export class Stage {
     if (this.fancy) {
       this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 }));
       this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.35, 0.5, 0.92);
+      // only things brighter than white bloom (neon, lamps, the item's glow), so sunlit walls stay crisp
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.4, 2.2);
       this.composer.addPass(this.renderPass);
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());

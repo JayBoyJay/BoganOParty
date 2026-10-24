@@ -1,6 +1,6 @@
 // Adelaide, SA: the City of Churches (and the Crazy Horse). Adelaide Oval, the Malls Balls on
 // Rundle Mall, the Torrens with Popeye boats, the CBD skyline, and a tram detour down to Glenelg.
-import { cottage, pub, tower, car, gumTreeParts, rockParts } from '../../host/props.js';
+import { cottage, pub, shopfront, tower, car, gumTreeParts, rockParts } from '../../host/props.js';
 import { surf } from '../../host/kit.js';
 
 // Norfolk Island pine, as planted along the Glenelg foreshore
@@ -81,32 +81,58 @@ export default {
       g.add(field);
       k.box(0.8, 0.02, 3.2, 0xc9b48a, 0, 0.03, 0, g, { roughness: 1 });
       const rope = k.torus(1, 0.02, 0xffffff, 0, 0.08, 0, g); rope.rotation.x = Math.PI / 2; rope.scale.set(9.8, 7.9, 1);
-      // stands: three tiers of seats in a ring, a back wall and white sail roofs
-      const seats = k.surf('seats', { arg: 0x1d3d7a, unit: 2 }), wall = k.surf('concrete', { unit: 3, tint: 0x9a9c9e });
-      const roof = new THREE.MeshPhysicalMaterial({ color: 0xe4e6e8, roughness: 0.45, side: THREE.DoubleSide });
-      const N = 28;
-      for (let i = 0; i < N; i++) {
-        const a = i / N * Math.PI * 2;
-        if (i === 7) continue; // gap for the heritage scoreboard
-        const seg = k.group(Math.cos(a) * 12.4, 0, Math.sin(a) * 10.4, -a + Math.PI / 2, 1, g);
-        const big = i % 7 > 2 && i % 7 < 6;
-        for (let t = 0; t < (big ? 4 : 3); t++) { const st = k.box(2.9 + t * 0.3, 1.1, 1.3, seats, 0, t * 1.1, t * 1.15, seg); st.rotation.x = 0; }
-        k.box(3.9, (big ? 4 : 3) * 1.1 + 0.6, 0.4, wall, 0, 0, (big ? 4 : 3) * 1.15 + 0.4, seg);
-        const sail = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 3.9, 12, 1, true, Math.PI / 2 - 0.55, 1.1), roof);
-        sail.rotation.z = Math.PI / 2; sail.position.set(0, (big ? 4 : 3) * 1.1 + 2.2 - 3.4, 2.0); sail.scale.set(1, 0.6, 1.25); sail.castShadow = true;
-        seg.add(sail);
+      // the bowl: one continuous ring of stands, open at the northern end where the grassy Hill and the
+      // 1911 scoreboard are (that end faces the camera, so you can see into the ground)
+      const OPEN = 0.62, phi0 = OPEN, phiLen = Math.PI * 2 - OPEN * 2;
+      const bowl = k.group(0, 0, 0, 0, 1, g); bowl.scale.set(1.19, 1, 1);
+      // a lathe with UVs in metres (round the ring x along the profile), so textures keep their scale
+      const ring = (profile, material, seg = 96) => {
+        const geo = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), seg, phi0, phiLen);
+        const uv = geo.attributes.uv, P = geo.attributes.position;
+        let len = 0; for (let i = 1; i < profile.length; i++) len += Math.hypot(profile[i][0] - profile[i - 1][0], profile[i][1] - profile[i - 1][1]);
+        const rMid = profile.reduce((s, [r]) => s + r, 0) / profile.length;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * rMid * phiLen, uv.getY(i) * len + P.getY(i) * 0);
+        const m = new THREE.Mesh(geo, material); m.castShadow = true; m.receiveShadow = true; bowl.add(m); return m;
+      };
+      const seats = k.surf('seats', { arg: 0x1d3d7a, unit: 2, side: THREE.DoubleSide });
+      const concrete = k.surf('concrete', { unit: 3, tint: 0xb4b6b8, side: THREE.DoubleSide });
+      const glassWall = k.surf('windows', { arg: 0x7d8fa0, unit: 8, metalness: 0.5, side: THREE.DoubleSide });
+      ring([[10.3, 0.7], [10.0, 0.7], [10.0, 0], [10.3, 0]], concrete); // fence and the front of the lower tier
+      ring([[14.6, 5.4], [12.6, 3.0], [12.2, 2.9], [10.3, 0.7]], seats); // lower and upper rakes with a walkway between
+      ring([[15.4, 5.4], [14.6, 5.4]], concrete); // concourse
+      ring([[15.4, 0], [15.4, 8.0]], glassWall); // glass back wall
+      // the roof: a white cantilevered ring with a deep fascia, on raking struts
+      const roofM = new THREE.MeshPhysicalMaterial({ color: 0xeef0f0, roughness: 0.5, side: THREE.DoubleSide, clearcoat: 0.3 });
+      ring([[12.4, 8.5], [16.0, 7.9]], roofM);
+      ring([[12.4, 8.2], [12.4, 8.55]], k.mat(0xd8dadc, { side: THREE.DoubleSide }));
+      const steel = k.mat(0xdedede, { metalness: 0.7, roughness: 0.35 });
+      for (let i = 0; i <= 18; i++) {
+        const a = phi0 + phiLen * i / 18, s = Math.sin(a) * 1.19, c = Math.cos(a);
+        k.rod([s * 15.4, 8.0, c * 15.4], [s * 13.2, 8.4, c * 13.2], 0.07, steel, g);
+        k.rod([s * 15.4, 5.4, c * 15.4], [s * 15.4, 8.0, c * 15.4], 0.12, steel, g);
       }
-      // the 1911 scoreboard, green with a white clock tower
-      const sb = k.group(Math.cos(7 / N * Math.PI * 2) * 13, 0, Math.sin(7 / N * Math.PI * 2) * 11, -(7 / N * Math.PI * 2) + Math.PI / 2, 1, g);
-      k.box(6, 6, 1.6, 0x1f4d34, 0, 0, 0, sb);
-      k.box(1.6, 2.4, 1.6, 0xf4f1e8, 0, 6, 0, sb);
-      k.cone(1.2, 1.4, 0x1f4d34, 0, 8.4, 0, sb, {}, 4);
-      k.sign('ADELAIDE OVAL', 5, 0.9, 0, 5.2, -0.82, sb, { bg: '#1f4d34', fg: '#ffffff' }).rotation.y = Math.PI;
-      // light towers
-      for (const a of [0.6, 2.5, 3.8, 5.6]) {
-        const lx = Math.cos(a) * 15.5, lz = Math.sin(a) * 13;
-        k.cyl(0.25, 0.4, 20, k.surf('steel', { unit: 1, metalness: 0.7 }), lx, 0, lz, g, {}, 10);
-        const bank = k.box(2.6, 1.6, 0.4, 0xfffff0, lx, 19.5, lz, g, { emissive: 0xffffff, emissiveIntensity: 1.2 });
+      // the Hill: a grassy bank at the open end
+      const hillGeo = new THREE.LatheGeometry([[17.0, 0], [15.4, 1.5], [13.5, 1.4], [10.6, 0.15], [10.4, 0]].map(([r, y]) => new THREE.Vector2(r, y)), 24, -OPEN, OPEN * 2);
+      const huv = hillGeo.attributes.uv, hp = hillGeo.attributes.position;
+      for (let i = 0; i < huv.count; i++) huv.setXY(i, hp.getX(i), hp.getZ(i));
+      const hill = new THREE.Mesh(hillGeo, k.surf('grass', { unit: 3, side: THREE.DoubleSide }));
+      hill.scale.x = 1.19; hill.receiveShadow = true;
+      g.add(hill);
+      // the 1911 scoreboard on the Hill: green timber with a white clock tower and a little spire
+      const sb = k.group(0, 1.6, 13.4, Math.PI, 1, g);
+      k.box(7, 4.6, 1.4, k.surf('weatherboard', { arg: 0x2a5a3e, unit: 2 }), 0, 0, 0, sb);
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) k.box(0.7, 0.5, 0.04, 0x10241a, -2.6 + c * 1.04, 0.8 + r * 1.2, -0.72, sb);
+      k.box(7.3, 0.25, 1.6, 0xf4f1e8, 0, 4.6, 0, sb);
+      k.box(1.6, 2.2, 1.6, 0xf4f1e8, 0, 4.85, 0, sb);
+      const clock = k.cyl(0.55, 0.55, 0.08, 0x111111, 0, 6.0, -0.82, sb, {}, 24); clock.rotation.x = Math.PI / 2;
+      k.cone(1.15, 1.8, 0x2a5a3e, 0, 7.05, 0, sb, {}, 4);
+      k.sign('ADELAIDE OVAL', 5, 0.7, 0, 4.0, -0.74, sb, { bg: '#2a5a3e', fg: '#ffffff' }).rotation.y = Math.PI;
+      // light towers round the outside, leaning in over the roof
+      for (const a of [0.95, 2.3, 3.98, 5.33]) {
+        const lx = Math.sin(a) * 17.8 * 1.15, lz = Math.cos(a) * 17.8;
+        const tx = Math.sin(a) * 15.6 * 1.15, tz = Math.cos(a) * 15.6;
+        k.rod([lx, 0, lz], [tx, 21, tz], 0.2, k.surf('steel', { unit: 1, metalness: 0.7 }), g);
+        const bank = k.box(3, 1.7, 0.35, 0xfffff0, tx, 20.6, tz, g, { emissive: 0xfff6e0, emissiveIntensity: 0.55 });
         bank.lookAt(g.position.x, 0, g.position.z);
       }
       k.label('Adelaide Oval', 0, 22, 0, g);
@@ -126,7 +152,36 @@ export default {
         k.cyl(0.13, 0.15, 0.15, bronze, 1.05, 0.48, 0, p).rotation.z = Math.PI / 2;
         for (const [lx, lz] of [[-0.4, -0.25], [-0.4, 0.25], [0.4, -0.25], [0.4, 0.25]]) k.cyl(0.08, 0.07, 0.35, bronze, lx, 0, lz, p);
       });
-      k.label('Rundle Mall', 0, 10, 0, g);
+      k.label("Mall's Balls", 0, 10, 0, g);
+    } },
+    { name: 'Rundle Mall shops', x: -11, z: -22, flat: 11, build(k, g) {
+      // shopfronts along the top of the Rundle Mall short cut, with Beehive Corner and its golden bee on the end
+      shopfront(k, -7, 0, 0, { name: "HAIGH'S", color: 0xe9dcc4, trim: 0x4a2a1a, w: 8.5, signBg: '#4a2a1a', signFg: '#f2d9a0', window: 0xffd9a8 }, g);
+      shopfront(k, 1.6, 0, 0, { name: 'RUNDLE ARCADE', color: 0xd8c3a0, trim: 0x23426b, w: 8.5, h: 5.6, signBg: '#23426b', signFg: '#fff1c8' }, g);
+      // Beehive Corner: two storeys, a corner turret and the gilded bee
+      const bh = k.group(10.2, 0, 0, 0, 1, g);
+      const render = k.surf('render', { arg: 0xe6cfa6, unit: 3 });
+      k.box(8.5, 8, 9, render, 0, 0, 0, bh);
+      k.box(8.9, 0.4, 9.4, 0xf4ead4, 0, 8, 0, bh);
+      for (let i = 0; i < 3; i++) k.window(1.1, 1.9, -2.6 + i * 2.6, 6.8, 4.53, bh, 0xf4ead4);
+      const lit = new k.THREE.MeshStandardMaterial({ color: 0xffe6b0, emissive: 0xffe6b0, emissiveIntensity: 0.35, roughness: 0.15 });
+      const pane = new k.THREE.Mesh(new k.THREE.PlaneGeometry(7, 2.4), lit); pane.position.set(0, 1.9, 4.53); bh.add(pane);
+      k.cyl(1.5, 1.5, 9.2, render, 3.6, 0, 3.8, bh, {}, 20);
+      k.cone(1.8, 3, k.mat(0x6d7f7a, { metalness: 0.6, roughness: 0.35 }), 3.6, 9.2, 3.8, bh, {}, 20);
+      const gold = k.mat(0xe7b53a, { metalness: 1, roughness: 0.22 });
+      const bee = k.group(3.6, 13, 3.8, 0, 1, bh);
+      const abd = k.ball(0.45, gold, 0, 0, 0, bee); abd.scale.set(1.5, 0.9, 0.9);
+      k.ball(0.28, gold, 0.65, 0.05, 0, bee);
+      for (const sz of [-1, 1]) { const w = k.ball(0.4, k.mat(0xfff6d8, { metalness: 0.6, roughness: 0.2, transparent: true, opacity: 0.85 }), -0.1, 0.45, sz * 0.35, bee); w.scale.set(1.2, 0.25, 0.8); w.rotation.x = sz * 0.5; }
+      k.sign('BEEHIVE CORNER', 6, 0.8, -0.6, 4.6, 4.55, bh, { bg: '#2c3a33', fg: '#e7b53a', font: '900 110px Georgia, serif' });
+      // mall street furniture: banner poles and planters on the paving
+      for (const x of [-11, -2.6, 6]) {
+        k.cyl(0.07, 0.07, 6, k.mat(0x333333, { metalness: 0.7 }), x, 0, 9.2, g, {}, 8);
+        k.plane(0.9, 2.2, k.mat(0xd8343c, { side: k.THREE.DoubleSide }), x + 0.5, 3.6, 9.2, g);
+        k.cyl(0.7, 0.6, 0.7, k.surf('concrete', { unit: 1 }), x + 2.2, 0, 8.6, g, {}, 16);
+        k.ball(0.75, k.mat(0x3f6b34, { roughness: 0.9 }), x + 2.2, 1.1, 8.6, g).scale.y = 0.7;
+      }
+      k.label('Rundle Mall', 0, 13, 0, g);
     } },
     { name: 'Crazy Horse', x: -56, z: 14, rot: 1.3, flat: 14, build(k, g) {
       const THREE = k.THREE;
@@ -135,7 +190,7 @@ export default {
       k.sign('CRAZY HORSE', 12, 2.4, 0, 6.8, 5.05, g, { bg: null, fg: '#ff4fb0', glow: '#ff4fb0', font: '900 210px Georgia, serif' });
       k.sign('★ GENTLEMEN\'S CLUB ★', 8, 0.8, 0, 5.1, 5.05, g, { bg: null, fg: '#7fe8ff', glow: '#7fe8ff' });
       // neon outline round the facade
-      const neon = k.mat(0xff4fb0, { emissive: 0xff4fb0, emissiveIntensity: 3 });
+      const neon = k.mat(0xff4fb0, { emissive: 0xff4fb0, emissiveIntensity: 6 });
       k.box(13.6, 0.08, 0.08, neon, 0, 8.6, 5.06, g); k.box(0.08, 8.4, 0.08, neon, -6.8, 0.2, 5.06, g); k.box(0.08, 8.4, 0.08, neon, 6.8, 0.2, 5.06, g);
       // entrance, awning, rope and bollards
       k.box(3, 3.2, 0.15, 0x0b0b0b, 0, 0, 5.02, g);
@@ -191,7 +246,7 @@ export default {
       let t = 0;
       g.userData.update = (dt) => { t += dt; boat.position.x = Math.sin(t * 0.08) * 30; boat.rotation.y = Math.cos(t * 0.08) > 0 ? 0 : Math.PI; boat.position.y = 0.1 + Math.sin(t * 2) * 0.04; water.material.normalMap.offset.x += dt * 0.02; };
     } },
-    { name: 'Big Rocking Horse', x: 58, z: 30, rot: -0.8, flat: 10, build(k, g) {
+    { name: 'Big Rocking Horse', x: 53, z: 27, rot: -0.8, flat: 10, build(k, g) {
       const wood = k.surf('planks', { unit: 1.5, tint: 0xc08a5a });
       const horse = k.extrude(HORSE, 2.4, wood, g, {}, 0.2);
       horse.position.y = 2.4;

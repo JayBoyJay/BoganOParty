@@ -12,16 +12,37 @@ import { Tweens, easeInOut, easeOut } from './stage.js';
 
 const SPACE_R = 1.25;
 const iconTex = {};
+// The symbol painted on each space, drawn as vector shapes (not emoji, which look different on every
+// TV) at 512 px so it stays sharp when the camera is right down at the board.
 function spaceIcon(type) {
   if (iconTex[type]) return iconTex[type];
-  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
   const g = c.getContext('2d');
-  g.translate(128, 128);
-  g.fillStyle = 'rgba(255,255,255,0.92)'; g.strokeStyle = 'rgba(255,255,255,0.92)'; g.lineCap = 'round';
-  g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 8;
-  if (type === 'blue' || type === 'red') { g.lineWidth = 26; g.beginPath(); g.moveTo(-50, 0); g.lineTo(50, 0); if (type === 'blue') { g.moveTo(0, -50); g.lineTo(0, 50); } g.stroke(); }
-  else { g.font = type === 'start' ? '900 86px system-ui' : '900 130px system-ui, "Apple Color Emoji", "Segoe UI Emoji"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText({ shop: '🛒', event: '?', start: 'GO' }[type] || '', 0, 6); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  g.translate(S / 2, S / 2);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const ink = type === 'start' ? '#b3261e' : 'rgba(255,255,255,0.97)', edge = type === 'start' ? 'rgba(120,20,10,0.25)' : 'rgba(0,0,0,0.3)';
+  // draw once dark and offset (an engraved edge), then white on top
+  const twice = (draw) => { g.save(); g.translate(0, 10); g.fillStyle = g.strokeStyle = edge; draw(); g.restore(); g.fillStyle = g.strokeStyle = ink; draw(); };
+  if (type === 'blue' || type === 'red') {
+    g.lineWidth = 64;
+    twice(() => { g.beginPath(); g.moveTo(-124, 0); g.lineTo(124, 0); if (type === 'blue') { g.moveTo(0, -124); g.lineTo(0, 124); } g.stroke(); });
+  } else if (type === 'event') {
+    g.font = '900 380px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    twice(() => g.fillText('?', 0, 14));
+  } else if (type === 'start') {
+    g.font = 'italic 900 210px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    twice(() => g.fillText('GO', 0, 8));
+  } else if (type === 'shop') {
+    // a shopping trolley
+    g.scale(1.2, 1.2);
+    g.lineWidth = 30;
+    twice(() => {
+      g.beginPath(); g.moveTo(-150, -110); g.lineTo(-100, -110); g.lineTo(-62, 60); g.lineTo(118, 60); g.stroke();
+      g.beginPath(); g.moveTo(-92, -64); g.lineTo(148, -64); g.lineTo(122, 18); g.lineTo(-72, 18); g.closePath(); g.fill();
+      g.beginPath(); g.arc(-40, 112, 30, 0, Math.PI * 2); g.arc(96, 112, 30, 0, Math.PI * 2); g.fill();
+    });
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 16;
   return (iconTex[type] = t);
 }
 
@@ -61,6 +82,24 @@ export class BoardView {
     this.camGoal = { pos: this.camPos.clone(), look: this.camLook.clone() };
     this.camera.position.copy(this.camPos);
     this.build();
+    // the board's footprint, so the overview and the lobby fly-over can frame it
+    const xs = board.nodes.map((n) => n.x), zs = board.nodes.map((n) => n.z);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cz = (Math.min(...zs) + Math.max(...zs)) / 2;
+    this.bounds = { cx, cz, r: Math.max(...board.nodes.map((n) => Math.hypot(n.x - cx, n.z - cz))) + 4 };
+    this.overview(); this.camPos.copy(this.camGoal.pos); this.camLook.copy(this.camGoal.look); this.camera.position.copy(this.camPos);
+  }
+
+  // how far back the camera must sit to fit a circle of radius r on screen (narrow screens need more)
+  fitDistance(r) {
+    const half = THREE.MathUtils.degToRad(this.camera.fov / 2);
+    const halfH = Math.atan(Math.tan(half) * Math.max(0.3, this.camera.aspect || 16 / 9));
+    return r / Math.sin(Math.min(half * 1.15, halfH));
+  }
+  // a slow circle round the board for the lobby, framed to fit
+  orbit(t) {
+    const { cx, cz, r } = this.bounds, d = this.fitDistance(r) * 0.92;
+    this.camGoal.pos.set(cx + Math.sin(t) * d * 0.72, d * 0.68, cz + Math.cos(t) * d * 0.72);
+    this.camGoal.look.set(cx, 0, cz);
   }
 
   pos(idx) { const n = this.board.nodes[idx]; return new THREE.Vector3(n.x, 0.42, n.z); }
@@ -146,22 +185,25 @@ export class BoardView {
       s.add(strip);
     }
 
-    // ----- spaces: a stone plinth with a glossy enamel top -----
-    const plinthGeo = new THREE.LatheGeometry([[0, 0], [1.6, 0], [1.62, 0.12], [1.52, 0.3], [1.42, 0.34], [0, 0.34]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
+    // ----- spaces: a stone plinth with a glossy enamel disc set into the top -----
+    // (lathe profiles run bottom to top so the faces point outwards)
+    const plinthGeo = new THREE.LatheGeometry([[0, 0], [1.6, 0], [1.62, 0.12], [1.52, 0.3], [1.42, 0.34], [0, 0.34]].map(([r, y]) => new THREE.Vector2(r, y)), 48);
     const plinthM = surf(look.plinthTex || 'concrete', { unit: 1.2 });
-    const topGeo = new THREE.LatheGeometry([[0, 0.4], [0.9, 0.39], [1.25, 0.36], [1.3, 0.3], [1.3, 0.26]].map(([r, y]) => new THREE.Vector2(r, y)), 40);
-    const ringGeo = new THREE.TorusGeometry(1.33, 0.06, 8, 48);
-    const brass = mat(0xd4a64a, { metalness: 1, roughness: 0.3 });
+    const topGeo = new THREE.LatheGeometry([[1.34, 0.3], [1.34, 0.36], [1.28, 0.4], [1.0, 0.415], [0, 0.42]].map(([r, y]) => new THREE.Vector2(r, y)), 48);
+    const ringGeo = new THREE.TorusGeometry(1.36, 0.055, 10, 64);
+    const brass = mat(0xd9b25a, { metalness: 1, roughness: 0.28 });
+    const topMats = {};
     for (const n of this.board.nodes) {
       const col = SPACE[n.type]?.color ?? 0xffffff;
       const g = new THREE.Group();
       g.position.set(n.x, 0, n.z);
       const plinth = new THREE.Mesh(plinthGeo, plinthM); plinth.castShadow = true; plinth.receiveShadow = true; g.add(plinth);
-      const top = new THREE.Mesh(topGeo, new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1, emissive: col, emissiveIntensity: 0.12 }));
+      topMats[n.type] ??= new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.4, clearcoat: 0.4, clearcoatRoughness: 0.25, envMapIntensity: 0.45, emissive: col, emissiveIntensity: n.type === 'start' ? 0.02 : 0.18 });
+      const top = new THREE.Mesh(topGeo, topMats[n.type]);
       top.receiveShadow = true; g.add(top);
-      const ring = new THREE.Mesh(ringGeo, brass); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.3; g.add(ring);
-      const icon = new THREE.Mesh(new THREE.CircleGeometry(0.85, 32), new THREE.MeshStandardMaterial({ map: spaceIcon(n.type), transparent: true, depthWrite: false, roughness: 0.4 }));
-      icon.rotation.x = -Math.PI / 2; icon.position.y = 0.405;
+      const ring = new THREE.Mesh(ringGeo, brass); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.34; ring.castShadow = true; g.add(ring);
+      const icon = new THREE.Mesh(new THREE.CircleGeometry(1.0, 40), new THREE.MeshStandardMaterial({ map: spaceIcon(n.type), transparent: true, depthWrite: false, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -2 }));
+      icon.rotation.x = -Math.PI / 2; icon.position.y = 0.425;
       g.add(icon);
       s.add(g);
     }
@@ -194,7 +236,7 @@ export class BoardView {
     const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 60, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1a0, transparent: true, opacity: 0.14, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     pillar.position.y = 30;
     this.item.add(pillar);
-    const glow = new THREE.PointLight(0xffe08a, 40, 12);
+    const glow = new THREE.PointLight(0xffe08a, 14, 9); // a warm glow on the spaces round it, not a floodlight
     glow.position.y = 2.6;
     this.item.add(glow);
     this.item.visible = false;
@@ -303,8 +345,15 @@ export class BoardView {
   // ---------- camera ----------
   focus(p) { const d = this.dolls.get(p.id); if (d) this.followNow(d.group.position); }
   focusSpace(idx) { this.followNow(this.pos(idx)); }
-  followNow(v) { this.camGoal.look.set(v.x, 0, v.z); this.camGoal.pos.set(v.x, 12, v.z + 15); }
-  overview() { this.camGoal.look.set(0, 0, 0); this.camGoal.pos.set(0, 95, 85); }
+  followNow(v) {
+    // pull back a bit on narrow (portrait) screens so the spaces either side stay in view
+    const k = Math.min(1.8, Math.max(1, 1.5 / (this.camera.aspect || 16 / 9)));
+    this.camGoal.look.set(v.x, 0, v.z); this.camGoal.pos.set(v.x, 12 * k, v.z + 15 * k);
+  }
+  overview() {
+    const { cx, cz, r } = this.bounds, d = this.fitDistance(r);
+    this.camGoal.look.set(cx, 0, cz); this.camGoal.pos.set(cx, d * 0.78, cz + d * 0.63);
+  }
 
   // ---------- aiming ----------
   highlight(spaces, color = 0xff4fd8, cursor = null) {

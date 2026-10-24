@@ -173,12 +173,20 @@ function renderLobby() {
   }
   for (const b of $('segMode').querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === state.settings.mode);
   const people = [...state.players.values()];
-  $('playerList').innerHTML = people.length ? people.map((p) => `
+  // joined phones, then the CPUs, then empty seats so it's obvious there's room for more
+  const cpuCards = Array.from({ length: state.settings.cpus }, (_, i) => `
+    <div class="pcard" style="--pc:${PLAYER_COLORS[(people.length + i) % PLAYER_COLORS.length]}">
+      <img src="${faceDataUrl({ id: 'cpu' + i, name: BOT_NAMES[i % BOT_NAMES.length], body: BOT_BODIES[i % BOT_BODIES.length], photos: {}, color: PLAYER_COLORS[(people.length + i) % PLAYER_COLORS.length] }, 'neutral')}" alt="">
+      <div><div class="nm">${BOT_NAMES[i % BOT_NAMES.length]}</div><div class="st">CPU · ${BODIES.find((b) => b.id === BOT_BODIES[i % BOT_BODIES.length])?.label || ''}</div></div>
+    </div>`);
+  const empty = Math.max(0, 4 - people.length - state.settings.cpus);
+  $('playerList').innerHTML = people.map((p) => `
     <div class="pcard ${p.ready ? 'ready' : ''} ${p.connected ? '' : 'off'}" style="--pc:${p.color}">
       <img src="${faceDataUrl(p, 'neutral')}" alt="">
       <div><div class="nm">${esc(p.name)}</div><div class="st">${p.connected ? (p.ready ? 'Ready!' : 'Getting set up…') : 'Phone asleep'} · ${BODIES.find((b) => b.id === p.body)?.label || ''} · ${Object.keys(p.photos || {}).length}/4 📷</div></div>
       <button class="x" data-kick="${p.id}" title="Remove">✕</button>
-    </div>`).join('') : '<div class="dim">Scan the QR code with your phone to join.</div>';
+    </div>`).join('') + cpuCards.join('')
+    + Array.from({ length: empty }, (_, i) => `<div class="pslot"><i>+</i>${i === 0 && !people.length ? 'Scan the QR code to join' : 'Free seat'}</div>`).join('');
   for (const b of $('playerList').querySelectorAll('[data-kick]')) b.onclick = () => { const id = b.dataset.kick; state.players.delete(id); net.kick(id); savePlayers(); renderLobby(); };
   const n = people.filter((p) => p.connected).length + state.settings.cpus;
   $('startBtn').disabled = n < 2;
@@ -231,7 +239,7 @@ function showLobbyBoard() {
   lobbyBoard.placeAll([]);
   let t = 0;
   const up = lobbyBoard.update.bind(lobbyBoard);
-  lobbyBoard.update = (dt) => { t += dt * 0.06; lobbyBoard.camGoal.pos.set(Math.sin(t) * 80, 60, Math.cos(t) * 80); lobbyBoard.camGoal.look.set(0, 0, 0); up(dt); };
+  lobbyBoard.update = (dt) => { t += dt * 0.06; lobbyBoard.orbit(t); up(dt); };
   lobbyBoard.show();
 }
 
