@@ -2,6 +2,9 @@
 // lounge, through the kitchen under the table and chairs, past the dog's bowl in the dining room and
 // back. Three laps. Cars drive themselves flat out; tilt your phone like a steering wheel to steer.
 // Each car has the player's doll head poking out of the driver's seat.
+// Drive through a ? box to grab a power-up, used straight away: TURBO (a burst of speed), SNAIL (everyone
+// ahead of you crawls for a couple of seconds) or LEGO (a brick dropped behind you: hit it and you spin out).
+// Whoever's further back is more likely to get the good stuff.
 // Physics runs in track coordinates (s along the centre line, u across it) like Marble Mayhem: the
 // track turns under you, so you have to steer through the bends or scrape the rail and lose speed.
 import { mergeGeometries } from '../../../vendor/BufferGeometryUtils.js';
@@ -10,6 +13,7 @@ const LAPS = 3;
 const HW = 4.6; // half width of the track
 const CAR_L = 1.7, CAR_W = 0.95;
 const VMAX = 17, ACC = 9;
+const TURBO = { t: 2.6, k: 1.55 }, SNAIL = { t: 2.4, k: 0.5 }, SPIN_T = 1.1, BOX_BACK = 3; // power-ups
 const TURN = 2.4; // radians a second at full lock
 const AFTER_WIN = 10;
 
@@ -23,7 +27,7 @@ export default {
   id: 'toy-cars',
   name: 'Toy Cars',
   blurb: 'Orange track through the whole house. Three laps. Mind the rails.',
-  howTo: 'Your car drives itself flat out. Hold your phone like a steering wheel and tilt to steer. Scrape the rails and you slow down. First to finish three laps wins.',
+  howTo: 'Your car drives itself flat out. Hold your phone like a steering wheel and tilt to steer. Scrape the rails and you slow down. Drive through the ? boxes for power-ups: TURBO speeds you up, SNAIL slows everyone ahead of you, LEGO drops a brick behind you that spins out whoever hits it. First to finish three laps wins.',
   padText: 'Tilt to steer!',
   duration: 80,
   pad: { kind: 'tilt' },
@@ -184,9 +188,63 @@ export default {
       const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, depthTest: false, transparent: true })); tag.scale.set(2.6, 0.65, 1); tag.renderOrder = 10; scene.add(tag);
       // grid: two by two behind the line
       const row = Math.floor(i / 2), col = i % 2;
-      return { p, g, wheels, tag, s: -2.4 - row * 2.6, u: (col ? 1 : -1) * HW * 0.45, a: 0, v: 0, steer: 0, want: 0, finished: false, place: 0, scrape: 0, spin: 0,
+      return { p, g, wheels, tag, s: -2.4 - row * 2.6, u: (col ? 1 : -1) * HW * 0.45, a: 0, v: 0, steer: 0, want: 0, finished: false, place: 0, scrape: 0, spin: 0, boost: 0, slow: 0, spinOut: 0, fx: null,
         bot: p.bot ? { look: 7 + rng() * 5, err: (rng() - 0.5) * 2.4, skill: 0.75 + rng() * 0.2, wob: rng() * 9 } : null };
     });
+    // ----- power-ups: rows of ? boxes across the track, a few spots round the lap -----
+    const boxTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      const gr = g.createLinearGradient(0, 0, 128, 128); gr.addColorStop(0, '#ffe35a'); gr.addColorStop(1, '#ff8a1a');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128); g.strokeStyle = '#fff'; g.lineWidth = 10; g.strokeRect(5, 5, 118, 118);
+      g.fillStyle = '#fff'; g.font = '900 92px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 8; g.strokeStyle = '#a84a00'; g.strokeText('?', 64, 70); g.fillText('?', 64, 70);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    const boxMat = new THREE.MeshStandardMaterial({ map: boxTex, emissive: 0xffa020, emissiveMap: boxTex, emissiveIntensity: 0.6, roughness: 0.3, transparent: true, opacity: 0.92 });
+    const boxGeo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
+    const boxes = [];
+    for (const f of [0.18, 0.47, 0.76]) for (const u of [-0.62, -0.2, 0.2, 0.62]) {
+      const m = new THREE.Mesh(boxGeo, boxMat); m.castShadow = true; scene.add(m);
+      const bs = L * f + (u * 3), bu = u * HW; posAt(bs, bu, m.position); m.position.y = 1.0;
+      boxes.push({ s: bs, u: bu, m, back: 0 });
+    }
+    const brickMat = new THREE.MeshStandardMaterial({ color: 0xe8241c, roughness: 0.35 });
+    const brickGeo = (() => { const parts = [new THREE.BoxGeometry(1.0, 0.45, 0.5)]; for (const x of [-0.25, 0.25]) for (const z of [-0.12, 0.12]) { const st = new THREE.CylinderGeometry(0.1, 0.1, 0.12, 14); st.translate(x * 1.5, 0.28, z * 1.6); parts.push(st); } return mergeGeometries(parts.map((g) => g.toNonIndexed())); })();
+    const bricks = [];
+    // a burst of flame out the back for TURBO, and a sulky purple cloud for SNAIL: both glow past the bloom threshold
+    const glowTex = (inner, outer) => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, inner); gr.addColorStop(1, outer); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+    const fireMat = new THREE.SpriteMaterial({ map: glowTex('rgba(255,240,180,1)', 'rgba(255,90,0,0)'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }); fireMat.color.setScalar(3.5);
+    const snailMat = new THREE.SpriteMaterial({ map: glowTex('rgba(200,120,255,0.9)', 'rgba(120,40,200,0)'), transparent: true, depthWrite: false }); snailMat.color.setScalar(1.6);
+    for (const c of cars) {
+      c.fx = { fire: new THREE.Sprite(fireMat), snail: new THREE.Sprite(snailMat) };
+      c.fx.fire.position.set(0, 0.45, -CAR_L / 2 - 0.4); c.fx.fire.scale.set(0.9, 0.9, 1); c.g.add(c.fx.fire);
+      c.fx.snail.position.set(0, 1.9, 0); c.fx.snail.scale.set(2.2, 1.4, 1); c.g.add(c.fx.snail);
+      c.fx.fire.visible = c.fx.snail.visible = false;
+    }
+    const pops = [];
+    const pop = (c, text, color) => {
+      const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const g = cv.getContext('2d');
+      g.font = '900 84px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineWidth = 12; g.strokeStyle = '#111'; g.strokeText(text, 256, 66, 500); g.fillStyle = color; g.fillText(text, 256, 66, 500);
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false })); sp.scale.set(5, 1.25, 1); sp.renderOrder = 20; scene.add(sp);
+      pops.push({ sp, c, life: 0 });
+    };
+    const wrap = (s) => ((s % L) + L) % L;
+    const grab = (c) => {
+      // the further back you are, the better your luck
+      const order = [...cars].sort((a, b) => b.s - a.s), rank = order.indexOf(c) / Math.max(1, cars.length - 1); // 0 leader .. 1 last
+      const r = rng(), turbo = 0.25 + rank * 0.35, snail = 0.15 + rank * 0.35;
+      if (r < turbo) { c.boost = TURBO.t; pop(c, 'TURBO!', '#ffb030'); if (!c.p.bot) mg.sfx.play('whoosh'); }
+      else if (r < turbo + snail) {
+        const ahead = cars.filter((o) => o !== c && !o.finished && o.s > c.s);
+        for (const o of ahead) { o.slow = SNAIL.t; pop(o, 'SNAIL\'D', '#c88aff'); }
+        pop(c, ahead.length ? 'SNAIL!' : 'SNAIL (no one ahead)', '#c88aff'); mg.sfx.play('deflate');
+      } else {
+        const m = new THREE.Mesh(brickGeo, brickMat); m.castShadow = true; scene.add(m);
+        bricks.push({ s: c.s - CAR_L * 1.4, u: c.u, m, owner: c, life: 0 });
+        pop(c, 'LEGO!', '#ff5a4a'); if (!c.p.bot) mg.sfx.play('clank');
+      }
+    };
+
     let finishOrder = 0, winAt = null, now = 0;
     const tmp = new THREE.Vector3();
 
@@ -208,7 +266,9 @@ export default {
           }
           c.steer += (c.want - c.steer) * Math.min(1, dt * 10);
           const go = running && !c.finished ? 1 : c.finished ? 0.35 : 0;
-          c.v += ((go ? VMAX * go : 0) - c.v) * Math.min(1, dt * ACC / VMAX * (go ? 1.2 : 2.5));
+          if (c.boost > 0) c.boost -= dt; if (c.slow > 0) c.slow -= dt; if (c.spinOut > 0) c.spinOut -= dt;
+          const top = VMAX * go * (c.boost > 0 ? TURBO.k : 1) * (c.slow > 0 ? SNAIL.k : 1) * (c.spinOut > 0 ? 0.25 : 1);
+          c.v += ((go ? top : 0) - c.v) * Math.min(1, dt * ACC / VMAX * (go ? (c.boost > 0 ? 3 : c.v > top ? 3 : 1.2) : 2.5));
           if (c.scrape > 0) c.scrape -= dt;
           // the track turns under you (curvature), you turn the car (steering)
           const k = lerpAt(kap, ((c.s % L) + L) % L);
@@ -226,6 +286,25 @@ export default {
             mg.sfx.play(c.place === 1 ? 'hallelujah' : 'coin');
           }
         }
+        // ? boxes and LEGO bricks
+        for (const b of boxes) {
+          if (b.back > 0) { b.back -= dt; b.m.visible = b.back <= 0; b.m.scale.setScalar(b.back <= 0 ? 0.2 : 1); continue; }
+          b.m.rotation.set(0.5, now * 1.6, 0.3); b.m.position.y = 1.3 + Math.sin(now * 3 + b.u) * 0.15;
+          b.m.scale.setScalar(Math.min(1, b.m.scale.x + dt * 3));
+          if (!running) continue;
+          const c = cars.find((q) => !q.finished && Math.abs(wrap(q.s) - b.s) < 1.0 && Math.abs(q.u - b.u) < 1.15);
+          if (c) { b.back = BOX_BACK; b.m.visible = false; grab(c); }
+        }
+        for (let i = bricks.length - 1; i >= 0; i--) {
+          const B = bricks[i]; B.life += dt;
+          posAt(wrap(B.s), B.u, B.m.position); B.m.position.y = 0.12; B.m.rotation.y = yawS(wrap(B.s)) + 0.4;
+          const hit = cars.find((q) => (q !== B.owner || B.life > 1.5) && Math.abs(wrap(q.s) - wrap(B.s)) < CAR_L * 0.7 && Math.abs(q.u - B.u) < 0.8);
+          if (hit || B.life > 25) {
+            if (hit) { hit.spinOut = SPIN_T; hit.v *= 0.5; pop(hit, 'OUCH! LEGO', '#ff5a4a'); mg.sfx.play('bonk'); }
+            scene.remove(B.m); bricks.splice(i, 1);
+          }
+        }
+        for (let i = pops.length - 1; i >= 0; i--) { const q = pops[i]; q.life += dt; q.sp.position.copy(q.c.g.position); q.sp.position.y = 3.6 + q.life * 1.5; q.sp.material.opacity = Math.min(1, 2.2 - q.life * 1.6); if (q.life > 1.3) { scene.remove(q.sp); pops.splice(i, 1); } }
         // bumping: cars push each other apart across the track and trade a bit of speed
         for (let i = 0; i < cars.length; i++) for (let j = i + 1; j < cars.length; j++) {
           const a = cars[i], b = cars[j], ds = b.s - a.s, du = b.u - a.u;
@@ -239,7 +318,9 @@ export default {
         for (const c of cars) {
           posAt(((c.s % L) + L) % L, c.u, tmp);
           c.g.position.set(tmp.x, 0.12, tmp.z);
-          c.g.rotation.y = yawS(((c.s % L) + L) % L) + c.a;
+          c.g.rotation.y = yawS(((c.s % L) + L) % L) + c.a + (c.spinOut > 0 ? (1 - c.spinOut / SPIN_T) * Math.PI * 4 : 0);
+          c.fx.fire.visible = c.boost > 0; if (c.boost > 0) c.fx.fire.scale.setScalar(0.8 + Math.sin(now * 40) * 0.25);
+          c.fx.snail.visible = c.slow > 0;
           c.g.rotation.z = -c.steer * 0.06 * Math.min(1, c.v / 8); // body roll
           c.spin += c.v * dt / 0.22;
           c.wheels.forEach((w, i) => { w.rotation.x = c.spin; if (i < 2) w.rotation.y = c.steer * 0.4; });
