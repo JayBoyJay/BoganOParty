@@ -3,6 +3,7 @@
 // is on the TV), then get to the checkout. First one through the checkout wins. Watch out for other
 // shoppers, the mopped floor out the back and the can pyramid, which you will knock over.
 import { addSky } from '../../host/sky.js';
+import { makeDecor } from '../../host/decor.js';
 
 const BAYS = [
   { id: 'beer', label: 'BEER', color: '#ffb800', x: -8.5, z: -7.6, face: 1 },
@@ -42,36 +43,122 @@ export default {
     const { sun } = addSky(scene, renderer, { elevation: 70, azimuth: 20, turbidity: 3, sunIntensity: 1.6, sky: 0xf0f0ff, ground: 0x8a8a8a, hemi: 0.75, env: 0.6, shadowSize: 30, fog: [0xe8e8f0, 60, 160] });
     sun.target.position.set(0, 0, 0);
     const outside = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), kit.surf('asphalt', { unit: 4 })); outside.rotation.x = -Math.PI / 2; outside.position.y = -0.01; outside.receiveShadow = true; scene.add(outside);
+    // the car park out the front: a footpath, a kerb and painted bays
+    kit.box(30, 0.08, 2.4, kit.surf('concrete', { unit: 1.5, tint: 0xc8c4bc }), 0, 0, ROOM.z1 + 1.6);
+    for (let x = -14; x <= 14; x += 2.8) kit.box(0.1, 0.012, 4.2, 0xf2f2f2, x, 0, ROOM.z1 + 5.2);
+    for (const x of [-11.2, -5.6, 2.8, 8.4]) { const car = kit.group(x + 1.4, 0, ROOM.z1 + 5.4); kit.box(1.7, 0.7, 3.8, [0xc8102e, 0xf2f2f2, 0x2a5ad8, 0x2a2a2a][(x / 2.8 + 8) % 4 | 0], 0, 0.25, 0, car); kit.box(1.5, 0.5, 2.0, 0x22303a, 0, 0.95, -0.2, car); }
     // chequered lino
     const floorC = document.createElement('canvas'); floorC.width = floorC.height = 128;
     { const g = floorC.getContext('2d'); for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) { g.fillStyle = (x + y) % 2 ? '#d8d2c4' : '#efeadf'; g.fillRect(x * 64, y * 64, 64, 64); } }
     const floorT = new THREE.CanvasTexture(floorC); floorT.colorSpace = THREE.SRGBColorSpace; floorT.wrapS = floorT.wrapT = THREE.RepeatWrapping; floorT.repeat.set(13, 8); floorT.magFilter = THREE.NearestFilter;
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(26, 16), new THREE.MeshStandardMaterial({ map: floorT, roughness: 0.4 })); floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0.01, -0.85); floor.receiveShadow = true; scene.add(floor);
-    // walls: low ones at the sides and back so the camera can see in
-    const wallM = kit.surf('render', { arg: 0xe8e0d0, unit: 3 });
-    kit.box(26.4, 3.2, 0.3, wallM, 0, 0, ROOM.z0 - 0.75);
-    for (const s of [-1, 1]) kit.box(0.3, 1.2, 16, wallM, s * (ROOM.x1 + 0.55), 0, -0.85);
-    // fridges along the back wall
-    const fridgeGlass = kit.mat(0x9ad0e8, { transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.2 });
-    for (let x = -11.5; x <= 11.5; x += 2.3) {
-      const f = kit.group(x, 0, ROOM.z0 - 0.15);
-      kit.box(2.2, 2.6, 0.9, 0xf0f0f0, 0, 0, -0.1, f);
-      for (let s = 0; s < 4; s++) for (let k = 0; k < 6; k++) kit.box(0.24, 0.42, 0.24, [0xffb800, 0x2a6ad8, 0x3aa83a, 0xc8102e, 0xffffff][(s * 3 + k + (x * 7 | 0)) % 5], -0.85 + k * 0.34, 0.12 + s * 0.6, 0.1, f);
-      kit.box(2.1, 2.4, 0.04, fridgeGlass, 0, 0.1, 0.38, f);
+    // walls: a tall back wall of cool rooms, low side walls with a timber cap so the camera can see in
+    const D = makeDecor(kit);
+    const wallM = kit.surf('render', { arg: 0xe6dccb, unit: 3 });
+    kit.box(26.4, 3.4, 0.3, wallM, 0, 0, ROOM.z0 - 0.95);
+    kit.box(26.4, 0.5, 0.36, 0xc8102e, 0, 2.9, ROOM.z0 - 0.75); // the red Bottle-O band over the fridges
+    for (const s of [-1, 1]) {
+      kit.box(0.3, 1.2, 16, wallM, s * (ROOM.x1 + 0.55), 0, -0.85);
+      kit.box(0.42, 0.08, 16.1, kit.surf('planks', { unit: 1.2, tint: 0x8a5a36 }), s * (ROOM.x1 + 0.55), 1.2, -0.85);
     }
-    // the islands of shelves, stacked with bottles and cartons
-    const bottleGeo = new THREE.CylinderGeometry(0.07, 0.08, 0.36, 8);
-    const bottleMats = [0x3a6a2a, 0x6a2a1a, 0xc8a050, 0x2a2a2a, 0xa8c8a0, 0x8a1a2a].map((c) => kit.mat(c, { roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.9 }));
-    for (const cx of ISLANDS) {
-      const isl = kit.group(cx, 0, (ISLAND_Z[0] + ISLAND_Z[1]) / 2);
-      const len = ISLAND_Z[1] - ISLAND_Z[0];
-      kit.box(ISLAND_W, 1.6, len, kit.surf('planks', { unit: 1.2, tint: 0xb89068 }), 0, 0, 0, isl);
-      for (const s of [-1, 1]) for (let shelf = 0; shelf < 3; shelf++) {
-        const inst = new THREE.InstancedMesh(bottleGeo, bottleMats[(shelf + (s > 0 ? 3 : 0) + (cx + 6) / 6) % bottleMats.length], 26);
-        for (let k = 0; k < 26; k++) { const m = new THREE.Matrix4().makeTranslation(s * (ISLAND_W / 2 + 0.06), 0.3 + shelf * 0.5, -len / 2 + 0.2 + k * (len - 0.4) / 25); inst.setMatrixAt(k, m); }
-        isl.add(inst);
+    kit.box(26.4, 0.1, 0.32, 0x3a3a3a, 0, 0, ROOM.z0 - 0.8); // skirting
+
+    // instanced stock: one draw for every bottle in the shop, one for the labels, one for the cans
+    const stock = { bottle: [], label: [], can: [], carton: [] };
+    const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), S = new THREE.Vector3(1, 1, 1);
+    const put = (list, x, y, z, color, ry = 0, sc = 1) => { Q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry); V.set(x, y, z); S.setScalar(sc); list.push([new THREE.Matrix4().compose(V, Q, S), new THREE.Color(color)]); };
+    const GLASS = [0x2f5a24, 0x5a2a14, 0x6a4a18, 0x1c1c1c, 0x8aa888, 0x5a0f22, 0xd8d0b8];
+    const LABELS = [0xf2e6c8, 0xe8c040, 0xffffff, 0xc8102e, 0x1a2a5a, 0x2a2a2a, 0xd88a2a];
+    const CANS = [0x1e5a2a, 0xc8102e, 0x2a5ad8, 0xe8c020, 0xf2f2f2, 0x1a1a1a, 0xff7a1a];
+    const pick = (a) => a[(rng() * a.length) | 0];
+    // a run of one product across a shelf, so it reads as facings of the same thing, not confetti
+    const facing = (x0, x1, y, z, kind, rot = 0) => {
+      const glass = pick(GLASS), lab = pick(LABELS), can = pick(CANS), sc = kind === 'bottle' ? 0.85 + rng() * 0.3 : 1;
+      const step = kind === 'bottle' ? 0.11 : kind === 'can' ? 0.085 : 0.3;
+      for (let x = x0 + step / 2; x < x1 - step / 2 + 1e-3; x += step) {
+        const [px, pz] = rot ? [z, x] : [x, z];
+        if (kind === 'bottle') { put(stock.bottle, px, y, pz, glass, 0, sc); put(stock.label, px, y + 0.06 * sc, pz, lab, 0, sc); }
+        else if (kind === 'can') { put(stock.can, px, y, pz, can); put(stock.can, px, y + 0.125, pz, can); }
+        else put(stock.carton, px, y, pz, pick(CANS), rot ? Math.PI / 2 : 0);
+      }
+    };
+
+    // the cool rooms along the back: steel frames, glass doors, lit shelves of cans and bottles
+    {
+      const frame = kit.mat(0x8a9098, { metalness: 0.85, roughness: 0.3 });
+      const glass = new THREE.MeshPhysicalMaterial({ color: 0xdff2ff, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0, clearcoat: 1 });
+      const back = new THREE.MeshStandardMaterial({ color: 0xf4f8ff, emissive: 0xdff0ff, emissiveIntensity: 0.9, roughness: 0.6 });
+      const z = ROOM.z0 - 0.35;
+      const shell = kit.mat(0x2a2d32, { roughness: 0.6 });
+      kit.box(25, 0.14, 0.9, shell, 0, 2.5, z - 0.25); kit.box(25, 0.14, 0.9, shell, 0, 0, z - 0.25); // a hollow cabinet: top and plinth
+      for (const e of [-1, 1]) kit.box(0.12, 2.64, 0.9, shell, e * 12.56, 0, z - 0.25);
+      const glow = new THREE.Mesh(new THREE.PlaneGeometry(25, 2.3), back); glow.position.set(0, 1.25, z - 0.62); scene.add(glow);
+      for (let x = -12.5; x <= 12.5 + 1e-3; x += 1.25) {
+        kit.box(0.06, 2.5, 0.08, frame, x, 0.05, z + 0.18); // mullion
+        if (x < 12.4) { kit.box(0.03, 0.5, 0.04, frame, x + 1.1, 1.0, z + 0.26); } // door handle
+      }
+      kit.box(25.1, 0.08, 0.1, frame, 0, 2.5, z + 0.18); kit.box(25.1, 0.12, 0.1, frame, 0, 0.0, z + 0.18);
+      const doors = new THREE.Mesh(new THREE.PlaneGeometry(25, 2.4), glass); doors.position.set(0, 1.27, z + 0.2); scene.add(doors);
+      for (let l = 0; l < 4; l++) {
+        const y = 0.16 + l * 0.58;
+        kit.box(25, 0.025, 0.55, kit.mat(0xc8ccd2, { metalness: 0.6, roughness: 0.4 }), 0, y - 0.025, z - 0.3);
+        for (let x = -12.5; x < 12.4; x += 1.25) facing(x + 0.04, x + 1.21, y, z - 0.1, l % 2 ? 'bottle' : 'can');
       }
     }
+
+    // the islands: gondola shelving both sides, carton stacks on the bottom shelf, slab end caps
+    for (const cx of ISLANDS) {
+      const len = ISLAND_Z[1] - ISLAND_Z[0], cz = (ISLAND_Z[0] + ISLAND_Z[1]) / 2;
+      const isl = kit.group(cx, 0, cz);
+      const steel = kit.mat(0xe4e6ea, { metalness: 0.3, roughness: 0.45 });
+      D.bx(isl, 0.08, 1.75, len - 0.1, kit.mat(0xd8dade, { roughness: 0.7 }), 0, 0, 0, 0.01); // pegboard spine
+      for (let k = 0; k <= 4; k++) D.bx(isl, 0.1, 1.85, 0.06, steel, 0, 0, -len / 2 + 0.05 + k * (len - 0.1) / 4, 0.01); // uprights
+      for (const s of [-1, 1]) {
+        D.bx(isl, 0.62, 0.14, len - 0.1, kit.mat(0x2a2c30), s * 0.36, 0, 0, 0.01); // kick plate
+        for (let l = 0; l < 4; l++) {
+          const y = 0.14 + l * 0.42;
+          D.bx(isl, 0.6, 0.03, len - 0.12, steel, s * 0.38, y, 0, 0.005);
+          D.bx(isl, 0.012, 0.05, len - 0.12, kit.mat(0xf4d43a), s * 0.685, y - 0.02, 0, 0.003); // price strip
+          const yy = y + 0.03;
+          for (let seg = 0; seg < 4; seg++) {
+            const z0 = cz - len / 2 + 0.1 + seg * (len - 0.2) / 4, z1 = z0 + (len - 0.2) / 4 - 0.04;
+            if (l === 0) facing(z0, z1, yy, cx + s * 0.38, 'carton', 1);
+            else for (const dd of [0.2, 0.42]) facing(z0, z1, yy, cx + s * dd, l === 3 ? 'can' : 'bottle', 1);
+          }
+        }
+      }
+      D.bx(isl, 1.38, 0.05, len - 0.04, steel, 0, 1.82, 0, 0.01); // top shelf, stacked with spare cartons
+      for (let seg = 0; seg < 6; seg++) facing(cz - len / 2 + 0.15 + seg * (len - 0.3) / 6, cz - len / 2 + 0.15 + (seg + 1) * (len - 0.3) / 6 - 0.05, 1.87, cx + (seg % 2 ? 0.3 : -0.3), 'carton', 1);
+      isl.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      // end caps: a stack of slabs at each end
+      for (const e of [-1, 1]) for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) {
+        const sl = D.slab({ color: [0x1e5a2a, 0xc8102e, 0x1a2a5a][(ISLANDS.indexOf(cx) + r) % 3], label: ['VB', 'XXXX', 'BUNDY', 'CARLTON'][(r + c) % 4] });
+        sl.position.set(cx + (c - 0.5) * 0.62, r * 0.26, cz + e * (len / 2 + 0.24)); sl.rotation.y = Math.PI / 2; scene.add(sl);
+      }
+    }
+
+    // turn the stock lists into instanced meshes
+    {
+      const bottleGeo = new THREE.LatheGeometry([[0, 0], [0.042, 0], [0.044, 0.012], [0.044, 0.19], [0.032, 0.24], [0.017, 0.28], [0.017, 0.33], [0.02, 0.34], [0, 0.34]].map(([x, y]) => new THREE.Vector2(x, y)), 12);
+      const labelGeo = new THREE.CylinderGeometry(0.0455, 0.0455, 0.08, 12); labelGeo.translate(0, 0.04, 0);
+      const canGeo = new THREE.CylinderGeometry(0.033, 0.033, 0.122, 12); canGeo.translate(0, 0.061, 0);
+      const cartonGeo = new THREE.BoxGeometry(0.28, 0.24, 0.36); cartonGeo.translate(0, 0.12, 0);
+      const mats = {
+        bottle: new THREE.MeshPhysicalMaterial({ roughness: 0.08, clearcoat: 1, metalness: 0.05 }),
+        label: new THREE.MeshStandardMaterial({ roughness: 0.75 }),
+        can: new THREE.MeshStandardMaterial({ metalness: 0.75, roughness: 0.28 }),
+        carton: new THREE.MeshStandardMaterial({ roughness: 0.8 }),
+      };
+      for (const [k, geo] of [['bottle', bottleGeo], ['label', labelGeo], ['can', canGeo], ['carton', cartonGeo]]) {
+        const list = stock[k]; if (!list.length) continue;
+        const im = new THREE.InstancedMesh(geo, mats[k], list.length);
+        list.forEach(([m, c], i) => { im.setMatrixAt(i, m); im.setColorAt(i, c); });
+        im.castShadow = k === 'carton'; im.receiveShadow = true; scene.add(im);
+      }
+    }
+
+    // promo bits: a SPECIALS board on the back band, posters on the side walls
+    kit.sign('BOTTLE-O  ·  COLD BEER  ·  SPECIALS  ·  OPEN TILL 10', 20, 0.42, 0, 3.15, ROOM.z0 - 0.56, scene, { bg: null, fg: '#ffffff', font: '900 120px system-ui' });
     // the bays: a coloured patch on the floor, a sign hanging over it
     for (const B of BAYS) {
       const pad = new THREE.Mesh(new THREE.CircleGeometry(BAY_R, 36), new THREE.MeshBasicMaterial({ color: new THREE.Color(B.color), transparent: true, opacity: 0.42 }));
@@ -87,7 +174,17 @@ export default {
     }
     // the checkout, with the bloke behind it
     const counter = kit.group(11.1, 0, CHECKOUT.z);
-    kit.box(1, 1.05, 3.4, 0x3a3a4a, 0, 0, 0, counter); kit.box(1.1, 0.06, 3.5, 0x8a8a9a, 0, 1.05, 0, counter); kit.box(0.4, 0.4, 0.5, 0x222222, 0, 1.1, -0.8, counter);
+    D.bx(counter, 1, 1.0, 3.4, kit.surf('planks', { unit: 1, tint: 0x6a4028 }), 0, 0, 0, 0.03); // timber-front counter
+    D.bx(counter, 1.14, 0.06, 3.54, kit.mat(0x2a2c30, { roughness: 0.3 }), 0, 1.0, 0, 0.02);
+    D.bx(counter, 0.5, 0.03, 1.4, kit.mat(0x111111, { roughness: 0.9 }), -0.1, 1.06, 0.7, 0.01); // the belt
+    { const reg = D.crt({ rot: -Math.PI / 2 }); reg.scale.setScalar(0.7); reg.position.set(0.15, 1.06, -0.6); counter.add(reg); }
+    D.bx(counter, 0.42, 0.06, 0.3, kit.mat(0x2a2a2a), -0.05, 1.06, -0.15, 0.01); // card reader
+    // scratchies and the smokes cabinet behind
+    { const t = D.canvasTex(256, 128, (g) => { const cs = ['#ffd23f', '#5cff9d', '#ff4f8b', '#3da5ff']; for (let i = 0; i < 8; i++) { g.fillStyle = cs[i % 4]; g.fillRect((i % 4) * 64 + 3, (i >> 2) * 64 + 3, 58, 58); g.fillStyle = '#1a1a1a'; g.font = '900 16px system-ui'; g.fillText('$' + [2, 5, 10, 3][i % 4], (i % 4) * 64 + 14, (i >> 2) * 64 + 36); } });
+      D.panel(counter, 0.9, 0.45, t, -0.51, 0.75, 0.6, { ry: -Math.PI / 2 }); }
+    { const cab = kit.group(12.25, 0, CHECKOUT.z); D.bx(cab, 0.4, 2.2, 3.2, kit.mat(0x1a1a1c), 0, 0, 0, 0.02);
+      const t = D.canvasTex(256, 192, (g) => { g.fillStyle = '#0d0d0f'; g.fillRect(0, 0, 256, 192); for (let r = 0; r < 6; r++) for (let c = 0; c < 10; c++) { g.fillStyle = ['#c8c8c8', '#6a6a6a', '#2a5a8a', '#8a2a2a'][(r + c) % 4]; g.fillRect(6 + c * 25, 6 + r * 31, 21, 26); } });
+      D.panel(cab, 3.1, 1.4, t, -0.21, 1.4, 0, { ry: -Math.PI / 2, glow: 0.25 }); }
     kit.sign('CHECKOUT', 3, 0.7, -0.6, 2.7, 0, counter, { bg: '#1a1a1a', fg: '#5cff9d', font: '900 120px system-ui' });
     { const mat = new THREE.Mesh(new THREE.PlaneGeometry(4, 1.1), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 140; const g = c.getContext('2d'); g.fillStyle = '#c8102e'; g.fillRect(0, 0, 512, 140); g.fillStyle = '#fff'; g.font = '900 96px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('BOTTLE-O', 256, 74); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })() })); mat.rotation.x = -Math.PI / 2; mat.position.set(-3, 0.03, 6.1); scene.add(mat); }
     const till = new THREE.Mesh(new THREE.RingGeometry(CHECKOUT.r - 0.1, CHECKOUT.r, 40), new THREE.MeshBasicMaterial({ color: 0x5cff9d })); till.rotation.x = -Math.PI / 2; till.position.set(CHECKOUT.x, 0.04, CHECKOUT.z); scene.add(till);
