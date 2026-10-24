@@ -10,6 +10,8 @@
 <style>
   :root { --ink: #fff8ee; --dim: #d8c8b8; --bg: #1a0d06; --panel: #2c160b; --panel2: #3c1f10; --line: rgba(255,255,255,0.14); --hot: #ff7a3d; --gold: #ffd23f; --good: #5cff9d; --pc: #ff7a3d; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+  [data-b], .opts { touch-action: none; }
   html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
   body { padding: max(14px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom)); user-select: none; -webkit-user-select: none; }
   .hidden { display: none !important; }

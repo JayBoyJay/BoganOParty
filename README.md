@@ -66,7 +66,7 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🏉 Footy Kick-to-Kick | Coach Robbo boots it high into the pack: run under it and time your JUMP to take the mark. Then line up for goal with the stick and stop the power meter, allowing for the wind. Goal 6, behind 1, mark 1. Seven kicks. |
 | 🛒 Bottle-O Run | Trolley dash round the bottle shop for the four things on your list (shown on the TV), then hit the checkout. Watch out for slow shoppers, the wet floor and the can pyramid. First through wins. |
 | 🛻 Ute Muster | Drive your ute across a bumpy paddock with a hay bale, esky, bar fridge and swag loose on the back. Floor it and they slide off; hit the humps fast and they fly off. 15 points per item delivered plus a bonus for finishing first. |
-| 🎣 Fishing Off the Jetty | Everyone fishing off the end of the jetty. CAST starts the power meter and CAST again lets it go (further out = bigger fish, and more junk). Hit REEL quick when the float goes under, then tap REEL to wind it in, easing off when the fish runs or the line snaps. Stingrays nick your bait. Heaviest catch wins. |
+| 🎣 Fishing Off the Jetty | Everyone fishing off the end of the jetty, using the stick like a rod and reel: pull back and flick up to cast (quicker flick = further out = bigger fish, and more junk), flick up to strike when the float goes under, then wind the stick round in circles to reel it in, easing off when the fish runs or the line snaps. No tapping. Stingrays nick your bait. Heaviest catch wins. |
 
 ## Adding content
 

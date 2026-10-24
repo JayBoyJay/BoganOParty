@@ -25,6 +25,12 @@ const net = new PhoneNet({
 });
 const send = (m) => net.send(m);
 net.start(pid);
+// phones zoom on a pinch or a quick double tap, which wrecks a game pad mid-minigame: block both
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea, select')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) net.reconnectNow(); });
 
 function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); }
