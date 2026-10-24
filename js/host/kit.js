@@ -131,7 +131,7 @@ export function makeKit(root, { heightAt = () => 0 } = {}) {
     },
     sign(text, w, h, x, y, z, parent = root, style = {}) {
       const tex = textTexture(text, { w: 1024, h: Math.round(1024 * h / w), ...style, font: style.font || `900 ${Math.round(1024 * h / w * 0.62)}px system-ui, sans-serif` });
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, emissive: style.glow ? 0xffffff : 0x000000, emissiveMap: style.glow ? tex : null, emissiveIntensity: style.glow ? 2.2 : 0, roughness: 0.6, transparent: !style.bg, side: THREE.DoubleSide }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, emissive: style.glow ? 0xffffff : 0x000000, emissiveMap: style.glow ? tex : null, emissiveIntensity: style.glow ? 4.5 : 0, roughness: 0.6, transparent: !style.bg, side: THREE.DoubleSide }));
       m.position.set(x, y, z);
       parent.add(m);
       return m;
@@ -157,12 +157,29 @@ export function makeKit(root, { heightAt = () => 0 } = {}) {
         make(x, z, rng, h);
       }
     },
-    // flat label for a landmark, readable from the board camera
+    // name tag for a landmark, readable from the board camera: a crisp rounded pill sized to the text
     label(text, x, y, z, parent = root) {
-      const tex = textTexture(text, { w: 512, h: 96, bg: 'rgba(0,0,0,0.55)', font: '800 54px system-ui, sans-serif' });
+      const H = 128, pad = 46, font = '800 64px system-ui, -apple-system, "Segoe UI", sans-serif';
+      const c = document.createElement('canvas');
+      let g = c.getContext('2d'); g.font = font;
+      const W = Math.ceil(g.measureText(text).width + pad * 2 + 24);
+      c.width = W * 2; c.height = H * 2;
+      g = c.getContext('2d'); g.scale(2, 2);
+      const r = H / 2 - 10;
+      const pill = () => { g.beginPath(); g.roundRect(6, 10, W - 12, H - 20, r); };
+      g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 10; g.shadowOffsetY = 3;
+      g.fillStyle = 'rgba(28, 14, 6, 0.82)'; pill(); g.fill();
+      g.shadowColor = 'transparent';
+      g.lineWidth = 4; g.strokeStyle = 'rgba(255, 210, 63, 0.9)'; pill(); g.stroke();
+      g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff8ee';
+      g.fillText(text, W / 2, H / 2 + 3);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true }));
-      s.scale.set(8, 1.5, 1);
+      const h = 1.7;
+      s.scale.set(h * W / H, h, 1);
       s.position.set(x, y, z);
+      s.renderOrder = 5;
       parent.add(s);
       return s;
     },

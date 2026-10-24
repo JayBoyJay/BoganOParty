@@ -7,140 +7,224 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎉</text></svg>">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 <style>
+  /* Everything is sized in rem, and the root size follows the screen: about 16px on a 1080p TV,
+     bigger on 1440p/4K, never below 13px on laptops and phones. Layout breakpoints are below. */
   :root {
-    --ink: #fff8ee; --dim: #d8c8b8; --panel: rgba(30, 14, 8, 0.78); --panel2: rgba(60, 28, 14, 0.85);
+    --ink: #fff8ee; --dim: #d8c8b8; --panel: rgba(30, 14, 8, 0.8); --panel2: rgba(60, 28, 14, 0.85);
     --line: rgba(255,255,255,0.14); --hot: #ff4f8b; --gold: #ffd23f; --good: #5cff9d; --bad: #ff5a5a; --ochre: #e07a2f;
+    --gap: 1.25rem;
   }
+  html { font-size: clamp(13px, 0.5vw + 0.6vh, 24px); }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0d06; color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0d06; color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
   canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   .hidden { display: none !important; }
-  button { font: inherit; cursor: pointer; border: 0; border-radius: 12px; color: var(--ink); background: rgba(255,255,255,0.12); padding: 10px 14px; font-weight: 700; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 0.75rem; color: var(--ink); background: rgba(255,255,255,0.12); padding: 0.6rem 0.9rem; font-weight: 700; transition: background .15s, transform .1s; }
   button:hover { background: rgba(255,255,255,0.2); }
-  button.primary { background: linear-gradient(180deg, #ff7a3d, #d9480f); box-shadow: 0 6px 20px rgba(255,110,40,0.4); }
+  button:active { transform: scale(0.97); }
+  button.primary { background: linear-gradient(180deg, #ff8a4d, #d9480f); box-shadow: 0 0.4rem 1.2rem rgba(255,110,40,0.4), inset 0 -0.2rem 0 rgba(0,0,0,0.18); }
   button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
-  .panel { background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 20px; }
-  .logo { font-weight: 900; font-size: 46px; line-height: 0.95; font-style: italic; text-transform: uppercase; letter-spacing: -0.01em; text-shadow: 0 4px 0 #7a2a0a; }
-  .logo span { color: var(--gold); }
-  .label { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+  .panel { background: linear-gradient(180deg, rgba(48, 22, 10, 0.84), rgba(26, 12, 6, 0.84)); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: 1.25rem; box-shadow: 0 0.8rem 2.4rem rgba(0,0,0,0.35); }
+  .logo { font-weight: 900; font-size: 2.9rem; line-height: 0.92; font-style: italic; text-transform: uppercase; letter-spacing: -0.02em; text-shadow: 0 0.25rem 0 #7a2a0a, 0 0.5rem 1.2rem rgba(0,0,0,0.4); }
+  .logo span { background: linear-gradient(180deg, #ffe680, #ffb21f); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0.25rem 0 #7a2a0a); text-shadow: none; }
+  .label { font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
   .dim { color: var(--dim); }
 
   /* ---------- lobby ---------- */
-  #lobby { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(280px, 360px) 1fr minmax(300px, 420px); gap: 20px; padding: 24px; pointer-events: none; }
+  /* wide screens (TV, laptop): join | map + settings | players, the map fly-over shows through the middle */
+  #lobby { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(15rem, 21rem) minmax(0, 1fr) minmax(15rem, 22rem); gap: var(--gap); padding: var(--gap); pointer-events: none; }
   #lobby > * { pointer-events: auto; }
-  .join { padding: 22px; display: flex; flex-direction: column; gap: 14px; align-self: start; }
-  .qr { background: #fff; border-radius: 16px; padding: 10px; width: min(100%, 34vh); aspect-ratio: 1; align-self: center; }
-  .qr svg { width: 100%; height: 100%; display: block; }
-  .url { font-family: ui-monospace, Menlo, monospace; font-size: 15px; background: rgba(0,0,0,0.35); padding: 8px 10px; border-radius: 10px; word-break: break-all; }
-  .code { font-size: 22px; font-weight: 900; letter-spacing: 0.08em; text-align: center; }
-  .center { display: flex; flex-direction: column; justify-content: flex-end; gap: 16px; }
-  .mapcard { padding: 18px 22px; display: grid; grid-template-columns: auto 1fr auto; gap: 6px 16px; align-items: center; }
-  .mapcard h2 { margin: 0; font-size: 34px; font-style: italic; text-transform: uppercase; }
-  .mapcard .item { font-weight: 800; color: var(--gold); }
-  .mapcard .arrow { font-size: 26px; width: 52px; height: 52px; padding: 0; }
-  .settings { padding: 16px 22px; display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; align-items: center; font-size: 15px; }
-  .seg { display: inline-flex; flex-wrap: wrap; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 3px; gap: 2px; justify-self: start; }
-  .seg button { padding: 6px 12px; border-radius: 8px; background: transparent; font-size: 14px; }
-  .seg button.on { background: var(--ochre); }
-  .startrow { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 14px 22px; }
-  .startrow .primary { font-size: 22px; padding: 14px 30px; }
-  .players { padding: 18px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; }
-  .plist { display: grid; gap: 10px; margin-top: 10px; }
-  .pcard { position: relative; background: var(--panel2); border: 2px solid var(--pc, var(--line)); border-radius: 14px; padding: 10px; display: flex; align-items: center; gap: 12px; }
-  .pcard img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 3px solid var(--pc); }
-  .pcard .nm { font-weight: 900; font-size: 18px; }
-  .pcard .st { font-size: 12px; color: var(--dim); }
+  .join { padding: 1.4rem; display: flex; flex-direction: column; gap: 0.9rem; align-self: start; max-height: 100%; overflow: auto; }
+  .join .how { font-size: 0.82rem; line-height: 1.35; }
+  .qr { background: #fff; border-radius: 1rem; padding: 0.6rem; width: min(100%, 36vh); aspect-ratio: 1; align-self: center; box-shadow: 0 0 0 0.3rem rgba(255,210,63,0.35); }
+  .qr svg { width: 100%; height: 100%; display: block; image-rendering: pixelated; shape-rendering: crispEdges; }
+  .url { font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; background: rgba(0,0,0,0.35); padding: 0.5rem 0.65rem; border-radius: 0.6rem; word-break: break-all; text-align: center; }
+  .code { font-size: 1.35rem; font-weight: 900; letter-spacing: 0.06em; text-align: center; }
+  .center { display: flex; flex-direction: column; justify-content: flex-end; gap: 1rem; width: 100%; max-width: 50rem; justify-self: center; min-height: 0; }
+  .mapcard { padding: 1.1rem 1.4rem; display: grid; grid-template-columns: auto 1fr auto; gap: 0.4rem 1rem; align-items: center; }
+  .mapcard h2 { margin: 0.1rem 0 0.2rem; font-size: 2.2rem; line-height: 1; font-style: italic; text-transform: uppercase; letter-spacing: -0.01em; }
+  .mapcard .item { font-weight: 800; color: var(--gold); margin-top: 0.3rem; }
+  .mapcard .arrow { font-size: 1.5rem; width: 3.2rem; height: 3.2rem; padding: 0; border-radius: 50%; }
+  .settings { padding: 1rem 1.4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 0.6rem 1.6rem; font-size: 0.95rem; }
+  .set { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; min-width: 0; }
+  .set > span:first-child { white-space: nowrap; }
+  .seg { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; background: rgba(0,0,0,0.3); border-radius: 0.65rem; padding: 0.2rem; gap: 0.15rem; }
+  .seg button { padding: 0.35rem 0.75rem; border-radius: 0.5rem; background: transparent; font-size: 0.88rem; }
+  .seg button.on { background: var(--ochre); box-shadow: inset 0 -0.15rem 0 rgba(0,0,0,0.2); }
+  .startrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0.9rem 1.4rem; }
+  .startrow .primary { font-size: 1.4rem; padding: 0.85rem 1.9rem; border-radius: 1rem; }
+  .startrow .meta { font-size: 0.75rem; }
+  .players { padding: 1.1rem; align-self: start; max-height: 100%; overflow: auto; }
+  .plist { display: grid; gap: 0.6rem; margin-top: 0.6rem; }
+  .pcard { position: relative; background: var(--panel2); border: 2px solid var(--pc, var(--line)); border-radius: 0.9rem; padding: 0.6rem; display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+  .pcard img { width: 3.3rem; height: 3.3rem; border-radius: 50%; object-fit: cover; border: 3px solid var(--pc); flex: none; background: #fff; }
+  .pcard .nm { font-weight: 900; font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pcard .st { font-size: 0.75rem; color: var(--dim); }
   .pcard.ready { box-shadow: 0 0 0 3px var(--good); }
   .pcard.ready .st { color: var(--good); }
   .pcard.off { opacity: 0.45; }
-  .pcard .x { position: absolute; top: 4px; right: 6px; background: none; padding: 2px 6px; font-size: 14px; color: var(--dim); }
-  .corner { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; z-index: 30; }
-  #netStatus { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(160,30,30,0.9); padding: 8px 14px; border-radius: 10px; z-index: 40; }
+  .pcard .x { position: absolute; top: 0.25rem; right: 0.35rem; background: none; padding: 0.15rem 0.4rem; font-size: 0.85rem; color: var(--dim); }
+  .pslot { border: 2px dashed rgba(255,255,255,0.16); border-radius: 0.9rem; padding: 0.6rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255,255,255,0.4); font-weight: 700; font-size: 0.9rem; }
+  .pslot i { width: 3.3rem; height: 3.3rem; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.16); display: grid; place-items: center; font-style: normal; font-size: 1.4rem; }
+  .corner { position: fixed; right: 1rem; bottom: 1rem; display: flex; gap: 0.5rem; z-index: 30; }
+  .corner button { width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; background: rgba(20,10,4,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  #netStatus { position: fixed; top: 0.6rem; left: 50%; transform: translateX(-50%); background: rgba(160,30,30,0.9); padding: 0.5rem 0.9rem; border-radius: 0.6rem; z-index: 40; max-width: calc(100vw - 2rem); text-align: center; }
+
+  /* medium screens (small laptops, tablets): players go under the join panel */
+  @media (max-width: 1180px) {
+    .qr { width: min(100%, 28vh); }
+    #lobby { grid-template-columns: minmax(14rem, 19rem) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    .join { grid-row: 1; grid-column: 1; }
+    .players { grid-row: 2; grid-column: 1; }
+    .center { grid-row: 1 / span 2; grid-column: 2; }
+  }
+  /* portrait and phones: one scrolling column, start button pinned to the bottom */
+  @media (max-width: 760px), (orientation: portrait) and (max-width: 1000px) {
+    #lobby { display: flex; flex-direction: column; overflow-y: auto; pointer-events: auto; padding: 0.8rem 0.8rem 0; gap: 0.8rem; background: linear-gradient(180deg, rgba(26,13,6,0.15), rgba(26,13,6,0.65) 40%); }
+    .join { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "logo qr" "label qr" "code qr" "url url" "how how"; gap: 0.4rem 0.9rem; align-items: start; overflow: visible; max-height: none; flex: none; }
+    .join .logo { grid-area: logo; font-size: 2.3rem; }
+    .join .label { grid-area: label; }
+    .join .qr { grid-area: qr; width: clamp(8rem, 28vw, 14rem); }
+    .join .code { grid-area: code; text-align: left; font-size: 1.05rem; }
+    .join .url { grid-area: url; }
+    .join .how { grid-area: how; }
+    .center { display: contents; }
+    .mapcard { order: 1; }
+    .players { order: 2; max-height: none; overflow: visible; flex: none; align-self: stretch; }
+    .plist { grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); }
+    .settings { order: 3; grid-template-columns: 1fr; flex: none; }
+    .startrow { order: 4; position: sticky; bottom: 0; margin: auto -0.8rem 0; border-radius: 1.25rem 1.25rem 0 0; padding-bottom: max(0.9rem, env(safe-area-inset-bottom)); flex: none; }
+    .startrow .primary { flex: 1; }
+    .mapcard h2 { font-size: 1.7rem; }
+    .corner { bottom: auto; top: auto; right: 0.6rem; bottom: 6.2rem; flex-direction: column; }
+    .corner button { width: 2.2rem; height: 2.2rem; }
+    .join .code { font-size: 0.95rem; }
+  }
+  /* short landscape (phone on its side, small windows): two scrolling columns */
+  @media (max-height: 560px) and (orientation: landscape) {
+    #lobby { display: grid; grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr); grid-template-rows: none; overflow-y: auto; pointer-events: auto; padding: 0.6rem; gap: 0.6rem; background: rgba(26,13,6,0.35); }
+    .join { grid-row: 1 / span 2; grid-column: 1; display: flex; padding: 0.9rem; gap: 0.5rem; align-self: stretch; position: sticky; top: 0; max-height: calc(100vh - 1.2rem); }
+    .join .logo { font-size: 1.8rem; }
+    .join .qr { width: min(100%, 11rem); }
+    .center { display: flex; grid-column: 2; grid-row: 1; max-width: none; justify-content: flex-start; gap: 0.6rem; }
+    .players { grid-column: 2; grid-row: 2; max-height: none; overflow: visible; }
+    .plist { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); }
+    .settings { grid-template-columns: 1fr; }
+    .mapcard h2 { font-size: 1.5rem; }
+    .startrow { order: -1; }
+  }
 
   /* ---------- in-game HUD ---------- */
   #hud { position: fixed; inset: 0; pointer-events: none; }
-  .hud-top { position: absolute; top: 16px; left: 16px; display: flex; gap: 10px; }
-  .hud-round, .hud-goal { background: var(--panel); border: 1px solid var(--line); padding: 8px 16px; border-radius: 12px; font-weight: 900; font-size: 22px; }
-  .hud-players { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; gap: 12px; padding: 0 12px; flex-wrap: wrap; }
-  .hp-card { --pc: #fff; display: flex; gap: 10px; align-items: center; background: var(--panel); border: 3px solid var(--pc); border-radius: 18px; padding: 8px 12px 8px 8px; min-width: 210px; transition: transform .2s; }
-  .hp-card.now { transform: translateY(-10px) scale(1.06); box-shadow: 0 0 0 4px rgba(255,255,255,0.5), 0 10px 30px rgba(0,0,0,0.5); }
-  .hp-card .face { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid var(--pc); background: #333; }
-  .hp-card .nm { font-weight: 900; font-size: 18px; white-space: nowrap; }
-  .hp-card .cpu { font-size: 10px; background: rgba(255,255,255,0.2); padding: 1px 5px; border-radius: 5px; vertical-align: middle; }
-  .hp-card .row { display: flex; gap: 14px; font-size: 18px; }
-  .hpbar { height: 7px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; margin-top: 4px; }
-  .hpbar i { display: block; height: 100%; background: linear-gradient(90deg, #5cff9d, #c8ff5c); }
-  .pus { font-size: 13px; min-height: 16px; color: var(--gold); display: flex; gap: 4px; }
-  .pus .fx { color: #fff; background: rgba(255,79,216,0.5); border-radius: 6px; padding: 0 4px; }
-  .hud-toasts { position: absolute; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
-  .toast { background: var(--panel); padding: 8px 14px; border-radius: 10px; font-weight: 700; animation: tin .3s ease-out; }
+  .hud-top { position: absolute; top: 1rem; left: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap; max-width: calc(100vw - 2rem); }
+  .hud-round, .hud-goal { background: var(--panel); border: 1px solid var(--line); padding: 0.5rem 1rem; border-radius: 0.75rem; font-weight: 900; font-size: 1.35rem; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .hud-players { position: absolute; left: 0; right: 0; bottom: 0.9rem; display: flex; justify-content: center; gap: 0.75rem; padding: 0 4.5rem; flex-wrap: wrap; }
+  .hp-card { --pc: #fff; display: flex; gap: 0.6rem; align-items: center; background: linear-gradient(180deg, rgba(48,22,10,0.88), rgba(24,11,5,0.88)); border: 3px solid var(--pc); border-radius: 1.1rem; padding: 0.5rem 0.75rem 0.5rem 0.5rem; min-width: 13rem; transition: transform .2s, box-shadow .2s; box-shadow: 0 0.5rem 1.4rem rgba(0,0,0,0.35); }
+  .hp-card.now { transform: translateY(-0.6rem) scale(1.06); box-shadow: 0 0 0 0.25rem rgba(255,255,255,0.5), 0 0 1.6rem var(--pc), 0 0.6rem 1.9rem rgba(0,0,0,0.5); }
+  .hp-card .face { width: 4rem; height: 4rem; border-radius: 50%; object-fit: cover; border: 3px solid var(--pc); background: #fff; flex: none; }
+  .hp-card .info { min-width: 0; flex: 1; }
+  .hp-card .nm { font-weight: 900; font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hp-card .cpu { font-size: 0.62rem; background: rgba(255,255,255,0.2); padding: 0.05rem 0.3rem; border-radius: 0.3rem; vertical-align: middle; }
+  .hp-card .row { display: flex; gap: 0.85rem; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+  .hpbar { height: 0.45rem; background: rgba(255,255,255,0.15); border-radius: 0.25rem; overflow: hidden; margin-top: 0.25rem; }
+  .hpbar i { display: block; height: 100%; background: linear-gradient(90deg, #5cff9d, #c8ff5c); transition: width .4s; }
+  .pus { font-size: 0.8rem; min-height: 1rem; color: var(--gold); display: flex; gap: 0.25rem; }
+  .pus .fx { color: #fff; background: rgba(255,79,216,0.5); border-radius: 0.4rem; padding: 0 0.25rem; }
+  .hud-toasts { position: absolute; top: 1rem; right: 1rem; display: flex; flex-direction: column; gap: 0.4rem; align-items: flex-end; max-width: min(26rem, 45vw); }
+  .toast { background: var(--panel); padding: 0.5rem 0.9rem; border-radius: 0.6rem; font-weight: 700; animation: tin .3s ease-out; border: 1px solid var(--line); }
   @keyframes tin { from { transform: translateX(30px); opacity: 0; } }
-  .hud-banner { position: absolute; top: 28%; left: 50%; transform: translate(-50%, -50%); text-align: center; animation: bin .35s cubic-bezier(.2,1.6,.4,1); }
-  .hud-banner .t { font-size: 72px; font-weight: 900; font-style: italic; text-transform: uppercase; text-shadow: 0 5px 0 #7a2a0a, 0 0 30px rgba(0,0,0,0.6); white-space: nowrap; }
-  .hud-banner .s { font-size: 26px; font-weight: 700; text-shadow: 0 2px 8px #000; margin-top: 6px; }
-  .hud-banner.small .t { font-size: 48px; }
+  .hud-banner { position: absolute; top: 28%; left: 50%; transform: translate(-50%, -50%); text-align: center; animation: bin .35s cubic-bezier(.2,1.6,.4,1); width: max-content; max-width: 94vw; }
+  .hud-banner .t { font-size: clamp(2.2rem, 7vw, 4.5rem); line-height: 1.05; font-weight: 900; font-style: italic; text-transform: uppercase; text-shadow: 0 0.3rem 0 #7a2a0a, 0 0 1.9rem rgba(0,0,0,0.6); }
+  .hud-banner .s { font-size: clamp(1rem, 2.4vw, 1.6rem); font-weight: 700; text-shadow: 0 2px 8px #000; margin-top: 0.4rem; }
+  .hud-banner.small .t { font-size: clamp(1.8rem, 5vw, 3rem); }
   .hud-banner.gold .t { color: var(--gold); }
   .hud-banner.bad .t { color: var(--bad); }
   .hud-banner.sugar .t { color: #fff; text-shadow: 0 0 20px #ff4fd8, 0 0 40px #ff4fd8, 0 5px 0 #a0167a; animation: sugar .25s infinite alternate; }
   @keyframes sugar { to { transform: rotate(-3deg) scale(1.08); } }
   @keyframes bin { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
-  .hud-dice { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: center; }
-  .die { width: 110px; height: 110px; border-radius: 22px; background: #fff; color: #1a0d06; font-size: 64px; font-weight: 900; display: grid; place-items: center; box-shadow: 0 8px 0 #c9b8a6, 0 14px 30px rgba(0,0,0,0.5); }
+  .hud-dice { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); display: flex; gap: 0.9rem; align-items: center; }
+  .die { width: 6.9rem; height: 6.9rem; border-radius: 1.4rem; background: linear-gradient(160deg, #ffffff, #f1e8dc); color: #1a0d06; font-size: 4rem; font-weight: 900; display: grid; place-items: center; box-shadow: 0 0.5rem 0 #c9b8a6, 0 0.9rem 1.9rem rgba(0,0,0,0.5), inset 0 -0.3rem 0 rgba(0,0,0,0.06); font-variant-numeric: tabular-nums; }
   .die.spin { animation: wob .12s infinite alternate; }
   @keyframes wob { to { transform: rotate(8deg) translateY(-6px); } }
-  .hud-dice .bonus, .hud-dice .total { font-size: 48px; font-weight: 900; text-shadow: 0 3px 0 #000; }
+  .hud-dice .bonus, .hud-dice .total { font-size: 3rem; font-weight: 900; text-shadow: 0 3px 0 #000; }
   .hud-dice .bonus { color: #ff4fd8; }
-  .hud-count { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); font-size: 90px; font-weight: 900; color: #ff3b3b; text-shadow: 0 4px 0 #000; }
-  .hud-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.45); }
-  .ov-card { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 30px 44px; text-align: center; min-width: 420px; }
-  .ov-card .cap { font-size: 26px; font-weight: 800; margin-top: 14px; }
-  .ov-card .res { font-size: 56px; font-weight: 900; color: var(--gold); min-height: 66px; }
-  .coin { width: 180px; height: 180px; margin: 0 auto; position: relative; transform-style: preserve-3d; }
-  .coin .side { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3a8, #e0a800 60%, #9a6a00); display: grid; place-items: center; font-size: 90px; backface-visibility: hidden; border: 6px solid #b07d00; }
+  .hud-count { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); font-size: 5.6rem; font-weight: 900; color: #ff3b3b; text-shadow: 0 4px 0 #000; }
+  .hud-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,0.45); padding: 1rem; overflow: auto; }
+  .ov-card { background: linear-gradient(180deg, rgba(48,22,10,0.92), rgba(24,11,5,0.92)); border: 1px solid var(--line); border-radius: 1.5rem; padding: 1.9rem 2.75rem; text-align: center; min-width: min(26rem, 100%); max-width: 100%; box-shadow: 0 1.2rem 3.6rem rgba(0,0,0,0.5); }
+  .ov-card .cap { font-size: 1.6rem; font-weight: 800; margin-top: 0.9rem; }
+  .ov-card .res { font-size: 3.5rem; font-weight: 900; color: var(--gold); min-height: 4.1rem; }
+  .coin { width: 11rem; height: 11rem; margin: 0 auto; position: relative; transform-style: preserve-3d; }
+  .coin .side { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3a8, #e0a800 60%, #9a6a00); display: grid; place-items: center; font-size: 5.6rem; backface-visibility: hidden; border: 0.4rem solid #b07d00; box-shadow: inset 0 0 0 0.35rem rgba(255,240,170,0.5); }
   .coin .t { transform: rotateY(180deg); }
   .coin.flipping.heads { animation: flipH 2.2s cubic-bezier(.2,.7,.3,1) forwards; }
   .coin.flipping.tails { animation: flipT 2.2s cubic-bezier(.2,.7,.3,1) forwards; }
   @keyframes flipH { 0% { transform: translateY(0) rotateY(0); } 40% { transform: translateY(-120px) rotateY(1800deg); } 100% { transform: translateY(0) rotateY(3600deg); } }
   @keyframes flipT { 0% { transform: translateY(0) rotateY(0); } 40% { transform: translateY(-120px) rotateY(1800deg); } 100% { transform: translateY(0) rotateY(3780deg); } }
-  .rps .hands { display: flex; gap: 40px; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; }
-  .rps .hand { font-size: 120px; }
+  .rps .hands { display: flex; gap: 2.5rem; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 800; }
+  .rps .hand { font-size: 7.5rem; }
   .rps .hand.shake { animation: shake .25s infinite alternate; }
-  .rps .vs { font-size: 40px; font-weight: 900; color: var(--gold); }
+  .rps .vs { font-size: 2.5rem; font-weight: 900; color: var(--gold); }
   @keyframes shake { to { transform: translateY(-24px); } }
-  .podium h1 { font-size: 56px; margin: 0 0 20px; font-style: italic; }
-  .pod { display: flex; gap: 18px; justify-content: center; align-items: flex-end; }
-  .pp { --pc: #fff; background: var(--panel2); border: 3px solid var(--pc); border-radius: 18px; padding: 14px; font-weight: 700; }
-  .pp img { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 4px solid var(--pc); }
-  .pp.win img { width: 170px; height: 170px; }
-  .pp .nm { font-size: 22px; font-weight: 900; }
+  .podium h1 { font-size: clamp(2rem, 6vw, 3.5rem); margin: 0 0 1.25rem; font-style: italic; }
+  .pod { display: flex; gap: 1.1rem; justify-content: center; align-items: flex-end; flex-wrap: wrap; }
+  .pp { --pc: #fff; background: var(--panel2); border: 3px solid var(--pc); border-radius: 1.1rem; padding: 0.9rem; font-weight: 700; }
+  .pp img { width: 6.9rem; height: 6.9rem; border-radius: 50%; object-fit: cover; border: 0.25rem solid var(--pc); background: #fff; }
+  .pp.win img { width: 10.6rem; height: 10.6rem; }
+  .pp .nm { font-size: 1.4rem; font-weight: 900; }
 
   /* ---------- minigames ---------- */
   #minigame { position: fixed; inset: 0; pointer-events: none; }
-  .mg-card { position: absolute; inset: 0; margin: auto; width: min(900px, 90vw); height: fit-content; background: var(--panel); border: 1px solid var(--line); border-radius: 26px; padding: 34px 44px; text-align: center; }
-  .mg-card h1 { font-size: 64px; margin: 6px 0; font-style: italic; text-transform: uppercase; }
-  .mg-card p { font-size: 24px; margin: 0 0 14px; }
-  .mg-card .how { font-size: 20px; background: rgba(0,0,0,0.3); border-radius: 14px; padding: 14px; color: var(--dim); }
-  .mg-ready { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
-  .mg-ready span { border: 2px solid var(--pc); padding: 6px 12px; border-radius: 10px; font-weight: 800; opacity: 0.6; }
+  .mg-card { position: absolute; inset: 0; margin: auto; width: min(56rem, calc(100vw - 2rem)); height: fit-content; max-height: calc(100vh - 2rem); overflow: auto; background: linear-gradient(180deg, rgba(48,22,10,0.92), rgba(24,11,5,0.92)); border: 1px solid var(--line); border-radius: 1.6rem; padding: clamp(1.1rem, 3vw, 2.1rem) clamp(1.1rem, 4vw, 2.75rem); text-align: center; box-shadow: 0 1.2rem 3.6rem rgba(0,0,0,0.5); }
+  .mg-card h1 { font-size: clamp(2rem, 6vw, 4rem); line-height: 1; margin: 0.4rem 0 0.6rem; font-style: italic; text-transform: uppercase; letter-spacing: -0.01em; text-shadow: 0 0.25rem 0 #7a2a0a; }
+  .mg-card p { font-size: clamp(1rem, 2.4vw, 1.5rem); margin: 0 0 0.9rem; }
+  .mg-card .how { font-size: clamp(0.9rem, 2vw, 1.25rem); line-height: 1.4; background: rgba(0,0,0,0.3); border-radius: 0.9rem; padding: 0.9rem; color: var(--dim); text-align: left; }
+  .mg-ready { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; margin-top: 1.1rem; }
+  .mg-ready span { border: 2px solid var(--pc); padding: 0.4rem 0.75rem; border-radius: 0.6rem; font-weight: 800; opacity: 0.6; }
   .mg-ready span.ok { opacity: 1; background: rgba(92,255,157,0.15); }
-  .mg-hud { position: absolute; top: 16px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; }
-  .mg-name, .mg-time { background: var(--panel); padding: 8px 18px; border-radius: 12px; font-size: 26px; font-weight: 900; }
-  .mg-time { min-width: 80px; text-align: center; color: var(--gold); }
-  .mg-big { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: 160px; font-weight: 900; font-style: italic; text-shadow: 0 8px 0 #7a2a0a; }
-  .mg-board { position: absolute; top: 90px; right: 16px; display: flex; flex-direction: column; gap: 6px; }
-  .mg-board div, .mg-results div { display: flex; align-items: center; gap: 10px; background: var(--panel); border-left: 6px solid var(--pc); border-radius: 10px; padding: 6px 12px; font-size: 20px; }
-  .mg-board img, .mg-results img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
-  .mg-board span, .mg-results span:last-child { margin-left: auto; font-weight: 900; color: var(--gold); padding-left: 14px; }
-  .mg-results { display: grid; gap: 8px; max-width: 520px; margin: 16px auto 0; }
-  .mg-results .pl { font-weight: 900; width: 28px; }
+  .mg-hud { position: absolute; top: 1rem; left: 0; right: 0; display: flex; justify-content: center; gap: 1rem; padding: 0 1rem; }
+  .mg-name, .mg-time { background: var(--panel); padding: 0.5rem 1.1rem; border-radius: 0.75rem; font-size: 1.6rem; font-weight: 900; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mg-time { min-width: 5rem; text-align: center; color: var(--gold); font-variant-numeric: tabular-nums; flex: none; }
+  .mg-big { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: clamp(4rem, 16vw, 10rem); font-weight: 900; font-style: italic; text-shadow: 0 0.5rem 0 #7a2a0a, 0 0 2rem rgba(0,0,0,0.4); }
+  .mg-board { position: absolute; top: 5.6rem; right: 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  .mg-board div, .mg-results div { display: flex; align-items: center; gap: 0.6rem; background: var(--panel); border-left: 0.4rem solid var(--pc); border-radius: 0.6rem; padding: 0.4rem 0.75rem; font-size: 1.25rem; }
+  .mg-board img, .mg-results img { width: 2.25rem; height: 2.25rem; border-radius: 50%; object-fit: cover; background: #fff; }
+  .mg-board span, .mg-results span:last-child { margin-left: auto; font-weight: 900; color: var(--gold); padding-left: 0.9rem; font-variant-numeric: tabular-nums; }
+  .mg-results { display: grid; gap: 0.5rem; max-width: 32rem; margin: 1rem auto 0; }
+  .mg-results .pl { font-weight: 900; width: 1.75rem; }
   .mg-results em { font-style: normal; color: var(--good); font-weight: 900; }
   /* minigames-only mode: standings panel beside the pedestals */
-  .mt-panel { position: absolute; left: 28px; top: 28px; width: min(440px, 40vw); background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 20px 24px; }
-  .mt-panel h1 { font-size: 40px; margin: 4px 0; font-style: italic; text-transform: uppercase; }
-  .mt-panel p { font-size: 19px; margin: 0 0 6px; color: var(--dim); }
-  .mt-panel .mg-results { margin: 12px 0 0; }
+  .mt-panel { position: absolute; left: 1.75rem; top: 1.75rem; width: min(27.5rem, 40vw); background: linear-gradient(180deg, rgba(48,22,10,0.9), rgba(24,11,5,0.9)); border: 1px solid var(--line); border-radius: 1.4rem; padding: 1.25rem 1.5rem; }
+  .mt-panel h1 { font-size: 2.5rem; margin: 0.25rem 0; font-style: italic; text-transform: uppercase; }
+  .mt-panel p { font-size: 1.2rem; margin: 0 0 0.4rem; color: var(--dim); }
+  .mt-panel .mg-results { margin: 0.75rem 0 0; }
   #lobby.mode-minigames .for-board, #lobby:not(.mode-minigames) .for-mg { display: none; }
   #lobby.mode-minigames .mapcard .arrow { visibility: hidden; }
+
+  /* small screens: compact HUD, cards in a 2-wide grid, scoreboard shrinks */
+  @media (max-width: 900px), (max-height: 600px) {
+    .hud-players { gap: 0.4rem; padding: 0 3.4rem 0 0.5rem; bottom: 0.5rem; }
+    .hp-card { min-width: 0; flex: 1 1 10rem; max-width: 15rem; padding: 0.35rem 0.5rem 0.35rem 0.35rem; border-width: 2px; }
+    .hp-card .face { width: 2.8rem; height: 2.8rem; }
+    .hp-card .nm { font-size: 0.95rem; }
+    .hp-card .row { font-size: 0.9rem; gap: 0.5rem; }
+    .hp-card.now { transform: translateY(-0.3rem) scale(1.03); }
+    .hud-top { top: 0.5rem; left: 0.5rem; }
+    .hud-round, .hud-goal { font-size: 1rem; padding: 0.35rem 0.7rem; }
+    .die { width: 4.6rem; height: 4.6rem; font-size: 2.6rem; border-radius: 1rem; }
+    .mg-hud { top: 0.5rem; gap: 0.5rem; }
+    .mg-name, .mg-time { font-size: 1.1rem; padding: 0.35rem 0.75rem; }
+    .mg-board { top: 3.6rem; right: 0.5rem; gap: 0.25rem; }
+    .mg-board div { font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+    .mg-board img { width: 1.5rem; height: 1.5rem; }
+    .mt-panel { left: 0.75rem; top: 0.75rem; right: 0.75rem; width: auto; max-height: calc(100vh - 1.5rem); overflow: auto; }
+    .mt-panel h1 { font-size: 1.8rem; }
+    .pp img { width: 4.5rem; height: 4.5rem; }
+    .pp.win img { width: 6.5rem; height: 6.5rem; }
+    .ov-card { padding: 1.2rem 1.25rem; }
+    .rps .hand { font-size: 4.5rem; }
+    .coin { width: 7.5rem; height: 7.5rem; }
+    .coin .side { font-size: 3.6rem; }
+  }
 </style>
 </head>
 <body>
@@ -153,7 +237,7 @@
     <div class="qr" id="qr"></div>
     <div class="code" id="roomCode"></div>
     <div class="url" id="joinUrl">Connecting…</div>
-    <div class="dim" style="font-size:13px">Your phone is your remote. Take a few selfies on it: they go on your doll's face.</div>
+    <div class="dim how">Your phone is your remote. Take a few selfies on it: they go on your doll's face.</div>
   </div>
   <div class="center">
     <div class="mapcard panel">
@@ -162,16 +246,16 @@
       <button class="arrow" id="mapNext">▶</button>
     </div>
     <div class="settings panel">
-      <span>Mode</span><span class="seg" id="segMode"><button data-v="board">Party board</button><button data-v="minigames">Minigames only</button></span>
-      <span class="for-mg">Minigames</span><span class="seg for-mg" id="segMgRounds"><button data-v="3">3</button><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button></span>
-      <span class="for-board">Items to win</span><span class="seg for-board" id="segItems"><button data-v="3">3</button><button data-v="5">5</button><button data-v="7">7</button><button data-v="10">10</button></span>
-      <span class="for-board">Round limit</span><span class="seg for-board" id="segRounds"><button data-v="0">None</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></span>
-      <span>CPU players</span><span class="seg" id="segCpus"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></span>
-      <span>Drinking</span><span class="seg" id="segDrinks"><button data-v="0">Off</button><button data-v="1">On</button></span>
-      <span>King Cup (oopsie)</span><span class="seg" id="segKingCup"><button data-v="0">Off</button><button data-v="1">On</button></span>
+      <div class="set"><span>Mode</span><span class="seg" id="segMode"><button data-v="board">Party board</button><button data-v="minigames">Minigames only</button></span></div>
+      <div class="set for-mg"><span>Minigames</span><span class="seg" id="segMgRounds"><button data-v="3">3</button><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button></span></div>
+      <div class="set for-board"><span>Items to win</span><span class="seg" id="segItems"><button data-v="3">3</button><button data-v="5">5</button><button data-v="7">7</button><button data-v="10">10</button></span></div>
+      <div class="set for-board"><span>Round limit</span><span class="seg" id="segRounds"><button data-v="0">None</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></span></div>
+      <div class="set"><span>CPU players</span><span class="seg" id="segCpus"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></span></div>
+      <div class="set"><span>Drinking</span><span class="seg" id="segDrinks"><button data-v="0">Off</button><button data-v="1">On</button></span></div>
+      <div class="set"><span>King Cup (oopsie)</span><span class="seg" id="segKingCup"><button data-v="0">Off</button><button data-v="1">On</button></span></div>
     </div>
     <div class="startrow panel">
-      <div><div id="startHint" class="dim"></div><div id="contentList" class="dim" style="font-size:12px"></div></div>
+      <div><div id="startHint" class="dim"></div><div id="contentList" class="dim meta"></div></div>
       <button class="primary" id="startBtn">Start the party</button>
     </div>
   </div>

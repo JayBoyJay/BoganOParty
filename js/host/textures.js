@@ -3,7 +3,7 @@
 // by putting an image in assets/textures/ and loading it in place of the generator.
 import * as THREE from 'three';
 
-const SIZE = 256;
+const SIZE = 512;
 const cache = new Map();
 
 // ---------- noise ----------
@@ -26,8 +26,10 @@ const mix = (a, b, t) => a + (b - a) * t;
 const col = (hex) => [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
 
 // paint(x, y) -> { c: [r,g,b], h: height 0..1, r: roughness 0..1 } for every pixel, then build textures
-function build(key, paint, { size = SIZE, normalStrength = 2, repeat = 1, alpha = false } = {}) {
+function build(key, paint, { size, normalStrength = 2, repeat = 1, alpha = false } = {}) {
   if (cache.has(key)) return cache.get(key);
+  // textures tuned at 256 px are drawn at SIZE now; their bumps keep the same depth
+  if (!size) { size = SIZE; normalStrength *= 1.6; }
   const n = size;
   const cc = document.createElement('canvas'); cc.width = cc.height = n;
   const ctx = cc.getContext('2d');
@@ -107,7 +109,9 @@ export const TEX = {
   }, { normalStrength: 3 }),
   slag: () => build('slag', (u, v) => {
     const n = fbm(u, v, { scale: 20, seed: 15, octaves: 4 }), rust = fbm(u, v, { scale: 4, seed: 16 });
-    return { c: [mix(50, 120, rust) * (0.7 + n * 0.5), mix(36, 60, rust) * (0.7 + n * 0.5), 30 * (0.7 + n * 0.5)], h: n, r: 0.95 };
+    // dark grey mullock with rusty patches, like the real Line of Lode
+    const k = 0.7 + n * 0.5, r = rust * rust;
+    return { c: [mix(64, 128, r) * k, mix(58, 72, r) * k, mix(56, 44, r) * k], h: n, r: 0.95 };
   }, { normalStrength: 8 }),
   rust: () => build('rust', (u, v) => {
     const n = fbm(u, v, { scale: 8, seed: 17 }), s = fbm(u, v, { scale: 40, seed: 18, octaves: 3 });
