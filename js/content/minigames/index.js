@@ -2,11 +2,11 @@
 // To add one, copy plane-instructor.js, give it a new id, and add it here. See README.md → "Adding content".
 import planeInstructor from './plane-instructor.js';
 import chadsJapaneseAdventure from './chads-japanese-adventure.js';
-import dontWakeMyles from './dont-wake-myles.js';
+import greatBiscuitHeist from './great-biscuit-heist.js';
 import burgerBoys from './burger-boys.js';
 import marbleMayhem from './marble-mayhem.js';
 import joeMaster from './joe-master.js';
 import toyCars from './toy-cars.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, dontWakeMyles, burgerBoys, marbleMayhem, joeMaster, toyCars];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));

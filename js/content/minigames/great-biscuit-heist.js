@@ -1,12 +1,15 @@
-// Don't Wake Myles: Myles is passed out on the couch after a big one. Everyone creeps across the
-// lounge to the beer fridge behind him. Tap SNEAK to take a step. When he snorts and stirs, stop:
-// if he rolls over and sees anyone moving, OI! Back to the front door you go.
+// The Great Biscuit Heist: Myles is passed out on the couch after a big one, and the Scotch Fingers
+// are right in front of him. Tap SNEAK to creep up, nick a biscuit, then sneak it all the way back to
+// the front door for a point. Then go again. When he snorts and stirs, stop: if he rolls over and sees
+// anyone moving, OI! Back to the door you go, and any biscuit you were carrying stays behind.
 // Red light, green light, but it's a bloke on a mustard couch.
+import { mergeGeometries } from '../../../vendor/BufferGeometryUtils.js';
+
 const LANE = 1.5; // metres per lane
 const DOLL = 0.68; // player doll scale (Myles is 0.95, so he's a big unit)
-const START_Z = 6, FINISH_Z = -5.2;
+const START_Z = 4.5, GRAB_Z = -5.4; // the front door line, and where the biscuit plate is
 const FRONT_Z = START_Z + 2.5, BACK_Z = -14, LEN = FRONT_Z - BACK_Z, MID_Z = (FRONT_Z + BACK_Z) / 2;
-const STEP = 0.2, STEP_T = 0.22; // each tap: this far, taking this long
+const STEP = 0.25, STEP_T = 0.22; // each tap: this far, taking this long
 const QUEUE = 1; // taps that can be banked while a step is under way
 const GRACE = 0.22; // after he looks, a step already under way can finish
 const SEAT_Y = 0.85, COUCH_Z = -9.2;
@@ -48,12 +51,12 @@ function mylesFace(mood) {
 }
 
 export default {
-  id: 'dont-wake-myles',
-  name: "Don't Wake Myles",
-  blurb: "Myles is passed out on the couch. Sneak past him to the beer fridge. Don't let him catch you moving.",
-  howTo: 'Tap SNEAK to creep forward a step. When Myles snorts and starts to stir, STOP. If he rolls over and sees you move, you go all the way back to the front door. First to the fridge wins.',
+  id: 'great-biscuit-heist',
+  name: 'The Great Biscuit Heist',
+  blurb: "Myles is asleep on the couch, guarding the Scotch Fingers. Nick one and get it back to the door.",
+  howTo: "Tap SNEAK to creep a step. Get to the plate, grab a Scotch Finger, and sneak it back to the front door for a point, then go again. When Myles snorts and stirs, STOP. If he rolls over and sees you move, you're sent back to the door and lose the biscuit.",
   padText: 'Tap to sneak. Freeze when he stirs!',
-  duration: 50,
+  duration: 60,
   pad: { kind: 'buttons', buttons: [{ id: 'step', label: '🤫 SNEAK', tone: 'go', wide: true }] },
 
   create(mg) {
@@ -150,13 +153,48 @@ export default {
     }
     kit.box(0.9, 0.08, 0.9, 0xd8c4a0, 0.5, 0.58, 0.05, table).rotation.y = 0.3;
     kit.box(0.5, 0.06, 0.12, 0x1a1a1a, -0.6, 0.58, 0.2, table).rotation.y = -0.4;
+    // the Scotch Fingers: two golden fingers joined down the middle, docked with holes, dusted with sugar
+    const biscuitMat = (() => {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+      g.fillStyle = '#c98a3e'; g.fillRect(0, 0, 256, 128);
+      const gr = g.createRadialGradient(128, 64, 10, 128, 64, 150); gr.addColorStop(0, 'rgba(255,220,150,0.3)'); gr.addColorStop(0.7, 'rgba(160,90,30,0.2)'); gr.addColorStop(1, 'rgba(110,55,15,0.7)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 128);
+      for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${rng() < 0.5 ? '255,245,220' : '140,80,30'},${0.15 + rng() * 0.2})`; g.fillRect(rng() * 256, rng() * 128, 1.5, 1.5); }
+      g.fillStyle = 'rgba(90,45,12,0.9)'; g.fillRect(0, 59, 256, 10); // the snap line between the fingers
+      for (const y of [32, 96]) for (let k = 0; k < 5; k++) { g.fillStyle = 'rgba(100,55,20,0.8)'; g.beginPath(); g.arc(30 + k * 49, y, 6, 0, 7); g.fill(); }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 });
+    })();
+    const biscuitGeo = (() => {
+      // two rounded fingers side by side, slightly domed; texture laid on from above
+      const finger = (y) => { const w = 0.62, h = 0.13, r = 0.05, sh = new THREE.Shape(); sh.moveTo(-w / 2 + r, -h / 2); sh.lineTo(w / 2 - r, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r); sh.lineTo(w / 2, h / 2 - r); sh.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2); sh.lineTo(-w / 2 + r, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r); sh.lineTo(-w / 2, -h / 2 + r); sh.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+        const g = new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: true, bevelSize: 0.012, bevelThickness: 0.015, bevelSegments: 3, curveSegments: 8 }); g.translate(0, y, 0); return g; };
+      const g = mergeGeometries([finger(-0.066), finger(0.066)]);
+      const p = g.attributes.position, uv = g.attributes.uv;
+      for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / 0.66 + 0.5, p.getY(i) / 0.28 + 0.5);
+      g.rotateX(-Math.PI / 2); g.computeVertexNormals();
+      return g;
+    })();
+    const biscuit = () => { const m = new THREE.Mesh(biscuitGeo, biscuitMat); m.castShadow = true; return m; };
+    // a long plate of them on the rug, one stack per lane, and the open tin on the coffee table
+    const plate = kit.box(W + 0.4, 0.05, 0.9, kit.surf('planks', { unit: 1.2, tint: 0x8a5a38 }), 0, 0, GRAB_Z - 0.75); // a long bread board
+    plate.receiveShadow = true;
+    const stacks = [];
+    for (let i = 0; i < players.length; i++) {
+      const st = new THREE.Group(); st.position.set(laneX(i), 0.05, GRAB_Z - 0.75); scene.add(st);
+      for (let k = 0; k < 3; k++) { const b = biscuit(); b.scale.setScalar(1.3); b.position.set((k - 1) * 0.22, k * 0.03, (rng() - 0.5) * 0.1); b.rotation.set(0, Math.PI / 2 + (rng() - 0.5) * 0.4, (k - 1) * 0.08); st.add(b); }
+      stacks.push(st);
+    }
+    const tin = kit.group(-0.6, 0.54, COUCH_Z + 2.0);
+    kit.cyl(0.42, 0.42, 0.3, kit.mat(0x8a1a1a, { metalness: 0.7, roughness: 0.35 }), 0, 0, 0, tin, {}, 32);
+    kit.cyl(0.43, 0.43, 0.05, kit.mat(0xd8b04a, { metalness: 0.9, roughness: 0.3 }), 0.55, 0, 0.1, tin, {}, 32).rotation.z = 0.25; // lid off to the side
+    for (let k = 0; k < 3; k++) { const b = biscuit(); b.position.set((k - 1) * 0.12, 0.31, 0); b.rotation.set(0.2, k * 0.3, 0); tin.add(b); }
     // a couple of empties on the floor for flavour
     for (let i = 0; i < 6; i++) { const c = kit.cyl(0.07, 0.07, 0.24, greenCan, (rng() - 0.5) * W, 0.07, -2 + rng() * 9); c.rotation.set(Math.PI / 2, 0, rng() * 6); }
 
     // the beer fridges either side of the couch, glowing
-    const fridgeGlow = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.45 });
+    const fridgeGlow = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xdfeeff, emissiveIntensity: 0.2 });
     for (const s of [-1, 1]) {
-      const f = kit.group(s * (RW / 2 - 0.6), 0, FINISH_Z - 1.6, -s * Math.PI / 2);
+      const f = kit.group(s * (RW / 2 - 0.6), 0, GRAB_Z - 1.6, -s * Math.PI / 2);
       kit.box(1.1, 1.9, 0.9, 0x2a2a2e, 0, 0, 0, f, { metalness: 0.6, roughness: 0.35 });
       const inside = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.6), fridgeGlow); inside.position.set(0, 1.0, 0.452); f.add(inside);
       for (let r = 0; r < 4; r++) for (let k = 0; k < 6; k++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.22, 10), (r + k) % 4 ? greenCan : redCan); c.position.set(-0.36 + k * 0.145, 0.38 + r * 0.38, 0.38); f.add(c); }
@@ -204,7 +242,9 @@ export default {
       holder.add(doll.group);
       const x = laneX(i);
       holder.position.set(x, 0, START_Z);
-      return { p, doll, holder, x, z: START_Z, from: START_Z, st: 0, queue: 0, back: 0, done: false, finishT: 0, caught: 0, phase: rng() * 6,
+      // the biscuit they're carrying, held up in front of them
+      const carry = biscuit(); carry.scale.setScalar(1.4); carry.rotation.set(-1.2, 0, 0); carry.position.set(0, 1.45 * DOLL / 0.68, 0.55); carry.visible = false; holder.add(carry);
+      return { p, doll, holder, carry, x, z: START_Z, from: START_Z, st: 0, queue: 0, back: 0, has: false, points: 0, caught: 0, phase: rng() * 6, turn: Math.PI,
         bot: p.bot ? { rate: 3.5 + rng() * 2.5, react: 0.12 + rng() * 0.38, cool: 0, greedy: rng() * 0.25 } : null };
     });
     const pops = [];
@@ -217,7 +257,7 @@ export default {
       scene.add(sp); pops.push({ sp, s, life: 0 });
     };
     // finish line: a strip of gaffer tape across the carpet
-    kit.box(W + 0.4, 0.012, 0.18, kit.mat(0xd8d0b8, { roughness: 0.6 }), 0, 0, FINISH_Z);
+    kit.box(W + 0.4, 0.012, 0.18, kit.mat(0xd8d0b8, { roughness: 0.6 }), 0, 0, GRAB_Z);
     kit.box(W + 0.4, 0.012, 0.12, kit.mat(0x5a5a5a, { roughness: 0.6 }), 0, 0, START_Z + 0.5);
 
     // ----- Myles' sleep cycle -----
@@ -225,7 +265,7 @@ export default {
     let state = 'sleep', stT = 0, stDur = 2.2 + rng() * 1.2, wake = 0, snoreT = 0, fake = false, scan = 0, lookT = 0, anger = 0;
     const setState = (s, dur) => { state = s; stT = 0; stDur = dur; };
     const caught = (s) => {
-      s.caught += 1; s.back = 1; s.from = s.z; s.queue = 0; s.st = 0;
+      s.caught += 1; s.back = 1; s.from = s.z; s.queue = 0; s.st = 0; s.has = false; s.carry.visible = false;
       s.doll.flinch();
       pop(s, 'OI!', '#ff4a3a');
       mg.sfx.play('oi');
@@ -233,12 +273,11 @@ export default {
       myles.setMood('angry');
     };
     const tap = (s) => {
-      if (s.done || s.back > 0) return;
+      if (s.back > 0) return;
       if (s.st > 0) { s.queue = Math.min(QUEUE, s.queue + 1); return; }
       s.st = 1e-4;
       if (!s.p.bot) mg.sfx.play('tiptoe');
     };
-    let finishedCount = 0;
 
     return {
       camera,
@@ -291,7 +330,7 @@ export default {
 
         // the sneakers
         for (const s of sneakers) {
-          if (s.bot && running && !s.done && s.back <= 0) {
+          if (s.bot && running && s.back <= 0) {
             // CPUs tap away while he sleeps and stop once they notice him stirring (some notice late)
             const alarmed = (state === 'stir' && !fake && stT > s.bot.react) || (state === 'stir' && fake && stT > s.bot.react + 0.1) || state === 'look' || (state === 'settle' && stT < 0.3);
             const greedy = state === 'stir' && stT < s.bot.react + s.bot.greedy;
@@ -301,30 +340,38 @@ export default {
           if (s.st > 0) {
             const k0 = s.st;
             s.st += dt / STEP_T;
-            s.z -= (Math.min(1, s.st) - Math.min(1, k0)) * STEP;
+            s.z += (Math.min(1, s.st) - Math.min(1, k0)) * STEP * (s.has ? 1 : -1); // in for a biscuit, then back out
             if (s.st >= 1) { s.st = 0; if (s.queue > 0) { s.queue -= 1; s.st = 1e-4; } }
           }
           // spotted?
-          if (running && state === 'look' && lookT > GRACE && s.st > 0 && !s.done) caught(s);
+          if (running && state === 'look' && lookT > GRACE && s.st > 0) caught(s);
           if (s.back > 0) {
             // whisked back to the front door
             s.back = Math.max(0, s.back - dt / 1.1);
             const k = 1 - s.back, e = k * k * (3 - 2 * k);
             s.z = s.from + (START_Z - s.from) * e;
           }
-          if (!s.done && s.z <= FINISH_Z) {
-            s.done = true; s.z = FINISH_Z; s.finishT = mg.timeLeft(); s.queue = 0; s.st = 0; finishedCount += 1;
-            pop(s, 'CHEERS!', '#5cff9d'); mg.sfx.play('cheers'); s.doll.bounce(1.2);
+          if (!s.has && s.back <= 0 && s.z <= GRAB_Z) {
+            // got one: turn round with it
+            s.has = true; s.z = GRAB_Z; s.queue = 0; s.st = 0; s.carry.visible = true;
+            pop(s, 'GOT ONE!', '#ffd23f'); if (!s.p.bot) mg.sfx.play('squeak');
+          }
+          if (s.has && s.z >= START_Z) {
+            s.has = false; s.z = START_Z; s.queue = 0; s.st = 0; s.carry.visible = false; s.points += 1;
+            pop(s, '+1 🍪', '#5cff9d'); mg.sfx.play('coin'); s.doll.bounce(1.2);
           }
           // creep animation: knees up, lean forward, a little bob each step
           const moving = s.st > 0;
           s.phase += dt * (moving ? 14 : 0);
           const bob = moving ? Math.abs(Math.sin(s.st * Math.PI)) * 0.12 : 0;
           const fly = s.back > 0 ? Math.sin(s.back * Math.PI) * 1.2 : 0;
-          s.holder.position.set(s.x + (s.done ? Math.sin(t * 3 + s.x) * 0.05 : 0), bob + fly + (s.done ? Math.abs(Math.sin(t * 5 + s.x)) * 0.15 : 0), s.z);
-          s.doll.group.rotation.x = s.back > 0 ? -0.8 * Math.sin(s.back * Math.PI) : s.done ? 0 : 0.28; // hunched over, sneaking
+          s.holder.position.set(s.x, bob + fly, s.z);
+          // face the way they're going: towards Myles on the way in, the door on the way out
+          s.turn += ((s.has ? 0 : Math.PI) - s.turn) * Math.min(1, dt * 8);
+          s.holder.rotation.y = s.turn;
+          s.doll.group.rotation.x = s.back > 0 ? -0.8 * Math.sin(s.back * Math.PI) : 0.28; // hunched over, sneaking
           s.doll.group.rotation.z = moving ? Math.sin(s.st * Math.PI) * 0.12 * (s.phase % 2 > 1 ? 1 : -1) : 0;
-          s.doll.setArms(s.done ? 1 : s.back > 0 ? 0.7 : -0.15, 0);
+          s.doll.setArms(s.has ? 0.35 : s.back > 0 ? 0.7 : -0.15, 0);
           s.doll.update(dt);
         }
         for (let i = pops.length - 1; i >= 0; i--) {
@@ -339,9 +386,8 @@ export default {
         camera.lookAt(0, 0.6, -1);
       },
       input(p, m) { const s = sneakers.find((x) => x.p === p); if (s && m.b === 'step') tap(s); },
-      // reached the fridge: 100 plus seconds to spare. Otherwise, how far they got (0 to 99).
-      scores() { return Object.fromEntries(sneakers.map((s) => [s.p.id, s.done ? 100 + Math.round(s.finishT) : Math.floor(99 * (START_Z - s.z) / (START_Z - FINISH_Z))])); },
-      done: () => finishedCount === sneakers.length,
+      // a point per biscuit got home; how far along this trip only breaks ties (never enough to round up)
+      scores() { return Object.fromEntries(sneakers.map((s) => { const trip = (START_Z - s.z) / (START_Z - GRAB_Z); return [s.p.id, s.points + 0.24 * (s.has ? 1 + (1 - trip) : trip) / 2]; })); },
     };
   },
 };
