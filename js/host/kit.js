@@ -24,7 +24,7 @@ export function surf(name, { arg, unit = 4, tint = 0xffffff, normalScale = 1, ..
     map: t(set.map), normalMap: t(set.normalMap), roughnessMap: t(set.roughnessMap), normalScale: new THREE.Vector2(normalScale, normalScale),
     color: tint, roughness: 1, metalness: 0, ...opts,
   });
-  if (opts.transparent || name === 'leaves' || name === 'saltbush' || name === 'lace') { m.alphaTest = 0.5; m.transparent = false; m.side = THREE.DoubleSide; }
+  if (opts.transparent || name === 'leaves' || name === 'saltbush' || name === 'lace' || name === 'blossom') { m.alphaTest = 0.5; m.transparent = false; m.side = THREE.DoubleSide; }
   mats.set(key, m);
   return m;
 }

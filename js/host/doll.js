@@ -33,15 +33,9 @@ function drawCartoon(g, mood, skin) {
   if (mood === 'angry') { g.fillStyle = '#fff'; g.fillRect(96, 168, 64, 22); g.lineWidth = 6; g.strokeRect(96, 168, 64, 22); g.beginPath(); for (let x = 112; x < 160; x += 16) { g.moveTo(x, 168); g.lineTo(x, 190); } g.stroke(); }
 }
 
-const faceCache = new Map(); // `${pid}:${mood}:${photoKey}` -> texture
-function faceTexture(pid, mood, photo, skin, hair = 0x3a2418) {
-  const key = `${pid}:${mood}:${photo ? photo.length + photo.slice(-24) : 'cartoon'}:${skin}:${hair}`;
-  if (faceCache.has(key)) return faceCache.get(key);
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
+// paints a face onto a 256px canvas: the cartoon with printed hair, then the photo over it once loaded
+function paintFace(c, mood, photo, skin, hair, onPhoto) {
   const g = c.getContext('2d');
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
   drawCartoon(g, mood, skin);
   // printed hair with a fringe, like the cheap ones (a photo covers it)
   g.fillStyle = '#' + new THREE.Color(hair).getHexString();
@@ -57,12 +51,34 @@ function faceTexture(pid, mood, photo, skin, hair = 0x3a2418) {
       g.save(); g.beginPath(); g.arc(128, 128, 120, 0, Math.PI * 2); g.clip();
       g.drawImage(img, 0, 0, 256, 256);
       g.restore();
-      tex.needsUpdate = true;
+      onPhoto?.();
     };
     img.src = photo;
   }
+}
+const skinOf = (player) => '#' + new THREE.Color('#ffcdb8').lerp(new THREE.Color(player.color || '#ff9fb8'), 0.22).getHexString();
+
+const faceCache = new Map(); // `${pid}:${mood}:${photoKey}` -> texture
+function faceTexture(pid, mood, photo, skin, hair = 0x3a2418) {
+  const key = `${pid}:${mood}:${photo ? photo.length + photo.slice(-24) : 'cartoon'}:${skin}:${hair}`;
+  if (faceCache.has(key)) return faceCache.get(key);
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  paintFace(c, mood, photo, skin, hair, () => { tex.needsUpdate = true; });
   faceCache.set(key, tex);
   return tex;
+}
+
+// A player's doll face as a 256px canvas (photo if they sent one, otherwise the cartoon), for
+// minigames that put faces on other things. onPhoto runs when a photo finishes loading onto it.
+export function faceCanvas(player, mood = 'neutral', onPhoto) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ph = player.photos || {};
+  paintFace(c, mood, ph[mood] || ph.neutral || null, skinOf(player), player.hair ?? 0x3a2418, onPhoto ? () => onPhoto(c) : null);
+  return c;
 }
 
 // small square image for the HUD and phones (photo or cartoon)
@@ -364,9 +380,8 @@ export class Doll {
     this.group.add(this.scaler);
     this.body = new THREE.Group(); // spins and flinches; group stays put for game logic
     this.scaler.add(this.body);
-    const tint = new THREE.Color(player.color || '#ff9fb8');
-    const skinCol = new THREE.Color('#ffcdb8').lerp(tint, 0.22);
-    this.skinCss = '#' + skinCol.getHexString();
+    this.skinCss = skinOf(player);
+    const skinCol = new THREE.Color(this.skinCss);
 
     this.U = {
       uJigC: { value: [0, 1, 2, 3].map(() => new THREE.Vector4()) },
@@ -426,7 +441,7 @@ export class Doll {
 
     // colour ring and name tag
     if (tag) {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 32), new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(player.color || '#ff9fb8'), transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
       this.group.add(ring);
       this.tag = makeTag(player.name, player.color);

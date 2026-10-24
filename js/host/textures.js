@@ -167,6 +167,49 @@ export const TEX = {
     const c = [mix(70, 120, n), mix(96, 140, n), mix(70, 100, n)];
     return { c, h: n, r: 0.8, a };
   }, { alpha: true, normalStrength: 3 }),
+  // cherry blossom clumps for sakura canopies: five-petal flowers crowded together, gaps between (alpha)
+  blossom: () => build('blossom', (u, v) => {
+    const N = 9, n = fbm(u, v, { scale: 8, seed: 57, octaves: 3 });
+    let best = 0, centre = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const cx = Math.floor(u * N) + i, cy = Math.floor(v * N) + j, wx = (cx + N) % N, wy = (cy + N) % N;
+      for (let k = 0; k < 3; k++) {
+        const fx = (cx + hash(wx, wy, 60 + k)) / N, fy = (cy + hash(wx, wy, 70 + k)) / N, rot = hash(wx, wy, 80 + k) * 6.3;
+        const dx = (u - fx) * N, dy = (v - fy) * N, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx) + rot;
+        const r = 0.36 * (0.62 + 0.38 * Math.abs(Math.cos(th * 2.5)));
+        if (d < r && 1 - d / r > best) { best = 1 - d / r; centre = d < 0.07 ? 1 : 0; }
+      }
+    }
+    const shade = 0.78 + n * 0.3;
+    const c = centre ? [200, 70, 110] : [mix(236, 255, best), mix(150, 210, best), mix(178, 225, best)].map((x) => x * shade);
+    return { c, h: best, r: 0.7, a: best > 0 || n > 0.62 ? 255 : 0 };
+  }, { alpha: true, normalStrength: 3 }),
+  // 70s shag carpet: burnt orange and brown with a swirl, fibres catching the light
+  carpet: () => build('carpet', (u, v) => {
+    const n = fbm(u, v, { scale: 128, seed: 90, octaves: 2 }), w = fbm(u, v, { scale: 6, seed: 91, octaves: 3 });
+    const swirl = Math.sin((u + w * 0.5) * Math.PI * 8) * Math.sin((v + w * 0.4) * Math.PI * 8) > 0.35;
+    const b = swirl ? [150, 82, 34] : [104, 64, 36];
+    return { c: b.map((x) => x * (0.7 + n * 0.55)), h: n, r: 0.97 };
+  }, { normalStrength: 5 }),
+  // couch velour: mustard with a woven texture and a darker floral pattern
+  velour: (hex = 0xb68a2e) => build('velour' + hex, (u, v, x, y) => {
+    const weave = ((x + y) % 4 < 2 ? 0.94 : 1.04), n = fbm(u, v, { scale: 24, seed: 92, octaves: 3 });
+    const cu = (u * 6) % 1 - 0.5, cv = (v * 6 + (Math.floor(u * 6) % 2) * 0.5) % 1 - 0.5;
+    const r = Math.hypot(cu, cv), th = Math.atan2(cv, cu), petal = r < 0.32 * (0.55 + 0.45 * Math.abs(Math.cos(th * 3))) && r > 0.06;
+    return { c: col(hex).map((x) => x * weave * (0.85 + n * 0.25) * (petal ? 0.72 : 1)), h: petal ? 0.3 : 0.6, r: 0.9 };
+  }, { normalStrength: 2 }),
+  // 70s wallpaper: brown and cream stripes with an orange medallion
+  wallpaper: () => build('wallpaper', (u, v) => {
+    const s = (u * 8) % 1, cu = s - 0.5, cv = (v * 8) % 1 - 0.5, r = Math.hypot(cu * 1.2, cv), n = fbm(u, v, { scale: 32, seed: 93, octaves: 3 });
+    const c = r < 0.22 ? (r < 0.12 ? [214, 120, 40] : [120, 70, 30]) : s < 0.18 || s > 0.82 ? [92, 60, 38] : [214, 190, 150];
+    return { c: c.map((x) => x * (0.88 + n * 0.16) * (1 - Math.pow(1 - v, 8) * 0.3)), h: 0.5, r: 0.85 };
+  }, { normalStrength: 1 }),
+  // cherry bark: dark red-brown with horizontal lenticel stripes
+  cherrybark: () => build('cherrybark', (u, v) => {
+    const n = fbm(u, v, { scale: 8, seed: 59 }), band = Math.abs(Math.sin(v * Math.PI * 18 + n * 3)) > 0.93;
+    const c = band ? [120, 92, 80] : [mix(58, 86, n), mix(36, 52, n), mix(32, 44, n)];
+    return { c, h: band ? 0.2 : 0.5 + n * 0.3, r: 0.85 };
+  }, { normalStrength: 3 }),
   saltbush: () => build('saltbush', (u, v) => {
     const n = fbm(u, v, { scale: 20, seed: 32, octaves: 4 });
     return { c: [mix(110, 160, n), mix(124, 168, n), mix(100, 140, n)], h: n, r: 0.95, a: n > 0.38 ? 255 : 0 };
@@ -181,6 +224,28 @@ export const TEX = {
     const id = Math.floor(u * 8) + Math.floor(v * 8) * 8, tone = hash(id, 2, 7) * 0.2, n = fbm(u, v, { scale: 32, seed: 35, octaves: 3 });
     const c = joint ? [90, 85, 80] : [mix(170, 200, tone), mix(160, 186, tone), mix(146, 168, tone)].map((x) => x * (0.92 + n * 0.12));
     return { c, h: joint ? 0 : 0.5, r: 0.85 };
+  }, { normalStrength: 5 }),
+  // big irregular grey stone slabs, as on shrine paths in Kyoto
+  flagstone: () => build('flagstone', (u, v) => {
+    // Voronoi slabs: distance to the nearest and second-nearest jittered cell centre
+    const N = 4; let d1 = 9, d2 = 9, id = 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const cx = Math.floor(u * N) + i, cy = Math.floor(v * N) + j, w = (k) => ((k % N) + N) % N;
+      const px = (cx + 0.15 + hash(w(cx), w(cy), 51) * 0.7) / N, py = (cy + 0.15 + hash(w(cx), w(cy), 52) * 0.7) / N;
+      const d = Math.hypot(u - px, v - py);
+      if (d < d1) { d2 = d1; d1 = d; id = hash(w(cx), w(cy), 53); } else if (d < d2) d2 = d;
+    }
+    const edge = (d2 - d1) * N, joint = edge < 0.06, n = fbm(u, v, { scale: 24, seed: 54, octaves: 4 });
+    const g = mix(120, 168, id) * (0.85 + n * 0.3);
+    const moss = !joint && edge < 0.12 && fbm(u, v, { scale: 12, seed: 55 }) > 0.55;
+    return { c: joint ? [52, 54, 46] : moss ? [86, 104, 60] : [g, g * 0.99, g * 0.95], h: joint ? 0 : Math.min(1, edge * 3) * 0.6 + n * 0.2, r: joint ? 1 : 0.8 };
+  }, { size: 512, normalStrength: 6 }),
+  // Japanese kawara roof: rows of grey glazed half-round tiles
+  kawara: () => build('kawara', (u, v) => {
+    const a = (u * 10) % 1, b = (v * 6) % 1, n = fbm(u, v, { scale: 32, seed: 56, octaves: 3 });
+    const round = Math.sin(a * Math.PI), lip = b > 0.86;
+    const g = (lip ? 70 : 88 + round * 40) * (0.9 + n * 0.2);
+    return { c: [g * 0.92, g * 0.95, g], h: round * 0.7 + (lip ? 0.3 : 0), r: 0.45 };
   }, { normalStrength: 5 }),
   // stadium seating: rows of coloured seats
   seats: (hex = 0x1d3d7a) => build('seats' + hex, (u, v) => {

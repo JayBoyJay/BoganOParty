@@ -215,6 +215,33 @@ export function gumTreeParts(seed = 1, tall = 1) {
   ];
 }
 
+// A flowering cherry (sakura): dark trunk, wide low branches, clouds of pink blossom.
+export function cherryTreeParts(seed = 1) {
+  let a = seed * 6007;
+  const rng = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
+  const wood = [], bloom = [], core = [];
+  const H = 4.5 + rng() * 1.5;
+  wood.push(tapered([0, 0, 0], [0.3, H * 0.5, 0], 0.4, 0.3));
+  const branches = 5 + Math.floor(rng() * 3);
+  for (let i = 0; i < branches; i++) {
+    const ang = i / branches * TAU + rng() * 0.6, out = 2.5 + rng() * 2.5, up = H * (0.8 + rng() * 0.3);
+    const mid = [Math.cos(ang) * out * 0.55, H * 0.68, Math.sin(ang) * out * 0.55];
+    const tip = [Math.cos(ang) * out, up, Math.sin(ang) * out];
+    wood.push(tapered([0.3, H * 0.48, 0], mid, 0.24, 0.15), tapered(mid, tip, 0.15, 0.06));
+    for (let j = 0; j < 4; j++) {
+      const cx = tip[0] * (0.6 + rng() * 0.5) + (rng() - 0.5), cy = tip[1] + (rng() - 0.2) * 1.4, cz = tip[2] * (0.6 + rng() * 0.5) + (rng() - 0.5), size = 2.2 + rng() * 1.4;
+      bloom.push(...leafCluster(cx, cy, cz, size, rng));
+      // a solid puff inside each clump so the canopy reads as a mass, not cards
+      const puff = new THREE.IcosahedronGeometry(size * 0.3, 1); puff.scale(1, 0.75, 1); puff.translate(cx, cy, cz); core.push(puff);
+    }
+  }
+  return [
+    { geo: mergeGeometries(wood), material: surf('cherrybark', { unit: 1.2 }) },
+    { geo: mergeGeometries(bloom), material: surf('blossom', { unit: 2.2 }) },
+    { geo: mergeGeometries(core), material: mat(0xe9a3bd, { roughness: 0.9 }) },
+  ];
+}
+
 export function saltbushParts(seed = 1) {
   let a = seed * 7919;
   const rng = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };

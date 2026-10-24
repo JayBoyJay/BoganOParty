@@ -186,7 +186,8 @@ function renderScreen() {
     if (s.kind === 'tilt') return renderTilt(s, el);
     el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : '<div style="height:12px"></div>'}
       <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px' : ''}">${esc(b.label)}</button>`).join('')}</div>`;
-    for (const b of el.querySelectorAll('[data-b]')) b.onclick = () => { send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(12); };
+    // pads fire on touch-down, not on release: in action games every millisecond counts
+    for (const b of el.querySelectorAll('[data-b]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(12); };
     if (s.timer) startTimer(s.timer);
   }
 }

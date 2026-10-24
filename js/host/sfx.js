@@ -50,6 +50,16 @@ export class Sfx {
       case 'ko': this.tone(300, 0.7, { type: 'square', vol: 0.06, slide: -260 }); break;
       case 'go': this.tone(880, 0.3, { type: 'square', vol: 0.06 }); break;
       case 'beep': this.tone(660, 0.12, { type: 'square', vol: 0.05 }); break;
+      case 'boing': this.tone(220, 0.25, { type: 'sine', vol: 0.12, slide: 500 }); break; // an inflatable hopping
+      case 'squeak': this.tone(1400, 0.12, { type: 'triangle', vol: 0.05, slide: -500 }); break; // vinyl squashing
+      case 'bonk': this.tone(160, 0.18, { type: 'square', vol: 0.08, slide: -90 }); this.noise(0.12, 0.2); break;
+      case 'snore': this.tone(70, 1.1, { type: 'sawtooth', vol: 0.09, slide: 30 }); this.noise(1.0, 0.08); break; // a long rattling breath in
+      case 'snort': this.tone(110, 0.18, { type: 'sawtooth', vol: 0.12, slide: -40 }); this.noise(0.15, 0.2); break;
+      case 'creak': this.tone(300, 0.5, { type: 'triangle', vol: 0.05, slide: 180 }); this.tone(240, 0.3, { type: 'triangle', vol: 0.04, delay: 0.25, slide: -90 }); break; // the couch springs
+      case 'oi': this.tone(190, 0.35, { type: 'square', vol: 0.1, slide: -70 }); this.tone(130, 0.3, { type: 'sawtooth', vol: 0.06, slide: -40 }); break;
+      case 'tiptoe': this.tone(1800, 0.03, { type: 'sine', vol: 0.02 }); break;
+      case 'cheers': this.tone(1200, 0.05, { type: 'triangle', vol: 0.06 }); this.tone(1600, 0.08, { type: 'triangle', vol: 0.05, delay: 0.06 }); this.noise(0.25, 0.08, 0.1); break; // cans clinking, then the pssht
+      case 'meow': this.tone(700, 0.35, { type: 'sawtooth', vol: 0.04, slide: 300 }); this.tone(1000, 0.25, { type: 'sawtooth', vol: 0.03, delay: 0.2, slide: -500 }); break;
     }
   }
 }

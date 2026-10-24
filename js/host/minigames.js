@@ -2,7 +2,8 @@
 //
 // A minigame file exports { id, name, blurb, howTo, duration, pad, create(mg) }. create() builds its
 // own three.js scene and returns { scene, camera, update(dt, t), input(player, msg), scores() }.
-// mg gives it: players, makeDoll(player, opts), rng, THREE, kit (see kit.js), sfx, timeLeft().
+// mg gives it: players, makeDoll(player, opts), rng, THREE, kit (see kit.js), sfx, timeLeft(), renderer
+// (for addSky in sky.js).
 // Scores are numbers, higher is better; the runner turns them into placings and the board pays coins.
 import * as THREE from 'three';
 import { MINIGAMES } from '../content/minigames/index.js';
@@ -46,7 +47,7 @@ export class MinigameRunner {
     const dur = this.speed < 1 ? Math.min(8, def.duration) : def.duration; // fast mode is for automated tests
     const scene = new THREE.Scene();
     const mg = {
-      THREE, players, rng: this.rng, sfx: this.sfx, kit: makeKit(scene), scene,
+      THREE, players, rng: this.rng, sfx: this.sfx, kit: makeKit(scene), scene, renderer: this.stage.renderer,
       makeDoll: (p, opts) => new Doll(p, opts),
       timeLeft: () => left, duration: dur,
     };
