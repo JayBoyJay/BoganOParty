@@ -11,6 +11,7 @@ import ripstickRider from './ripstick-rider.js';
 import alansFarm from './alans-farm.js';
 import backYard from './back-yard.js';
 import justATrim from './just-a-trim.js';
+import dubaiHighFlyer from './dubai-high-flyer.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));

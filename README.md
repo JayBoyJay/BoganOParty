@@ -51,6 +51,7 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🐑 Alan's Farm | Twenty sheep and a pen each on the edge of the paddock. Thumbstick to run; sheep move away from you, so herd them in. YELL (every 10 s) scatters sheep near you; HAY (picked up off the ground) makes nearby sheep follow you for 5 s. Most sheep in your pen at the end wins. |
 | 🏋️ The (Back) Yard | Backyard gym, Guitar Hero style: the same coloured notes come down the mat for everyone. Tap the matching colour as each one crosses the line to do a rep. Every 5 in a row raises your multiplier (up to x6); a miss resets it. |
 | ✂️ Just a Trim | A hedge each and a pole trimmer. You walk along by yourself; slide your thumb up and down the phone to set the blade height. Trim the top into the shape on the sign (Opera House, Uluru, a roo...). Closest match wins. |
+| ✈️ Dubai High Flyer | Stunt planes round the Burj Khalifa. Stick to turn, climb and dive; hold FIRE. Gold rings are a point and 10% health; shooting someone down takes one of their points. ? crates give a power-up (balloon mines, flak strike on the leader, boost, tow rope, autopilot, shield; better odds when you're behind). Red crosses are health. |
 
 ## Adding content
 
@@ -74,4 +75,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
