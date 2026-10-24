@@ -2,10 +2,10 @@
 // toss, pick HEADS, TAILS or ODDS and how much to put on, then the spinner throws two pennies off the
 // kip. Two heads is HEADS, two tails is TAILS, one of each is ODDS. Heads or tails pays 2 to 1, odds
 // pays even money, and if you backed heads or tails and it comes up odds you get your stake back.
-// Ten tosses. Most chips at the end wins.
+// Five tosses, no clock. Most chips at the end wins.
 import { addSky } from '../../host/sky.js';
 
-const TOSSES = 10, START = 10;
+const TOSSES = 5, START = 10;
 const BET_T = 5.5, TOSS_T = 3.6, SHOW_T = 2.4;
 const DOLL = 0.62;
 const SIZES = { b1: 1, b3: 3, b5: 5, ball: Infinity };
@@ -13,10 +13,11 @@ const SIZES = { b1: 1, b3: 3, b5: 5, ball: Infinity };
 export default {
   id: 'two-up',
   name: 'Two-Up',
-  blurb: 'Anzac Day in the ring. Back heads, tails or odds with your chips. Ten tosses, most chips wins.',
-  howTo: "Each toss, pick how much to bet (1, 3, 5 or ALL IN) and then HEADS, TAILS or ODDS. Two heads is heads, two tails is tails, one of each is odds. Heads or tails pays 2 to 1 (and you get your money back on odds). Odds pays even money. Ten tosses. Most chips at the end wins. Go broke and the bar shouts you 2 chips each toss so you can claw back.",
+  blurb: 'Anzac Day in the ring. Back heads, tails or odds with your chips. Five tosses, most chips wins.',
+  howTo: "Each toss, pick how much to bet (1, 3, 5 or ALL IN) and then HEADS, TAILS or ODDS. Two heads is heads, two tails is tails, one of each is odds. Heads or tails pays 2 to 1 (and you get your money back on odds). Odds pays even money. Five tosses. Most chips at the end wins. Go broke and the bar shouts you 2 chips each toss so you can claw back.",
   padText: 'Pick a bet size, then call it',
-  duration: 98,
+  duration: 240, // only a safety net: the game ends after the last toss
+  untimed: true,
   pad: { kind: 'buttons', buttons: [
     { id: 'b1', label: 'BET 1', color: '#e8dcc0' }, { id: 'b3', label: 'BET 3', color: '#e8dcc0' },
     { id: 'b5', label: 'BET 5', color: '#e8dcc0' }, { id: 'ball', label: 'ALL IN', color: '#ffb84a' },
@@ -194,6 +195,7 @@ export default {
       },
       scores() { return Object.fromEntries(punters.map((P) => [P.p.id, P.chips + P.stake * (phase === 'bet' || phase === 'toss' ? 1 : 0)])); },
       done: () => finishAt != null && tAll - finishAt > 3.5,
+      status: () => `Toss ${Math.max(1, toss)}/${TOSSES}`,
     };
   },
 };

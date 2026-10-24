@@ -284,7 +284,7 @@ async function startGame() {
   const game = new Game({
     map, board, players, hub, view, hud, sfx,
     settings: { ...state.settings, fast, noMinigames: qp.has('nominigames'), give: qp.get('give')?.split(',').filter((id) => POWERUPS.some((p) => p.id === id)).slice(0, 3) },
-    runMinigame: async (ps) => { state.phase = 'minigame'; const r = await runner.run(ps, runner.pick(only)); state.phase = 'board'; return r; },
+    runMinigame: async (ps) => { state.phase = 'minigame'; const r = await runner.run(ps, await runner.spin(ps, only, `Round ${game.round} minigame`)); state.phase = 'board'; return r; },
   });
   state.game = game;
   window.__game = game; // handy in the console, and for automated tests

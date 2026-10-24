@@ -144,13 +144,14 @@ export class Marathon {
     this.hud.show(false);
     if (this.drinks?.kingCup) { this.view.activate(); this.view.show(this.points, null, this.ranked()); await this.drinks.kingCupStart(); }
     for (let r = 1; r <= this.rounds; r++) {
-      const def = this.runner.pick(this.only);
       this.view.activate();
+      this.view.show(this.points, null, this.ranked());
+      const def = await this.runner.spin(this.players, this.only, `Minigame ${r} of ${this.rounds}`);
       this.view.show(this.points, null, this.ranked());
       this.panel(`Minigame ${r} of ${this.rounds}`, r === 1 ? 'Minigame marathon!' : `Next up: ${def.name}`,
         r === 1 ? `${this.rounds} games back to back. ${MARATHON_POINTS.join(' / ')} points per finish. Most points wins. First up: ${def.name}.` : this.leadLine());
       this.hub.idleAll(`Minigame ${r} of ${this.rounds}`, `Next up: ${def.name}`);
-      await sleep((r === 1 ? 5000 : 3500) * this.speed);
+      await sleep((r === 1 ? 4500 : 3000) * this.speed);
 
       const placings = await this.runner.run(this.players, def);
       this.hud.show(false);

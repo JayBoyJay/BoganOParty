@@ -4,11 +4,13 @@
 // own three.js scene and returns { scene, camera, update(dt, t), input(player, msg), scores() }.
 // mg gives it: players, makeDoll(player, opts), rng, THREE, kit (see kit.js), sfx, timeLeft(), renderer
 // (for addSky in sky.js).
+// untimed: true hides the clock (duration is then just a safety net) and shows inst.status() instead.
 // Scores are numbers, higher is better; the runner turns them into placings and the board pays coins.
 import * as THREE from 'three';
 import { MINIGAMES } from '../content/minigames/index.js';
 import { Doll, faceDataUrl } from './doll.js';
 import { makeKit } from './kit.js';
+import { spinWheel, wheelGames, markPlayed } from './wheel.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -28,8 +30,17 @@ export class MinigameRunner {
     return def;
   }
 
+  // spin the wheel to choose (or straight to the one game when testing with ?minigame=)
+  async spin(players, only, label) {
+    if (only) return this.pick(only);
+    this.hud.show(false);
+    const games = wheelGames(MINIGAMES, this.rng);
+    return spinWheel({ root: this.root, hub: this.hub, sfx: this.sfx, players, games, rng: this.rng, speed: this.speed, label });
+  }
+
   async run(players, def = this.pick()) {
     const root = this.root;
+    markPlayed(def.id);
     this.hud.show(false);
     // ----- title card -----
     root.classList.remove('hidden');
@@ -61,7 +72,7 @@ export class MinigameRunner {
       update: (dt) => { if (running) { t += dt; left = Math.max(0, dur - (performance.now() - t0) / 1000); } inst.update(dt, t, running); },
     };
     this.stage.setView(view);
-    root.innerHTML = `<div class="mg-hud"><div class="mg-name">${esc(def.name)}</div><div class="mg-time" id="mgTime">${dur}</div></div><div class="mg-big" id="mgBig"></div><div class="mg-board" id="mgBoard"></div>`;
+    root.innerHTML = `<div class="mg-hud"><div class="mg-name">${esc(def.name)}</div><div class="mg-time" id="mgTime">${def.untimed ? '' : dur}</div></div><div class="mg-big" id="mgBig"></div><div class="mg-board" id="mgBoard"></div>`;
     const big = root.querySelector('#mgBig');
 
     // ----- controls + countdown -----
@@ -75,7 +86,7 @@ export class MinigameRunner {
     await new Promise((resolve) => {
       const tick = setInterval(() => {
         left = Math.max(0, dur - (performance.now() - t0) / 1000);
-        timeEl.textContent = Math.ceil(left);
+        timeEl.textContent = def.untimed ? inst.status?.() || '' : Math.ceil(left); // untimed games run to their own end
         const sc = inst.scores();
         boardEl.innerHTML = [...players].sort((a, b) => (sc[b.id] || 0) - (sc[a.id] || 0))
           .map((p) => `<div style="--pc:${p.color}"><img src="${faceDataUrl(p, 'neutral')}" alt=""><b>${esc(p.name)}</b><span>${Math.round(sc[p.id] || 0)}</span></div>`).join('');

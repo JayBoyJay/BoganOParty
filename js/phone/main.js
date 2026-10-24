@@ -205,6 +205,13 @@ function renderScreen() {
       <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px;' : ''}${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;min-height:${b.tall ? '30vh' : '76px'};font-size:26px` : ''}">${esc(b.label)}</button>`).join('')}</div>`;
     // pads fire on touch-down, not on release: in action games every millisecond counts
     for (const b of el.querySelectorAll('[data-b]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(12); };
+    // hold buttons also say when they're let go
+    s.buttons.forEach((def, i) => {
+      if (!def.hold) return;
+      const b = el.querySelectorAll('[data-b]')[i];
+      b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('dn'); send({ t: 'in', id: s.id, b: def.id, down: true }); buzz(12); };
+      b.onpointerup = b.onpointercancel = () => { b.classList.remove('dn'); send({ t: 'in', id: s.id, b: def.id, down: false }); };
+    });
     if (s.timer) startTimer(s.timer);
   }
 }
