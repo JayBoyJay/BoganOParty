@@ -61,6 +61,11 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🌭 Sausage Sizzle | Four snags each on a shared hotplate. Only the down side cooks: tap 1-4 to flip, SERVE puts every cooked snag in bread. Golden both sides 3, close 2, meh 1, raw or burnt −1, charcoal −1. Smoke goes grey then black. A magpie nicks snags. |
 | 🧊 Esky Tetris | Same gear in the same order for everyone (stubbies, ice, snags, melon, slab, goon, pav, prawns). Move, SPIN, DROP. Anything over the rim and the lid won't shut: you're done. Most items packed wins. |
 | 🗑️ Wheelie Bin Derby | Bin night race down a steep street, riding wheelie bins backwards. Tilt to steer, KICK for speed. Bins, parked cars and potholes wipe you out; plank ramps give air; speed humps bounce you. First to the bottom wins. |
+| 🪙 Two-Up | Anzac Day in the pub beer garden. Each toss, pick a bet size and call HEADS, TAILS or ODDS before the spinner throws the pennies. Heads or tails pays 2 to 1, odds pays even. Ten tosses, most chips wins. Go broke and the bar shouts you 2 chips. |
+| 🧴 Sunscreen Slap | Trev's asleep face down at the beach. Tiny players run around on his back holding RUB to spread their colour of sunscreen; SLAP drops a big dollop and knocks people flying. Cover burning patches for a bonus. Most of his back wins. |
+| 🏉 Footy Kick-to-Kick | Coach Robbo boots it high into the pack: run under it and time your JUMP to take the mark. Then line up for goal with the stick and stop the power meter, allowing for the wind. Goal 6, behind 1, mark 1. Seven kicks. |
+| 🛒 Bottle-O Run | Trolley dash round the bottle shop for the four things on your list (shown on the TV), then hit the checkout. Watch out for slow shoppers, the wet floor and the can pyramid. First through wins. |
+| 🛻 Ute Muster | Drive your ute across a bumpy paddock with a hay bale, esky, bar fridge and swag loose on the back. Floor it and they slide off; hit the humps fast and they fly off. 15 points per item delivered plus a bonus for finishing first. |
 
 ## Adding content
 
@@ -84,4 +89,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby, two-up, sunscreen-slap, footy-kick-to-kick, bottle-o-run, ute-muster), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
