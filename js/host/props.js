@@ -71,6 +71,40 @@ export function pub(k, x, z, rot, { name, color = 0xe6d6b0, trim = 0x23503a, roo
   return g;
 }
 
+// A country main-street shop: rendered parapet facade with the shop's name, big display windows,
+// a recessed door, and a posted street verandah over the footpath. Front faces +z.
+export function shopfront(k, x, z, rot, { name = '', color = 0xe2d2b0, trim = 0x2d4a3a, roof = 0x8d8f8c, w = 9, d = 9, h = 5, signBg = '#2d4a3a', signFg = '#f4e2b0', glow = null, window = 0xffe6b0 } = {}, parent = k.root) {
+  const g = k.group(x, parent === k.root ? k.heightAt(x, z) : 0, z, rot, 1, parent);
+  const wallM = surf('render', { arg: color, unit: 3 });
+  k.box(w, h, d, wallM, 0, 0, 0, g);
+  k.box(w, 0.08, d - 0.6, surf('corrugated', { unit: 1.5, tint: roof, metalness: 0.6 }), 0, h - 0.4, -0.3, g);
+  // stepped parapet with a cornice and a little pediment in the middle
+  k.box(w, 1.6, 0.35, wallM, 0, h, d / 2 - 0.17, g);
+  k.box(w + 0.2, 0.22, 0.5, color, 0, h + 1.5, d / 2 - 0.15, g);
+  k.extrude([[-1.4, 0], [1.4, 0], [0, 0.8]], 0.35, wallM, g).position.set(0, h + 1.7, d / 2 - 0.17);
+  for (const sx of [-1, 1]) k.box(0.4, h + 1.8, 0.45, color, sx * (w / 2 - 0.2), 0, d / 2 - 0.1, g); // pilasters
+  if (name) k.sign(name, w - 1.4, 0.95, 0, h + 0.75, d / 2 + 0.02, g, { bg: signBg, fg: signFg, glow, font: '900 110px Georgia, serif' });
+  // shop windows lit warm from inside, with a timber stall-board under them
+  const lit = new THREE.MeshStandardMaterial({ color: window, emissive: window, emissiveIntensity: 0.35, roughness: 0.15, metalness: 0.2 });
+  for (const sx of [-1, 1]) {
+    const ww = w / 2 - 1.5;
+    k.box(ww, 0.7, 0.2, trim, sx * (ww / 2 + 0.9), 0, d / 2 + 0.05, g);
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(ww, 2.2), lit); pane.position.set(sx * (ww / 2 + 0.9), 1.85, d / 2 + 0.03); g.add(pane);
+    k.box(ww, 0.1, 0.16, trim, sx * (ww / 2 + 0.9), 2.95, d / 2 + 0.06, g);
+    for (let i = 1; i < 3; i++) k.box(0.07, 2.2, 0.12, trim, sx * (0.9 + ww * i / 3), 0.75, d / 2 + 0.06, g);
+  }
+  k.box(1.3, 2.4, 0.12, 0x3a2516, 0, 0, d / 2 - 0.2, g); // recessed door
+  k.box(1.5, 0.15, 0.6, trim, 0, 2.4, d / 2 - 0.05, g);
+  // street verandah over the footpath: posts at the kerb, a flat iron roof with a fascia
+  const vd = 3, vh = 3.4;
+  k.box(w, 0.12, vd, surf('concrete', { unit: 2 }), 0, 0, d / 2 + vd / 2, g); // footpath
+  const roofV = k.box(w + 0.1, 0.1, vd + 0.2, surf('corrugated', { unit: 1.5, tint: roof, metalness: 0.6 }), 0, vh, d / 2 + vd / 2, g);
+  roofV.rotation.x = 0.08;
+  k.box(w + 0.1, 0.35, 0.08, trim, 0, vh - 0.25, d / 2 + vd + 0.05, g);
+  for (let i = 0; i < 3; i++) k.cyl(0.07, 0.07, vh, trim, -w / 2 + 0.3 + i * (w - 0.6) / 2, 0, d / 2 + vd - 0.1, g, { metalness: 0.4, roughness: 0.4 }, 8);
+  return g;
+}
+
 // Office tower for city skylines.
 export function tower(k, x, z, { w = 10, d = 10, h = 40, color = 0x6c8094, rot = 0 } = {}, parent = k.root) {
   const g = k.group(x, parent === k.root ? k.heightAt(x, z) : 0, z, rot, 1, parent);
@@ -198,7 +232,7 @@ function leafCluster(cx, cy, cz, size, rng) {
 export function gumTreeParts(seed = 1, tall = 1) {
   let a = seed * 9973;
   const rng = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
-  const wood = [], leaves = [];
+  const wood = [], leaves = [], core = [];
   const H = (7 + rng() * 3) * tall;
   wood.push(tapered([0, 0, 0], [0.2, H * 0.45, 0], 0.55, 0.38));
   const branches = 4 + Math.floor(rng() * 3);
@@ -207,11 +241,16 @@ export function gumTreeParts(seed = 1, tall = 1) {
     const mid = [Math.cos(ang) * out * 0.5, H * 0.6, Math.sin(ang) * out * 0.5];
     const tip = [Math.cos(ang) * out, up, Math.sin(ang) * out];
     wood.push(tapered([0.2, H * 0.43, 0], mid, 0.32, 0.2), tapered(mid, tip, 0.2, 0.08));
-    for (let j = 0; j < 3; j++) leaves.push(...leafCluster(tip[0] + (rng() - 0.5) * 2, tip[1] + (rng() - 0.3) * 1.5, tip[2] + (rng() - 0.5) * 2, 2.6 + rng() * 1.5, rng));
+    for (let j = 0; j < 3; j++) {
+      const cx = tip[0] + (rng() - 0.5) * 2, cy = tip[1] + (rng() - 0.3) * 1.5, cz = tip[2] + (rng() - 0.5) * 2, size = 2.6 + rng() * 1.5;
+      leaves.push(...leafCluster(cx, cy, cz, size, rng));
+      const puff = new THREE.IcosahedronGeometry(size * 0.26, 1); puff.scale(1, 0.7, 1); puff.translate(cx, cy, cz); core.push(puff);
+    }
   }
   return [
     { geo: mergeGeometries(wood), material: surf('bark', { unit: 1 }) },
     { geo: mergeGeometries(leaves), material: surf('leaves', { unit: 2.5 }) },
+    { geo: mergeGeometries(core), material: mat(0x4f6a4a, { roughness: 0.95 }) },
   ];
 }
 
@@ -242,16 +281,37 @@ export function cherryTreeParts(seed = 1) {
   ];
 }
 
+// Old man saltbush: a dense, rounded, silvery blue-grey mound, a few lumpy domes pushed together.
+// Solid geometry (with a fine leafy bump map) reads as a bush from the board camera; cards looked like paper.
 export function saltbushParts(seed = 1) {
   let a = seed * 7919;
   const rng = () => { a = (a * 16807) % 2147483647; return a / 2147483647; };
-  const cards = [];
-  for (let i = 0; i < 4; i++) cards.push(...leafCluster((rng() - 0.5) * 0.8, 0.5 + rng() * 0.3, (rng() - 0.5) * 0.8, 1.3 + rng() * 0.6, rng));
-  const core = new THREE.IcosahedronGeometry(0.55, 1); core.scale(1, 0.7, 1); core.translate(0, 0.4, 0);
-  return [
-    { geo: mergeGeometries(cards), material: surf('saltbush', { unit: 1.5 }) },
-    { geo: core, material: mat(0x6f7d62, { roughness: 1 }) },
-  ];
+  const lumps = [];
+  const n = 4 + Math.floor(rng() * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 0.45 + rng() * 0.3, ang = rng() * TAU, d = i ? 0.35 + rng() * 0.35 : 0;
+    const geo = new THREE.IcosahedronGeometry(r, 3);
+    const P = geo.attributes.position, ph = rng() * 10;
+    const colors = new Float32Array(P.count * 3);
+    for (let j = 0; j < P.count; j++) {
+      const x = P.getX(j), y = P.getY(j), z = P.getZ(j);
+      // knobbly outline: a few sine bumps at two scales
+      const k = 1 + 0.12 * Math.sin(x * 9 + ph) * Math.sin(z * 8 - ph) + 0.06 * Math.sin((x + y + z) * 23 + ph);
+      P.setXYZ(j, x * k, Math.max(-0.05, y * k * 0.78), z * k);
+      // silver on top where the sun bleaches it, darker grey-green underneath
+      const t = Math.max(0, Math.min(1, (y / r + 0.4)));
+      const speck = 0.92 + 0.16 * Math.abs(Math.sin(x * 37 + z * 29 + ph));
+      colors[j * 3] = (0.40 + t * 0.30) * speck; colors[j * 3 + 1] = (0.46 + t * 0.30) * speck; colors[j * 3 + 2] = (0.40 + t * 0.26) * speck;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+    const uv = geo.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setXY(j, P.getX(j) * 1.6 + P.getY(j), P.getZ(j) * 1.6 + P.getY(j));
+    geo.translate(Math.cos(ang) * d, r * 0.62, Math.sin(ang) * d);
+    lumps.push(geo);
+  }
+  const leafy = surf('saltbush', { unit: 1.2 });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, normalMap: leafy.normalMap, normalScale: new THREE.Vector2(2.2, 2.2), color: 0xd8e0d0 });
+  return [{ geo: mergeGeometries(lumps), material: m }];
 }
 
 export function rockParts(seed = 1, material = null) {
