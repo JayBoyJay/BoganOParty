@@ -10,6 +10,7 @@ import { BoardView } from './boardview.js';
 import { Hud } from './hud.js';
 import { Hub } from './hub.js';
 import { Sfx } from './sfx.js';
+import { Music } from './music.js';
 import { Game } from './engine.js';
 import { MinigameRunner } from './minigames.js';
 import { Marathon, MARATHON_POINTS } from './marathon.js';
@@ -28,7 +29,7 @@ const BOT_BODIES = ['sheila', 'bloke', 'sheila', 'bloke', 'bloke', 'sheila', 'bo
 const state = {
   phase: 'lobby',
   players: new Map(), // pid -> { id, name, body, photos, color, ready, connected }
-  settings: { mode: 'board', mgRounds: 5, map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, ...store.load('settings', {}) },
+  settings: { mode: 'board', mgRounds: 5, map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, music: true, ...store.load('settings', {}) },
   game: null,
 };
 if (qp.has('bots')) state.settings.cpus = Number(qp.get('bots')) || 0;
@@ -45,10 +46,12 @@ const saveSettings = () => store.save('settings', state.settings);
 
 const stage = new Stage($('scene'));
 const sfx = new Sfx();
+const music = new Music();
 const hud = new Hud($('hud'));
 hud.show(false);
-addEventListener('pointerdown', () => sfx.unlock(), { once: true });
-addEventListener('keydown', () => sfx.unlock(), { once: true });
+const unlockAudio = () => { sfx.unlock(); music.unlock(); };
+addEventListener('pointerdown', unlockAudio, { once: true });
+addEventListener('keydown', unlockAudio, { once: true });
 
 // ---------------- phones ----------------
 const net = new HostNet({
@@ -194,6 +197,10 @@ function setupLobbyControls() {
   $('soundBtn').onclick = () => { state.settings.sound = !state.settings.sound; sfx.on = state.settings.sound; saveSettings(); $('soundBtn').textContent = sfx.on ? '🔊' : '🔇'; };
   sfx.on = state.settings.sound;
   $('soundBtn').textContent = sfx.on ? '🔊' : '🔇';
+  const musicLabel = () => { $('musicBtn').classList.toggle('off', !music.on); $('musicBtn').title = music.on ? 'Music on' : 'Music off'; };
+  $('musicBtn').onclick = () => { state.settings.music = !state.settings.music; music.setOn(state.settings.music); saveSettings(); musicLabel(); };
+  music.on = state.settings.music;
+  musicLabel();
   addEventListener('keydown', (e) => {
     if (e.key === 'f' || e.key === 'F') $('fsBtn').click();
     if (state.phase === 'lobby' && e.key === 'ArrowLeft') cycleMap(-1);
@@ -236,7 +243,7 @@ function showLobbyBoard() {
 async function startGame() {
   if (state.phase !== 'lobby') return;
   clearTimeout(autoT);
-  sfx.unlock();
+  unlockAudio();
   const map = MAP_BY_ID[state.settings.map];
   const humans = [...state.players.values()].filter((p) => p.connected);
   const bots = Array.from({ length: state.settings.cpus }, (_, i) => ({
@@ -249,6 +256,7 @@ async function startGame() {
   if (players.length < 2) return;
   if (state.settings.mode === 'minigames') return startMarathon(players);
   state.phase = 'board';
+  music.play('board');
   $('lobby').classList.add('hidden');
   hud.show(true);
   hud.faces.clear();
@@ -259,7 +267,7 @@ async function startGame() {
   const view = new BoardView(stage, map, board);
   view.show();
   hud.setGoal(`${map.item.emoji} First to ${state.settings.itemsToWin}`);
-  const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1 });
+  const runner = new MinigameRunner({ stage, hub, sfx, music, root: $('minigame'), hud, speed: fast ? 0.25 : 1 });
   const only = qp.get('minigame') && MINIGAME_BY_ID[qp.get('minigame')] ? [qp.get('minigame')] : null;
   const game = new Game({
     map, board, players, hub, view, hud, sfx,
@@ -279,11 +287,12 @@ async function startGame() {
 // Minigames only: no board, minigames back to back, points per finish.
 async function startMarathon(players) {
   state.phase = 'minigame';
+  music.play('board'); // between games, over the standings
   $('lobby').classList.add('hidden');
   hud.faces.clear();
   hub.players = players;
   hub.idleAll('Starting!', `Minigames only: ${state.settings.mgRounds} games`);
-  const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1 });
+  const runner = new MinigameRunner({ stage, hub, sfx, music, root: $('minigame'), hud, speed: fast ? 0.25 : 1 });
   const only = qp.get('minigame') && MINIGAME_BY_ID[qp.get('minigame')] ? [qp.get('minigame')] : null;
   const marathon = new Marathon({ players, rounds: state.settings.mgRounds, runner, hub, hud, sfx, stage, root: $('minigame'), speed: fast ? 0.25 : 1, only });
   state.game = marathon;
@@ -309,6 +318,7 @@ function gameOver(players, result) {
 
 function backToLobby() {
   state.phase = 'lobby';
+  music.play('lobby');
   state.game = null;
   hud.hideOverlay();
   hud.show(false);
@@ -325,6 +335,7 @@ hub.handle = (pid, m) => { if (m.t === 'answer' && m.id === -1) { if (state.phas
 
 $('contentList').innerHTML = `${MAPS.length} maps · ${POWERUPS.length} power-ups · ${MINIGAMES.length} minigame${MINIGAMES.length === 1 ? '' : 's'}`;
 setupLobbyControls();
+music.play('lobby');
 showLobbyBoard();
 renderLobby();
 if (qp.has('autostart')) setTimeout(() => startGame(), 800);

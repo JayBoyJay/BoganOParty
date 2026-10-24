@@ -54,6 +54,7 @@
   .pcard.ready .st { color: var(--good); }
   .pcard.off { opacity: 0.45; }
   .pcard .x { position: absolute; top: 4px; right: 6px; background: none; padding: 2px 6px; font-size: 14px; color: var(--dim); }
+  .corner button.off { opacity: 0.4; }
   .corner { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 8px; z-index: 30; }
   #netStatus { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(160,30,30,0.9); padding: 8px 14px; border-radius: 10px; z-index: 40; }
 
@@ -182,7 +183,7 @@
 <div id="hud" class="hidden"></div>
 <div id="minigame" class="hidden"></div>
 <div id="netStatus" class="hidden"></div>
-<div class="corner"><button id="soundBtn">🔊</button><button id="fsBtn">⛶</button></div>
+<div class="corner"><button id="musicBtn" title="Music">🎸</button><button id="soundBtn">🔊</button><button id="fsBtn">⛶</button></div>
 
 <script type="module" src="js/host/main.js"></script>
 </body>

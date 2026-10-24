@@ -14,8 +14,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class MinigameRunner {
-  constructor({ stage, hub, sfx, root, hud, rng = Math.random, speed = 1 }) {
-    Object.assign(this, { stage, hub, sfx, root, hud, rng, speed });
+  constructor({ stage, hub, sfx, music, root, hud, rng = Math.random, speed = 1 }) {
+    Object.assign(this, { stage, hub, sfx, music, root, hud, rng, speed });
     this.recent = [];
   }
 
@@ -30,6 +30,8 @@ export class MinigameRunner {
 
   async run(players, def = this.pick()) {
     const root = this.root;
+    const back = this.music?.scene;
+    this.music?.play('minigame');
     this.hud.show(false);
     // ----- title card -----
     root.classList.remove('hidden');
@@ -102,6 +104,7 @@ export class MinigameRunner {
     root.classList.add('hidden');
     root.innerHTML = '';
     this.hud.show(true);
+    if (back && back !== 'minigame') this.music?.play(back);
     return placings;
   }
 }
