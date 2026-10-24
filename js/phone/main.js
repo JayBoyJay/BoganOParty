@@ -185,8 +185,9 @@ function renderScreen() {
   if (s.t === 'pad') {
     if (s.kind === 'tilt') return renderTilt(s, el);
     if (s.kind === 'stick') return renderStick(s, el);
+    if (s.kind === 'slider') return renderSlider(s, el);
     el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : '<div style="height:12px"></div>'}
-      <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px' : ''}">${esc(b.label)}</button>`).join('')}</div>`;
+      <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px;' : ''}${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;min-height:${b.tall ? '30vh' : '76px'};font-size:26px` : ''}">${esc(b.label)}</button>`).join('')}</div>`;
     // pads fire on touch-down, not on release: in action games every millisecond counts
     for (const b of el.querySelectorAll('[data-b]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(12); };
     if (s.timer) startTimer(s.timer);
@@ -257,13 +258,33 @@ function renderStick(s, el) {
   tiltStop = () => clearInterval(keep);
 }
 
+// a tall slider you drag up and down with your thumb. Sends where it is, 0 (bottom) to 1 (top): { b: 'slide', v }
+function renderSlider(s, el) {
+  el.innerHTML = `<div class="sliderpad"><h1>${esc(s.title)}</h1><div class="dim">${esc(s.body || '')}</div>
+    <div class="vtrack" id="vtrack"><div class="vfill"></div><div class="vthumb">${esc(s.thumb || '')}</div></div><div class="dim">${esc(s.hint || 'Drag up and down')}</div></div>`;
+  const tr = $('vtrack'), th = tr.querySelector('.vthumb'), fill = tr.querySelector('.vfill');
+  let v = Number.isFinite(s.start) ? s.start : 1, lastSent = 0;
+  const draw = () => { th.style.bottom = `calc(${v * 100}% - ${v * 64}px)`; fill.style.height = `${v * 100}%`; };
+  const push = (force) => { const now = Date.now(); if (force || now - lastSent > 40) { lastSent = now; send({ t: 'in', id: s.id, b: 'slide', v: +v.toFixed(3) }); } };
+  const at = (e) => { const r = tr.getBoundingClientRect(); v = Math.max(0, Math.min(1, 1 - (e.clientY - r.top - 32) / (r.height - 64))); draw(); push(false); };
+  let sid = null;
+  tr.onpointerdown = (e) => { e.preventDefault(); sid = e.pointerId; tr.setPointerCapture(sid); at(e); buzz(10); };
+  tr.onpointermove = (e) => { if (e.pointerId === sid) at(e); };
+  tr.onpointerup = tr.onpointercancel = (e) => { if (e.pointerId === sid) { sid = null; push(true); } };
+  draw();
+  const keep = setInterval(() => push(true), 250);
+  tiltStop = () => clearInterval(keep);
+}
+
 function renderTilt(s, el) {
   let invert = store.get('invert') === '1';
   el.innerHTML = `<div class="tiltbox"><h1>${esc(s.title)}</h1><div class="dim">${esc(s.body || 'Tilt your phone like a steering wheel')}</div>
     <div class="wing"><div class="plane" id="plane"></div></div>
     <button id="perm" class="go wide hidden">Turn on tilt</button>
     <div class="label">No tilt? Slide instead</div><input type="range" id="slide" min="-55" max="55" step="1" value="0">
-    <div style="height:10px"></div><button id="inv" class="wide">${invert ? 'Tilt is flipped ↔' : 'Flip tilt direction ↔'}</button></div>`;
+    <div style="height:10px"></div><button id="inv" class="wide">${invert ? 'Tilt is flipped ↔' : 'Flip tilt direction ↔'}</button>
+    ${s.buttons?.length ? `<div style="height:12px"></div><div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}">${esc(b.label)}</button>`).join('')}</div>` : ''}</div>`;
+  for (const b of el.querySelectorAll('[data-b]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(15); };
   let angle = 0, lastSent = 0, usingTilt = false;
   const plane = $('plane');
   const draw = () => { plane.style.transform = `rotate(${angle}deg)`; };

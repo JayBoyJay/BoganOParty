@@ -57,6 +57,19 @@ export class Sfx {
       case 'snort': this.tone(110, 0.18, { type: 'sawtooth', vol: 0.12, slide: -40 }); this.noise(0.15, 0.2); break;
       case 'creak': this.tone(300, 0.5, { type: 'triangle', vol: 0.05, slide: 180 }); this.tone(240, 0.3, { type: 'triangle', vol: 0.04, delay: 0.25, slide: -90 }); break; // the couch springs
       case 'oi': this.tone(190, 0.35, { type: 'square', vol: 0.1, slide: -70 }); this.tone(130, 0.3, { type: 'sawtooth', vol: 0.06, slide: -40 }); break;
+      case 'kick': this.tone(150, 0.16, { type: 'sine', vol: 0.22, slide: -110 }); break;
+      case 'snare': this.noise(0.14, 0.18); this.tone(220, 0.08, { type: 'triangle', vol: 0.05 }); break;
+      case 'hat': this.noise(0.03, 0.06); break;
+      case 'clank': this.tone(1900, 0.12, { type: 'square', vol: 0.03 }); this.tone(2600, 0.2, { type: 'triangle', vol: 0.03, delay: 0.02 }); break; // plates hitting the bar
+      case 'miss': this.tone(140, 0.2, { type: 'sawtooth', vol: 0.05, slide: -40 }); break;
+      case 'baa': this.tone(520, 0.45, { type: 'sawtooth', vol: 0.04, slide: -120 }); for (let i = 0; i < 6; i++) this.tone(480 - i * 15, 0.06, { type: 'square', vol: 0.02, delay: 0.05 + i * 0.06 }); break;
+      case 'yell': this.tone(260, 0.6, { type: 'sawtooth', vol: 0.09, slide: 140 }); this.noise(0.5, 0.12); break;
+      case 'horn': this.tone(392, 0.5, { type: 'square', vol: 0.06 }); this.tone(494, 0.5, { type: 'square', vol: 0.05 }); break;
+      case 'bark': this.tone(600, 0.08, { type: 'sawtooth', vol: 0.08, slide: -300 }); this.tone(560, 0.08, { type: 'sawtooth', vol: 0.07, slide: -280, delay: 0.16 }); break;
+      case 'meow': this.tone(700, 0.4, { type: 'triangle', vol: 0.06, slide: 300 }); break;
+      case 'whoosh': this.noise(0.25, 0.16); break;
+      case 'trim': this.tone(95, 0.12, { type: 'sawtooth', vol: 0.025 }); break; // a hedge trimmer buzzing
+      case 'thud': this.tone(90, 0.3, { type: 'sine', vol: 0.25, slide: -50 }); this.noise(0.2, 0.25); break;
       case 'tiptoe': this.tone(1800, 0.03, { type: 'sine', vol: 0.02 }); break;
       case 'cheers': this.tone(1200, 0.05, { type: 'triangle', vol: 0.06 }); this.tone(1600, 0.08, { type: 'triangle', vol: 0.05, delay: 0.06 }); this.noise(0.25, 0.08, 0.1); break; // cans clinking, then the pssht
       case 'meow': this.tone(700, 0.35, { type: 'sawtooth', vol: 0.04, slide: 300 }); this.tone(1000, 0.25, { type: 'sawtooth', vol: 0.03, delay: 0.2, slide: -500 }); break;

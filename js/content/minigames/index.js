@@ -7,6 +7,10 @@ import burgerBoys from './burger-boys.js';
 import marbleMayhem from './marble-mayhem.js';
 import joeMaster from './joe-master.js';
 import toyCars from './toy-cars.js';
+import ripstickRider from './ripstick-rider.js';
+import alansFarm from './alans-farm.js';
+import backYard from './back-yard.js';
+import justATrim from './just-a-trim.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));

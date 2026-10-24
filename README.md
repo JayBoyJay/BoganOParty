@@ -47,6 +47,10 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🔮 Marble Mayhem | The MarbleDrinks race on a fresh short track. You're a glass marble with your doll's head inside. BOOST three times; roll through a vape for a power, then USE POWER. |
 | 🤼 Joe Master Universe | The Joe Master wrestling game: everyone in the ring as NAME MASTER. Thumbstick to move, STRIKE, GRAB (grab again to slam, grab a downed Master to pin), RUN, BLOCK. Mash to escape. Last one standing. With under 4 players, the Original JOE MASTER joins as a CPU. |
 | 🏎️ Toy Cars | Orange track through a giant house. Your car drives flat out; tilt to steer. Three laps. |
+| 🛹 Ripstick Rider | Down a suburban street on ripsticks. Keep swaying your phone side to side to ride (lean more one way to drift that way). Cracks, potholes, pets and oncoming cars knock you off; fall behind and the magpie swoops you. PUSH shoves whoever's next to you; a foam sword pickup shoves much harder. Last one riding wins, survivors tie at 1:30. |
+| 🐑 Alan's Farm | Twenty sheep and a pen each on the edge of the paddock. Thumbstick to run; sheep move away from you, so herd them in. YELL (every 10 s) scatters sheep near you; HAY (picked up off the ground) makes nearby sheep follow you for 5 s. Most sheep in your pen at the end wins. |
+| 🏋️ The (Back) Yard | Backyard gym, Guitar Hero style: the same coloured notes come down the mat for everyone. Tap the matching colour as each one crosses the line to do a rep. Every 5 in a row raises your multiplier (up to x6); a miss resets it. |
+| ✂️ Just a Trim | A hedge each and a pole trimmer. You walk along by yourself; slide your thumb up and down the phone to set the blade height. Trim the top into the shape on the sign (Opera House, Uluru, a roo...). Closest match wins. |
 
 ## Adding content
 
@@ -54,7 +58,7 @@ Everything is plain JavaScript modules with no build step. Each kind of content 
 
 - **Map:** copy `js/content/maps/broken-hill.js`, change the id, name, item, colours, board layout, landmarks and events, and add it to `js/content/maps/index.js`. The board is a loop of control points plus branches that leave and rejoin the loop; spaces are spread along them automatically. A landmark can name a real model with `glb: 'assets/models/thing.glb'` and it's loaded instead of the built-in placeholder.
 - **Power-up:** copy `js/content/powerups/coin-flip.js`, write its `use(game, player)`, and add it to `js/content/powerups/index.js`. The game object gives you `ask`, `pickPlayer`, `aim` (move a target around the board), `aimDirection`, `banner`, `coins`, `damage`, `addEffect`, `knockBack`, `teleport` and `view` effects. Lasting effects (like Sugar Rush) live in `effects.js`.
-- **Minigame:** copy `js/content/minigames/plane-instructor.js` and add it to `js/content/minigames/index.js`. It builds its own scene, takes phone input (`pad` decides the controls: `tilt`, `buttons`, or `stick` for a thumbstick plus held buttons) and returns scores. The runner handles the title card, ready-up, countdown, timer and results.
+- **Minigame:** copy `js/content/minigames/plane-instructor.js` and add it to `js/content/minigames/index.js`. It builds its own scene, takes phone input (`pad` decides the controls: `tilt` (optionally with buttons under it), `buttons` (optionally coloured), `stick` for a thumbstick plus held buttons, or `slider` for a tall up-and-down slider) and returns scores. The runner handles the title card, ready-up, countdown, timer and results.
 
 ## Project layout
 
@@ -70,4 +74,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
