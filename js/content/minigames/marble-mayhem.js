@@ -41,6 +41,7 @@ export default {
       vis.mesh.renderOrder = 2;
       const doll = mg.makeDoll(p, { tag: false });
       const head = doll.head; head.removeFromParent();
+      doll.hat?.removeFromParent(); // no room for a hat inside the marble
       const box = new THREE.Box3().setFromObject(head), c = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
       head.position.sub(c);
       const holder = new THREE.Group(); holder.add(head);

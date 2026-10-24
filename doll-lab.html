@@ -41,8 +41,9 @@ const cam = (q.get('cam') || '0,2.6,9.5,0,1.5,0').split(',').map(Number);
 camera.position.set(cam[0], cam[1], cam[2]); camera.lookAt(cam[3], cam[4], cam[5]);
 
 const kinds = (q.get('kinds') || 'bloke,sheila,smooth,both').split(',');
+const hats = (q.get('hats') || '').split(','), outfits = (q.get('outfits') || '').split(','); // ?hats=akubra,beanie&outfits=footy,flanno
 const dolls = kinds.map((body, i) => {
-  const d = new Doll({ id: 'p' + i, name: body, color: ['#ff4f8b', '#3da5ff', '#ffd23f', '#5cff9d'][i % 4], body, hair: [0x3a2418, 0xd9a441, 0x1a1a1a, 0x8a3b1f][i % 4] }, { tag: false });
+  const d = new Doll({ id: 'p' + i, name: body, color: ['#ff4f8b', '#3da5ff', '#ffd23f', '#5cff9d'][i % 4], body, hat: hats[i % hats.length] || undefined, outfit: outfits[i % outfits.length] || undefined, hair: [0x3a2418, 0xd9a441, 0x1a1a1a, 0x8a3b1f][i % 4] }, { tag: false });
   d.group.position.x = (i - (kinds.length - 1) / 2) * 2.4;
   d.home = d.group.position.clone();
   d.group.rotation.y = Number(q.get('rot') || 0);

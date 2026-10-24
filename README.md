@@ -16,7 +16,7 @@ Open **http://localhost:3000** on the TV and scan the QR with phones on the same
 
 ## How a game works
 
-1. **Lobby.** Phones join, type a name, pick a doll (Bloke, Sheila, Smooth or Both) and take up to four selfies: neutral, happy, sad and angry. Missing moods fall back to the neutral photo, then to a cartoon face. On the TV, pick the map, how many items win (default 5), an optional round limit, and CPU players.
+1. **Lobby.** Phones join, type a name, pick a doll (Bloke, Sheila, Smooth or Both), dress it up (headgear: Akubra, cork hat, trucker, bucket hat, surf cap, beanie, baggy green, hard hat or Ned Kelly's helmet; outfits: nude, smugglers, singlet and stubbies, footy guernsey, hi-vis, flanno and trackies, cricket whites, bikini or lifesaver) and take up to four selfies: neutral, happy, sad and angry. Missing moods fall back to the neutral photo, then to a cartoon face. On the TV, pick the map, how many items win (default 5), an optional round limit, and CPU players.
 2. **Turns.** Each player can use one power-up, then rolls (d10). At a fork the phone asks which way. Blue spaces give 3 coins, red take 3, green are map events, yellow are shops.
 3. **The item.** Each map has its own item (Broken Hill: a Lump of Lead; Adelaide: a Crazy Horse ticket). Walk past it with 20 coins to buy it. Each time it's bought it moves to the space **furthest from every player**, unless the players are all spread out, in which case it goes **furthest from the leader**.
 4. **Minigame** after every round. Coins for 1st/2nd/3rd/4th: 10/6/3/1.

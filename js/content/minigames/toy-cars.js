@@ -178,7 +178,9 @@ export default {
       // the driver: the player's doll head poking out of the cockpit
       const doll = mg.makeDoll(p, { tag: false });
       const head = doll.head; head.removeFromParent();
+      doll.hat?.removeFromParent(); // size the head without the hat, then put the hat back on
       const box = new THREE.Box3().setFromObject(head), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+      if (doll.hat) head.add(doll.hat);
       head.position.sub(c);
       const holder = new THREE.Group(); holder.add(head); holder.scale.setScalar(0.62 / Math.max(sz.x, sz.y)); holder.position.set(0, 0.88, -0.15); g.add(holder);
       // a flag on a stick with their colour, so they can be picked out from up high

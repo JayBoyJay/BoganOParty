@@ -14,7 +14,7 @@ import { Game } from './engine.js';
 import { MinigameRunner } from './minigames.js';
 import { Marathon, MARATHON_POINTS } from './marathon.js';
 import { Drinks } from './drinks.js';
-import { MOODS, BODIES, PLAYER_COLORS, faceDataUrl } from './doll.js';
+import { MOODS, BODIES, OUTFITS, HATS, PLAYER_COLORS, faceDataUrl, defaultOutfit } from './doll.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -28,6 +28,8 @@ const MAX_PLAYERS = 8;
 // CPUs fill whatever seats the phones leave, up to the cap
 const cpuCount = () => Math.max(0, Math.min(state.settings.cpus, MAX_PLAYERS - [...state.players.values()].filter((p) => p.connected).length));
 const BOT_BODIES = ['sheila', 'bloke', 'sheila', 'bloke', 'bloke', 'sheila', 'both', 'smooth'];
+const BOT_HATS = ['bucket', 'akubra', 'none', 'trucker', 'corks', 'beanie', 'lifesaver', 'hardhat'];
+const BOT_OUTFITS = ['bikini', 'singlet', 'lifesaver', 'smugglers', 'hivis', 'flanno', 'nude', 'footy'];
 
 const state = {
   phase: 'lobby',
@@ -46,7 +48,7 @@ const fast = qp.has('fast');
 
 // players are remembered (with photos) so a refresh doesn't lose anyone
 for (const p of Object.values(store.load('players', {}))) state.players.set(p.id, { ...p, ready: false, connected: false });
-const savePlayers = () => { try { store.save('players', Object.fromEntries([...state.players].map(([k, p]) => [k, { id: p.id, name: p.name, body: p.body, photos: p.photos, color: p.color }]))); } catch { /* photos too big: skip */ } };
+const savePlayers = () => { try { store.save('players', Object.fromEntries([...state.players].map(([k, p]) => [k, { id: p.id, name: p.name, body: p.body, hat: p.hat, outfit: p.outfit, photos: p.photos, color: p.color }]))); } catch { /* photos too big: skip */ } };
 const saveSettings = () => store.save('settings', state.settings);
 
 const stage = new Stage($('scene'));
@@ -101,9 +103,11 @@ function onNet(m) {
       if (state.phase !== 'lobby') return;
       const name = String(msg.name || '').trim().slice(0, 16) || 'Player';
       const body = BODIES.some((b) => b.id === msg.body) ? msg.body : 'smooth';
-      if (p) Object.assign(p, { name, body, connected: true });
+      const hat = HATS.some((h) => h.id === msg.hat) ? msg.hat : 'none';
+      const outfit = OUTFITS.some((o) => o.id === msg.outfit) ? msg.outfit : defaultOutfit(body);
+      if (p) Object.assign(p, { name, body, hat, outfit, connected: true });
       else if ([...state.players.values()].filter((q) => q.connected).length >= MAX_PLAYERS) return; // the couch is full
-      else state.players.set(pid, { id: pid, name, body, photos: {}, color: nextColor(), ready: false, connected: true });
+      else state.players.set(pid, { id: pid, name, body, hat, outfit, photos: {}, color: nextColor(), ready: false, connected: true });
       savePlayers(); pushLobby(pid); renderLobby();
       break;
     }
@@ -152,10 +156,10 @@ function lobbyView(pid) {
   const map = MAP_BY_ID[state.settings.map];
   return {
     t: 'lobby',
-    you: p ? { joined: true, name: p.name, body: p.body, color: p.color, ready: !!p.ready, photos: Object.fromEntries(MOODS.map((m) => [m, p.photos?.[m] || null])) } : { joined: false },
+    you: p ? { joined: true, name: p.name, body: p.body, hat: p.hat || 'none', outfit: p.outfit || defaultOutfit(p.body), color: p.color, ready: !!p.ready, photos: Object.fromEntries(MOODS.map((m) => [m, p.photos?.[m] || null])) } : { joined: false },
     map: state.settings.mode === 'minigames' ? { id: map.id, name: 'Minigames only', item: 'most points', emoji: '🎮' } : { id: map.id, name: map.name, item: map.item.name, emoji: map.item.emoji },
     maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
-    bodies: BODIES,
+    bodies: BODIES, hats: HATS, outfits: OUTFITS,
     moods: MOODS,
     count: [...state.players.values()].filter((x) => x.connected).length,
   };
@@ -256,7 +260,7 @@ async function startGame() {
   const map = MAP_BY_ID[state.settings.map];
   const humans = [...state.players.values()].filter((p) => p.connected);
   const bots = Array.from({ length: cpuCount() }, (_, i) => ({
-    id: 'cpu' + i, name: BOT_NAMES[i % BOT_NAMES.length], body: BOT_BODIES[i % BOT_BODIES.length], photos: {}, bot: true, color: PLAYER_COLORS[(humans.length + i) % PLAYER_COLORS.length],
+    id: 'cpu' + i, name: BOT_NAMES[i % BOT_NAMES.length], body: BOT_BODIES[i % BOT_BODIES.length], hat: BOT_HATS[i % BOT_HATS.length], outfit: BOT_OUTFITS[i % BOT_OUTFITS.length], photos: {}, bot: true, color: PLAYER_COLORS[(humans.length + i) % PLAYER_COLORS.length],
   }));
   const used = new Set();
   for (const p of humans) { if (used.has(p.color)) p.color = PLAYER_COLORS.find((c) => !used.has(c)); used.add(p.color); }

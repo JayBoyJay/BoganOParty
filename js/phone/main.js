@@ -18,6 +18,8 @@ let lobby = null; // last lobby view
 let stats = null;
 let screen = null; // last prompt/pad/idle
 let body = store.get('body') || 'smooth';
+let hat = store.get('hat') || 'none';
+let outfit = store.get('outfit') || '';
 
 const net = new PhoneNet({
   onMsg,
@@ -53,10 +55,16 @@ function renderLobby() {
   show('vLobby');
   const you = lobby.you;
   if (you.color) document.documentElement.style.setProperty('--pc', you.color);
-  if (you.joined) { body = you.body; if (document.activeElement !== $('name')) $('name').value = you.name; }
+  if (you.joined) { body = you.body; hat = you.hat || hat; outfit = you.outfit || outfit; if (document.activeElement !== $('name')) $('name').value = you.name; }
   else if (!$('name').value) $('name').value = store.get('name') || '';
   $('bodies').innerHTML = lobby.bodies.map((b) => `<button data-b="${b.id}" class="${b.id === body ? 'on' : ''}"><span class="e">${b.emoji}</span>${esc(b.label)}${b.sub ? `<small>${esc(b.sub)}</small>` : ''}</button>`).join('');
   for (const btn of $('bodies').querySelectorAll('button')) btn.onclick = () => { body = btn.dataset.b; store.set('body', body); sendProfile(); renderLobby(); };
+  const picker = (el, list, cur, pick) => {
+    $(el).innerHTML = (list || []).map((b) => `<button data-b="${b.id}" class="${b.id === cur ? 'on' : ''}"><span class="e">${b.emoji}</span>${esc(b.label)}${b.sub ? `<small>${esc(b.sub)}</small>` : ''}</button>`).join('');
+    for (const btn of $(el).querySelectorAll('button')) btn.onclick = () => { pick(btn.dataset.b); sendProfile(); renderLobby(); };
+  };
+  picker('hats', lobby.hats, hat, (v) => { hat = v; store.set('hat', v); });
+  picker('outfits', lobby.outfits, outfit || (body === 'bloke' || body === 'both' ? 'smugglers' : 'nude'), (v) => { outfit = v; store.set('outfit', v); });
   $('faces').innerHTML = lobby.moods.map((mood) => {
     const ph = you.photos?.[mood];
     return `<button data-m="${mood}"><div class="ph">${ph ? `<img src="${ph}" alt="">` : MOOD_LABEL[mood][0]}</div>${MOOD_LABEL[mood][1]}</button>`;
@@ -74,7 +82,7 @@ function sendProfile() {
   const name = $('name').value.trim();
   if (!name) return;
   store.set('name', name);
-  send({ t: 'profile', name, body });
+  send({ t: 'profile', name, body, hat, outfit: outfit || undefined });
 }
 $('readyBtn').onclick = () => {
   if (!$('name').value.trim()) { $('name').focus(); $('name').placeholder = 'Type your name first'; return; }
