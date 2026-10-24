@@ -4,6 +4,7 @@
 // anyone moving, OI! Back to the door you go, and any biscuit you were carrying stays behind.
 // Red light, green light, but it's a bloke on a mustard couch.
 import { mergeGeometries } from '../../../vendor/BufferGeometryUtils.js';
+import { makeDecor } from '../../host/decor.js';
 
 const LANE = 1.5; // metres per lane
 const DOLL = 0.68; // player doll scale (Myles is 0.95, so he's a big unit)
@@ -82,31 +83,70 @@ export default {
     bulb.castShadow = true; bulb.shadow.mapSize.set(2048, 2048); bulb.shadow.bias = -0.0004; bulb.shadow.normalBias = 0.03;
     scene.add(bulb, bulb.target);
 
-    const carpet = kit.surf('carpet', { unit: 2.5 });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(RW, LEN), carpet);
+    const D = makeDecor(kit);
+    const put = (obj, x, y, z, rot = 0) => { obj.position.set(x, y, z); obj.rotation.y = rot; scene.add(obj); return obj; };
+    // short-pile carpet in a muted brown, the kind every rental had, and a patterned rug down the middle
+    const carpetTex = D.canvasTex(512, 512, (g, w, h) => {
+      g.fillStyle = '#6e5b44'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 26000; i++) { const v = rng(); g.fillStyle = v < 0.5 ? `rgba(40,28,16,${0.08 + rng() * 0.1})` : `rgba(190,160,120,${0.05 + rng() * 0.08})`; g.fillRect(rng() * w, rng() * h, 1.5, 1.5); }
+    });
+    carpetTex.wrapS = carpetTex.wrapT = THREE.RepeatWrapping; carpetTex.repeat.set(RW / 2, LEN / 2);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(RW, LEN), new THREE.MeshStandardMaterial({ map: carpetTex, roughness: 1 }));
     floor.rotation.x = -Math.PI / 2; floor.position.z = MID_Z; floor.receiveShadow = true;
-    // carpet UVs in metres
-    { const uv = floor.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * RW, uv.getY(i) * LEN); }
     scene.add(floor);
-    const paper = kit.surf('wallpaper', { unit: 3 }), panel = kit.surf('planks', { unit: 2.4, tint: 0xb08a68 });
-    // the front wall (behind the players' start, facing the camera) and the side walls
-    kit.box(RW, 4.2, 0.2, paper, 0, 0, FRONT_Z + 0.1, scene);
-    for (const s of [-1, 1]) {
-      const wall = kit.box(0.2, 4.2, LEN, paper, s * RW / 2, 0, MID_Z);
-      wall.receiveShadow = true;
-      kit.box(0.06, 1.1, LEN, panel, s * (RW / 2 - 0.12), 0, MID_Z); // wood panelling up to the dado
-      kit.box(0.1, 0.08, LEN, 0x4a2e1a, s * (RW / 2 - 0.13), 1.1, MID_Z);
+    {
+      const rw = Math.min(RW - 3, W + 1.6), rl = LEN - 9;
+      const rug = new THREE.Mesh(new THREE.PlaneGeometry(rw, rl), new THREE.MeshStandardMaterial({ roughness: 1, map: D.canvasTex(512, 1024, (g, w, h) => {
+        g.fillStyle = '#7a2e22'; g.fillRect(0, 0, w, h);
+        g.strokeStyle = '#d8b46a'; g.lineWidth = 14; g.strokeRect(22, 22, w - 44, h - 44);
+        g.strokeStyle = '#2a3a5a'; g.lineWidth = 26; g.strokeRect(58, 58, w - 116, h - 116);
+        g.strokeStyle = '#d8b46a'; g.lineWidth = 6; g.strokeRect(84, 84, w - 168, h - 168);
+        // a big central medallion and corner flourishes, Persian-ish
+        g.fillStyle = '#2a3a5a'; g.beginPath(); g.ellipse(w / 2, h / 2, 130, 230, 0, 0, 7); g.fill();
+        g.fillStyle = '#d8b46a'; g.beginPath(); g.ellipse(w / 2, h / 2, 80, 150, 0, 0, 7); g.fill();
+        g.fillStyle = '#7a2e22'; g.beginPath(); g.ellipse(w / 2, h / 2, 40, 80, 0, 0, 7); g.fill();
+        for (const [cx, cy] of [[110, 110], [w - 110, 110], [110, h - 110], [w - 110, h - 110]]) { g.fillStyle = '#2a3a5a'; g.beginPath(); g.arc(cx, cy, 34, 0, 7); g.fill(); }
+        for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(0,0,0,${rng() * 0.12})`; g.fillRect(rng() * w, rng() * h, 2, 2); }
+      }) }));
+      rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.008, (START_Z + COUCH_Z) / 2 + 0.6); rug.receiveShadow = true; scene.add(rug);
     }
-    // the front door, the telly on the front wall, a window with the moon outside
-    const front = kit.group(0, 0, FRONT_Z - 0.02);
-    kit.box(1.3, 2.4, 0.1, 0x6a4024, -RW / 2 + 2.2, 0, 0, front);
-    kit.ball(0.06, 0xd8b04a, -RW / 2 + 2.7, 1.2, 0.08, front, { metalness: 1, roughness: 0.3 });
-    kit.box(2.8, 0.6, 0.7, 0x3a2416, 1.8, 0, -0.4, front); // telly cabinet
-    kit.box(1.9, 1.3, 0.8, 0x2a2622, 1.8, 0.6, -0.4, front); // a big old CRT
+    // walls: painted plaster above, timber panelling below a dado rail, skirting and cornice
+    const plaster = kit.surf('render', { arg: 0xc9b48e, unit: 2.5 });
+    const panelM = kit.surf('planks', { unit: 1.4, tint: 0x8a5e3e });
+    const trimM = kit.mat(0x4a2e1a, { roughness: 0.5 });
+    kit.box(RW, 3.6, 0.2, plaster, 0, 0, FRONT_Z + 0.1);
+    for (const s of [-1, 1]) {
+      kit.box(0.2, 3.6, LEN, plaster, s * RW / 2, 0, MID_Z).receiveShadow = true;
+      kit.box(0.05, 1.05, LEN, panelM, s * (RW / 2 - 0.12), 0, MID_Z);
+      kit.box(0.09, 0.07, LEN, trimM, s * (RW / 2 - 0.14), 1.05, MID_Z); // dado rail
+      kit.box(0.08, 0.14, LEN, trimM, s * (RW / 2 - 0.15), 0, MID_Z); // skirting
+      kit.box(0.14, 0.12, LEN, kit.mat(0xe8dcc4), s * (RW / 2 - 0.16), 3.48, MID_Z); // cornice
+    }
+    kit.box(RW, 1.05, 0.05, panelM, 0, 0, FRONT_Z - 0.02);
+    kit.box(RW, 0.07, 0.09, trimM, 0, 1.05, FRONT_Z - 0.04);
+    // the front wall: the door, the telly on its cabinet
+    const front = kit.group(0, 0, FRONT_Z - 0.06);
+    {
+      const door = kit.group(-RW / 2 + 2.2, 0, 0, Math.PI, 1, front);
+      door.add(D.bx(new THREE.Group(), 1.0, 2.1, 0.06, kit.surf('planks', { unit: 1, tint: 0x7a4a28 }), 0, 0, 0, 0.01).parent || new THREE.Group());
+      kit.box(1.1, 2.15, 0.06, kit.surf('planks', { unit: 1, tint: 0x7a4a28 }), 0, 0, 0, door);
+      for (const [y, h] of [[0.15, 0.8], [1.1, 0.85]]) kit.box(0.8, h, 0.03, kit.surf('planks', { unit: 1, tint: 0x6a3e20 }), 0, y, 0.04, door);
+      for (const s of [-1, 1]) kit.box(0.08, 2.25, 0.1, trimM, s * 0.6, 0, 0.02, door);
+      kit.box(1.28, 0.08, 0.1, trimM, 0, 2.17, 0.02, door);
+      kit.ball(0.05, kit.mat(0xd8b04a, { metalness: 1, roughness: 0.25 }), 0.4, 1.05, 0.09, door);
+    }
     const screenTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 160; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return { c, t }; })();
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.0), new THREE.MeshBasicMaterial({ map: screenTex.t }));
-    screen.position.set(1.8, 1.26, -0.81); screen.rotation.y = Math.PI; front.add(screen);
-    const tvGlow = new THREE.PointLight(0x7fa8ff, 6, 12, 1.6); tvGlow.position.set(1.8, 1.3, -1.6); front.add(tvGlow);
+    {
+      const tv = kit.group(1.8, 0, -0.45, Math.PI, 1, front);
+      const cab = D.desk(2.6, 0.6, { top: 0x5a3a22, legs: 0x3a2416 }); cab.scale.set(1, 0.75, 1); tv.add(cab);
+      D.bx(tv, 2.5, 0.42, 0.55, kit.surf('planks', { unit: 1, tint: 0x5a3a22 }), 0, 0.08, 0, 0.02); // cupboards
+      for (const s of [-1, 1]) D.bx(tv, 1.18, 0.36, 0.02, kit.surf('planks', { unit: 1, tint: 0x4a2e18 }), s * 0.62, 0.11, 0.28, 0.01);
+      const crt = D.crt({ screen: screenTex.t }); crt.scale.setScalar(3.2); crt.position.set(0, 0.56, -0.05); tv.add(crt);
+      const vcr = D.bx(tv, 0.7, 0.12, 0.4, 0x1c1c1e, -0.85, 0.56, 0.02, 0.01);
+      void vcr;
+      const plant = D.pottedPlant({ size: 1.4 }); plant.position.set(1.0, 0.56, 0); tv.add(plant);
+    }
+    const tvGlow = new THREE.PointLight(0x7fa8ff, 6, 12, 1.6); tvGlow.position.set(1.8, 1.4, -1.6); front.add(tvGlow);
     const drawTv = (t) => {
       // the cricket highlights, on mute: green oval, a pitch, a scoreline
       const g = screenTex.c.getContext('2d');
@@ -119,40 +159,82 @@ export default {
       screenTex.t.needsUpdate = true;
       tvGlow.intensity = 5 + Math.sin(t * 7) * 0.8 + Math.sin(t * 13) * 0.6;
     };
-    const win = kit.window(2.2, 1.4, 0, 2.6, 0, kit.group(-RW / 2 + 0.11, 0, -1.5, Math.PI / 2));
-    const curtain = kit.surf('velour', { arg: 0x7a3a22, unit: 1.4 });
-    for (const s of [-1, 1]) kit.box(0.12, 2.3, 0.8, curtain, -RW / 2 + 0.3, 0.8, -1.5 + s * 1.5);
-    const moon = new THREE.PointLight(0x9fb4ff, 4, 14, 1.5); moon.position.set(-RW / 2 + 1, 2.6, -1.5); scene.add(moon);
-    // a Southern Cross flag, a dartboard and a framed footy photo on the walls
-    kit.sign('★ ✦ ★', 2.2, 1.3, RW / 2 - 0.12, 2.6, 2.5, scene, { bg: '#0a2a7a', fg: '#fff' }).rotation.y = -Math.PI / 2;
-    kit.cyl(0.42, 0.42, 0.08, 0x1a1a1a, RW / 2 - 0.16, 2.1, -3.5, scene).rotation.z = Math.PI / 2;
-    const dart = kit.sign('◎', 0.82, 0.82, RW / 2 - 0.22, 2.53, -3.5, scene, { bg: '#c8201c', fg: '#e8d8a0' }); dart.rotation.y = -Math.PI / 2;
-
-    // the couch: mustard velour, three cushions, mid-century arms
-    const velour = kit.surf('velour', { unit: 0.9 });
-    const couch = kit.group(0, 0, COUCH_Z);
-    kit.box(4.6, 0.5, 1.7, velour, 0, 0.12, 0, couch);
-    for (const x of [-1.45, 0, 1.45]) { const c = kit.box(1.42, 0.3, 1.45, velour, x, 0.62 - 0.07, 0.1, couch); c.castShadow = true; }
-    kit.box(4.6, 0.95, 0.4, velour, 0, 0.62, -0.68, couch); // backrest
-    for (const x of [-1.45, 0, 1.45]) kit.box(1.4, 0.6, 0.25, velour, x, 0.8, -0.4, couch); // back cushions
-    for (const s of [-1, 1]) kit.box(0.35, 0.95, 1.7, velour, s * 2.47, 0.12, 0, couch);
-    for (const s of [-1, 1]) for (const z of [-0.7, 0.7]) kit.cyl(0.05, 0.03, 0.14, 0x2a1a10, s * 2.2, 0, z, couch);
-    // a crocheted blanket hanging off one end
-    kit.box(0.9, 0.04, 1.2, kit.surf('velour', { arg: 0xc84a3a, unit: 0.6 }), -2.0, 1.12, 0.1, couch).rotation.z = 0.3;
-
-    // the coffee table: VB empties, a pizza box, the remote
-    const table = kit.group(0, 0, COUCH_Z + 2.0);
-    kit.box(2.4, 0.08, 1.0, kit.surf('planks', { unit: 1.5, tint: 0x8a5a38 }), 0, 0.5, 0, table, {});
-    for (const x of [-1.1, 1.1]) for (const z of [-0.42, 0.42]) kit.box(0.08, 0.5, 0.08, 0x3a2416, x, 0, z, table);
-    const greenCan = kit.mat(0x1f6a2a, { metalness: 0.8, roughness: 0.3 }), redCan = kit.mat(0xb8201c, { metalness: 0.8, roughness: 0.3 });
-    const cans = [];
-    for (let i = 0; i < 9; i++) {
-      const c = kit.cyl(0.07, 0.07, 0.24, i % 3 ? greenCan : redCan, (rng() - 0.5) * 2, 0.58, (rng() - 0.5) * 0.8, table);
-      if (rng() < 0.4) { c.rotation.z = Math.PI / 2; c.position.y = 0.65; }
-      cans.push(c);
+    // the window on the left wall, with a moonlit street outside and heavy curtains with real folds
+    {
+      const wg = kit.group(-RW / 2 + 0.11, 0, -1.5, Math.PI / 2);
+      const night = D.canvasTex(256, 160, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0a1430'); gr.addColorStop(1, '#2a3a5a'); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = '#e8eeff'; g.beginPath(); g.arc(190, 40, 16, 0, 7); g.fill(); for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(rng() * w, rng() * h * 0.5, 1.5, 1.5); } g.fillStyle = '#0a0e18'; g.fillRect(0, 110, w, 50); g.beginPath(); g.moveTo(20, 110); g.lineTo(60, 80); g.lineTo(100, 110); g.fill(); g.fillStyle = '#f8d878'; g.fillRect(48, 96, 10, 8); });
+      D.panel(wg, 2.2, 1.4, night, 0, 2.0, -0.02, { glow: 0.9 });
+      const frameM = kit.mat(0xe8e0cc, { roughness: 0.5 });
+      for (const [w, h, x, y] of [[2.4, 0.1, 0, 1.25], [2.4, 0.1, 0, 2.7], [0.1, 1.5, -1.15, 1.3], [0.1, 1.5, 1.15, 1.3], [0.06, 1.4, 0, 1.3], [2.3, 0.06, 0, 1.95]]) D.bx(wg, w, h, 0.12, frameM, x, y, 0.02, 0.01);
+      // curtains: a wavy sheet each side
+      const folds = (w, h) => { const geo = new THREE.PlaneGeometry(w, h, 24, 1); const p = geo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, Math.sin(p.getX(i) / w * Math.PI * 7) * 0.06); geo.computeVertexNormals(); return geo; };
+      const curtainM = new THREE.MeshPhysicalMaterial({ color: 0x7a3a22, roughness: 0.85, sheen: 1, sheenColor: 0xd08060, side: THREE.DoubleSide });
+      for (const s of [-1, 1]) { const c = new THREE.Mesh(folds(0.9, 2.7), curtainM); c.position.set(s * 1.55, 1.75, 0.18); c.castShadow = true; wg.add(c); }
+      D.cyl(wg, 0.025, 0.025, 4.2, kit.mat(0xd8b04a, { metalness: 0.9, roughness: 0.3 }), 0, 3.12, 0.2).rotation.z = Math.PI / 2;
+      wg.children.at(-1).position.set(0, 3.12, 0.2);
     }
-    kit.box(0.9, 0.08, 0.9, 0xd8c4a0, 0.5, 0.58, 0.05, table).rotation.y = 0.3;
-    kit.box(0.5, 0.06, 0.12, 0x1a1a1a, -0.6, 0.58, 0.2, table).rotation.y = -0.4;
+    const moon = new THREE.PointLight(0x9fb4ff, 4, 14, 1.5); moon.position.set(-RW / 2 + 1, 2.6, -1.5); scene.add(moon);
+    // on the right wall: the Southern Cross, a dartboard, framed photos, and a sideboard with the good glasses
+    {
+      const flag = D.canvasTex(330, 180, (g, w, h) => { g.fillStyle = '#0a2a7a'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; const star = (x, y, r, pts = 7) => { g.beginPath(); for (let k = 0; k < pts * 2; k++) { const a = -Math.PI / 2 + k * Math.PI / pts, rr = k % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.fill(); }; star(230, 40, 15); star(270, 85, 15); star(230, 145, 15); star(195, 80, 15); star(250, 105, 7, 5); });
+      const fg = kit.group(RW / 2 - 0.11, 0, 2.6, -Math.PI / 2); D.panel(fg, 1.9, 1.04, flag, 0, 2.5, 0.01, { roughness: 0.9 });
+      const dart = D.canvasTex(256, 256, (g) => { const cx = 128; g.fillStyle = '#111'; g.beginPath(); g.arc(cx, cx, 126, 0, 7); g.fill(); for (let k = 0; k < 20; k++) { for (const [r0, col] of [[100, k % 2 ? '#c8201c' : '#1a7a3a'], [92, k % 2 ? '#f2e2b0' : '#111'], [60, k % 2 ? '#c8201c' : '#1a7a3a'], [52, k % 2 ? '#f2e2b0' : '#111']]) { g.fillStyle = col; g.beginPath(); g.moveTo(cx, cx); g.arc(cx, cx, r0, k * Math.PI / 10, (k + 1) * Math.PI / 10); g.fill(); } } g.fillStyle = '#1a7a3a'; g.beginPath(); g.arc(cx, cx, 14, 0, 7); g.fill(); g.fillStyle = '#c8201c'; g.beginPath(); g.arc(cx, cx, 6, 0, 7); g.fill(); });
+      const dg = kit.group(RW / 2 - 0.11, 0, -3.5, -Math.PI / 2); D.cyl(dg, 0.46, 0.46, 0.06, 0x1a1a1a, 0, 2.3, 0.0).rotation.x = Math.PI / 2; dg.children.at(-1).position.set(0, 2.3, 0.03);
+      const face = new THREE.Mesh(new THREE.CircleGeometry(0.44, 40), new THREE.MeshStandardMaterial({ map: dart, roughness: 0.9 })); face.position.set(0, 2.3, 0.065); dg.add(face);
+      const photo = (title, col, z, y) => { const p = D.poster(0.62, 0.48, (g, w, h) => { g.fillStyle = col; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = '800 26px system-ui'; g.textAlign = 'center'; g.fillText(title, w / 2, h - 22, w - 10); g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(w / 2, h / 2 - 20, 60, 50, 0, 0, 7); g.fill(); }, { frame: 0x6a4a2a }); p.position.set(RW / 2 - 0.12, y, z); p.rotation.y = -Math.PI / 2; scene.add(p); };
+      photo('BATHURST 98', '#3a5a8a', -0.8, 2.0); photo('BIG SNAPPER', '#2a6a7a', 0.2, 2.25); photo('MUM & DAD', '#8a6a4a', 1.0, 1.95);
+      // sideboard with a radio and the glasses
+      const sb = kit.group(RW / 2 - 0.5, 0, -6.0, -Math.PI / 2);
+      D.bx(sb, 2.0, 0.8, 0.5, kit.surf('planks', { unit: 1, tint: 0x6a4024 }), 0, 0.12, 0, 0.02);
+      for (const [x, z] of [[-0.9, -0.2], [0.9, -0.2], [-0.9, 0.2], [0.9, 0.2]]) D.cyl(sb, 0.025, 0.02, 0.12, 0x3a2416, x, 0, z, 8);
+      for (let k = 0; k < 4; k++) D.bx(sb, 0.46, 0.66, 0.02, kit.surf('planks', { unit: 1, tint: 0x5a3418 }), -0.72 + k * 0.48, 0.18, 0.255, 0.01);
+      for (let k = 0; k < 5; k++) { const b = D.bottle({ color: [0x5a3a12, 0x2a5a2a, 0x8a5a1a][k % 3], h: 0.3 + (k % 2) * 0.08 }); b.position.set(-0.8 + k * 0.14, 0.92, -0.05); sb.add(b); }
+      const radio = D.bx(sb, 0.5, 0.28, 0.2, 0x8a6a4a, 0.55, 0.92, 0, 0.04); void radio;
+      D.panel(sb, 0.22, 0.18, D.canvasTex(64, 64, (g) => { g.fillStyle = '#d8c8a0'; g.fillRect(0, 0, 64, 64); g.strokeStyle = '#4a3a2a'; for (let y = 6; y < 64; y += 6) { g.beginPath(); g.moveTo(4, y); g.lineTo(60, y); g.stroke(); } }), 0.45, 1.06, 0.101);
+      scene.add(sb);
+    }
+    // a pendant light over the coffee table, and a ceiling fan
+    // (the ceiling itself is out of shot)
+
+    // the couch: a proper three-seater in mustard velour, plump cushions, rolled arms, timber legs
+    const velour = new THREE.MeshPhysicalMaterial({ color: 0xb08a2e, roughness: 0.82, sheen: 1, sheenRoughness: 0.4, sheenColor: 0xffe0a0 });
+    const couch = kit.group(0, 0, COUCH_Z);
+    D.bx(couch, 4.6, 0.42, 1.6, velour, 0, 0.16, 0, 0.12); // base
+    for (const x of [-1.45, 0, 1.45]) D.bx(couch, 1.42, 0.24, 1.36, velour, x, 0.56, 0.12, 0.11); // seat cushions
+    D.bx(couch, 4.6, 0.9, 0.38, velour, 0, 0.5, -0.64, 0.14); // backrest
+    for (const x of [-1.45, 0, 1.45]) { const c = D.bx(couch, 1.4, 0.62, 0.3, velour, x, 0.74, -0.38, 0.13); c.rotation.x = -0.12; }
+    for (const s of [-1, 1]) {
+      D.bx(couch, 0.34, 0.62, 1.6, velour, s * 2.43, 0.16, 0, 0.1);
+      const roll = D.cyl(couch, 0.22, 0.22, 1.62, velour, s * 2.45, 0.78, 0, 24); roll.rotation.x = Math.PI / 2; roll.position.set(s * 2.45, 0.8, 0);
+    }
+    for (const s of [-1, 1]) for (const z of [-0.6, 0.6]) D.cyl(couch, 0.05, 0.035, 0.16, 0x3a2416, s * 2.2, 0, z, 10);
+    // a crocheted granny-square rug thrown over one end
+    {
+      const granny = D.canvasTex(256, 256, (g) => { const cols = ['#c84a3a', '#e8b03a', '#3a7a5a', '#3a5a9a', '#e8e0d0']; for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) for (let r = 4; r > 0; r--) { g.fillStyle = cols[(x + y + r) % 5]; g.fillRect(x * 64 + 32 - r * 7.5, y * 64 + 32 - r * 7.5, r * 15, r * 15); } });
+      const throwGeo = new THREE.PlaneGeometry(1.0, 1.4, 12, 12); const p = throwGeo.attributes.position; for (let i = 0; i < p.count; i++) p.setZ(i, Math.sin(p.getX(i) * 6) * 0.03 + (p.getY(i) < -0.2 ? (p.getY(i) + 0.2) * 0.9 : 0)); throwGeo.computeVertexNormals();
+      const th = new THREE.Mesh(throwGeo, new THREE.MeshStandardMaterial({ map: granny, roughness: 1, side: THREE.DoubleSide })); th.rotation.set(-Math.PI / 2, 0, 0.1); th.position.set(-1.8, 0.82, 0.05); th.castShadow = true; couch.add(th);
+    }
+
+    // the coffee table: VB empties, a pizza box, the remote, a pile of magazines
+    const table = kit.group(0, 0, COUCH_Z + 2.0);
+    D.bx(table, 2.4, 0.07, 1.0, kit.surf('planks', { unit: 1.5, tint: 0x8a5a38 }), 0, 0.48, 0, 0.03);
+    D.bx(table, 2.2, 0.03, 0.85, kit.surf('planks', { unit: 1.5, tint: 0x7a4a28 }), 0, 0.14, 0, 0.01); // the lower shelf
+    for (const x of [-1.08, 1.08]) for (const z of [-0.4, 0.4]) D.cyl(table, 0.04, 0.03, 0.48, 0x3a2416, x, 0, z, 10);
+    const greenCan = kit.mat(0x1f6a2a, { metalness: 0.8, roughness: 0.3 }), redCan = kit.mat(0xb8201c, { metalness: 0.8, roughness: 0.3 });
+    for (let i = 0; i < 8; i++) {
+      const c = D.can({ color: i % 3 ? 0x1f6a2a : 0xb8201c, label: i % 3 ? 'DRAUGHT' : 'BITTER' }); c.scale.setScalar(2);
+      c.position.set((rng() - 0.5) * 2, 0.55, (rng() - 0.5) * 0.7);
+      if (rng() < 0.4) { c.rotation.z = Math.PI / 2; c.position.y = 0.62; c.rotation.y = rng() * 6; }
+      table.add(c);
+    }
+    { const pz = D.pizzaBox({ open: true }); pz.scale.setScalar(1.9); pz.position.set(0.5, 0.55, 0.05); pz.rotation.y = 0.3; table.add(pz); }
+    for (let k = 0; k < 3; k++) D.bx(table, 0.42, 0.015, 0.3, [0xd8d0c0, 0xc84a3a, 0x3a5a9a][k], -0.7 + k * 0.03, 0.17 + k * 0.016, 0.05, 0.004).rotation.y = k * 0.2;
+    D.bx(table, 0.5, 0.05, 0.12, 0x1a1a1a, -0.6, 0.55, 0.25, 0.02).rotation.y = -0.4;
+    // an armchair and a side table off to the right, a pot plant and a bin in the corners
+    { const ac = kit.group(RW / 2 - 1.6, 0, COUCH_Z + 3.4, -Math.PI / 2 - 0.5); D.bx(ac, 1.2, 0.4, 1.1, velour, 0, 0.16, 0, 0.1); D.bx(ac, 1.0, 0.22, 0.95, velour, 0, 0.56, 0.05, 0.1); D.bx(ac, 1.2, 0.8, 0.3, velour, 0, 0.5, -0.42, 0.12); for (const s of [-1, 1]) D.bx(ac, 0.22, 0.42, 1.1, velour, s * 0.5, 0.56, 0, 0.1); }
+    put(D.pottedPlant({ size: 2.2 }), -RW / 2 + 0.7, 0, FRONT_Z - 0.8);
+    put(D.pottedPlant({ size: 1.8 }), RW / 2 - 0.7, 0, FRONT_Z - 0.9);
+    put(D.bin({ color: 0x6a4a2a }), -RW / 2 + 0.5, 0, COUCH_Z + 3.0);
     // the Scotch Fingers: two golden fingers joined down the middle, docked with holes, dusted with sugar
     const biscuitMat = (() => {
       const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');

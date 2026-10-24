@@ -13,6 +13,51 @@ const CAT_CLEAR = 0.95; // how high the doll's feet must be over a cat
 const SPAN = 160; // scenery loops over this many metres
 const OFF = 6; // the pack runs this far back from the camera's focus, so obstacles show up in the foreground early
 
+// One torii, merged into three geometries (red, black, the ink on the pillars), with its span along z.
+// Proper Myojin proportions: a kasagi that sweeps up at the ends, a shimaki under it, a gakuzuka
+// plaque, a nuki through the pillars poking out each side, and black nemaki at the feet.
+function torii(THREE, { span, h, r, nukiY = h * 0.76 }) {
+  const red = [], dark = [], ink = [];
+  const put = (list, g, x = 0, y = 0, z = 0) => { g = g.index ? g.toNonIndexed() : g; g.translate(x, y, z); list.push(g); };
+  const half = span / 2, lean = 0.025;
+  for (const s of [-1, 1]) {
+    const p = new THREE.CylinderGeometry(r * 0.9, r, h, 16); p.rotateX(-s * lean); put(red, p, 0, h / 2, s * half);
+    put(dark, new THREE.CylinderGeometry(r * 1.18, r * 1.25, h * 0.11, 16), 0, h * 0.055, s * half); // nemaki
+    put(red, new THREE.TorusGeometry(r * 0.95, r * 0.12, 6, 16).rotateX(Math.PI / 2), 0, h * 0.93, s * (half - lean * h * 0.43)); // daiwa ring
+    const t = new THREE.PlaneGeometry(r * 0.9, h * 0.42); t.rotateY(Math.PI / 2); put(ink, t, r * 0.97, h * 0.42, s * half); // donor's name, facing the path
+  }
+  put(red, new THREE.BoxGeometry(r * 1.0, r * 1.05, span + r * 4.4), 0, nukiY, 0); // nuki
+  put(red, new THREE.BoxGeometry(r * 0.75, h - nukiY - r * 0.6, r * 1.2), 0, (h + nukiY) / 2 + r * 0.25, 0); // gakuzuka
+  // shimaki and kasagi: a beam profile in (z, y) that curves up at the tips, extruded through x
+  const beam = (len, y0, th, rise, depth, list, flare) => {
+    const sh = new THREE.Shape(), N = 16, L = len / 2;
+    const curve = (u) => rise * Math.pow(Math.abs(u), 3.2);
+    for (let i = 0; i <= N; i++) { const u = -1 + (2 * i) / N; const yy = y0 + curve(u); i ? sh.lineTo(u * L, yy) : sh.moveTo(u * L, yy); }
+    for (let i = N; i >= 0; i--) { const u = -1 + (2 * i) / N; sh.lineTo(u * L * (1 + flare * Math.abs(u) ** 6), y0 + th + curve(u) * 1.15); }
+    const g = new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 1, curveSegments: 4 });
+    g.rotateY(Math.PI / 2); g.translate(-depth / 2, 0, 0); put(list, g);
+  };
+  beam(span + r * 5.2, h - r * 0.55, r * 0.95, r * 0.9, r * 1.7, red, 0);
+  beam(span + r * 7.0, h + r * 0.45, r * 0.95, r * 1.7, r * 2.3, dark, 0.04);
+  return { red: mergeGeometries(red), dark: mergeGeometries(dark), ink: mergeGeometries(ink) };
+}
+
+// brushed black characters running down a pillar, drawn as strokes so no CJK font is needed
+function inscription(THREE, rng) {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 256;
+  const g = c.getContext('2d'); g.strokeStyle = '#141010'; g.lineCap = 'round';
+  for (let k = 0; k < 7; k++) {
+    const cy = 22 + k * 32;
+    for (let i = 0; i < 5; i++) {
+      g.lineWidth = 3 + rng() * 3; g.beginPath();
+      const x = 18 + rng() * 28, y = cy - 12 + rng() * 22;
+      if (rng() < 0.5) { g.moveTo(x - 9, y); g.lineTo(x + 9, y + (rng() - 0.5) * 4); } else { g.moveTo(x, y - 10); g.quadraticCurveTo(x + (rng() - 0.5) * 10, y, x - 4 + rng() * 8, y + 10); }
+      g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 export default {
   id: 'chads-japanese-adventure',
   name: "Chad's Japanese Adventure",
@@ -68,6 +113,7 @@ export default {
         });
         for (const m of meshes) m.instanceMatrix.needsUpdate = true;
       });
+      return meshes;
     };
     const groups = (items, make) => {
       for (const it of items) { it.obj = make(it); scene.add(it.obj); }
@@ -75,25 +121,20 @@ export default {
     };
     const spread = (step, jitter = 0) => { const out = []; for (let g = FRONT - SPAN; g < FRONT; g += step) out.push(g + (rng() - 0.5) * jitter); return out; };
 
-    // the Fushimi Inari tunnels: hundreds of vermilion gates lining both sides
-    const vermilion = new THREE.MeshPhysicalMaterial({ color: 0xd8461f, roughness: 0.45, clearcoat: 0.35, clearcoatRoughness: 0.3 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x1b1714, roughness: 0.6 });
+    // the Fushimi Inari tunnels: gates packed shoulder to shoulder down both sides, so their black
+    // curved caps run together into one long roofline
+    const vermilion = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.42, clearcoat: 0.4, clearcoatRoughness: 0.35 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x1b1714, roughness: 0.55 });
+    const ink = new THREE.MeshStandardMaterial({ map: inscription(THREE, rng), transparent: true, alphaTest: 0.4, roughness: 0.6, color: 0xffffff });
     {
-      const red = [], dark = [];
-      const box = (w, h, d, x, y, z, list, rz = 0) => { const g = new THREE.BoxGeometry(w, h, d); if (rz) g.rotateX(rz); g.translate(x, y, z); list.push(g); };
-      for (const s of [-1, 1]) {
-        const p = new THREE.CylinderGeometry(0.15, 0.17, 4.3, 12); p.translate(0, 2.15, s * 1.45); red.push(p);
-        const base = new THREE.CylinderGeometry(0.21, 0.21, 0.45, 12); base.translate(0, 0.22, s * 1.45); dark.push(base);
-        box(0.36, 0.24, 0.5, 0, 4.45, s * 1.95, dark, s * 0.18); // upturned ends of the top beam
-      }
-      box(0.3, 0.22, 3.0, 0, 3.45, 0, red); // nuki
-      box(0.32, 0.2, 3.4, 0, 4.18, 0, red); // shimaki
-      box(0.36, 0.22, 3.6, 0, 4.38, 0, dark); // kasagi
-      box(0.2, 0.55, 0.22, 0, 3.75, 0, red); // gakuzuka
-      const parts = [{ geo: mergeGeometries(red), material: vermilion }, { geo: mergeGeometries(dark), material: black }];
+      const T = torii(THREE, { span: 3.0, h: 3.7, r: 0.2 });
       const items = [];
-      for (const side of [-1, 1]) for (const g of spread(1.25)) items.push({ g, z: side * (W / 2 + 3.4) });
-      instanced(parts, items);
+      for (const side of [-1, 1]) for (const g of spread(1.05)) items.push({ g, z: side * (W / 2 + 3.6) });
+      const meshes = instanced([{ geo: T.red, material: vermilion }, { geo: T.dark, material: black }, { geo: T.ink, material: ink, shadow: false }], items);
+      // weathering: no two gates quite the same red
+      const c = new THREE.Color();
+      items.forEach((_, i) => { const v = rng(); c.setHex(0xe24a1c).offsetHSL((v - 0.5) * 0.02, (rng() - 0.5) * 0.1, (v - 0.5) * 0.12); meshes[0].setColorAt(i, c); });
+      meshes[0].instanceColor.needsUpdate = true;
     }
 
     // stone lanterns (toro) along the path, lit
@@ -173,7 +214,7 @@ export default {
       const pg = kit.group(-260, 0, -(W / 2 + 60), 0.3, 1.6);
       for (let i = 0; i < 5; i++) {
         const s = 1 - i * 0.12;
-        kit.box(5 * s, 2.6, 5 * s, vermilion, 0, i * 3.4, 0, pg);
+        kit.box(5 * s, 2.6, 5 * s, 0xd8461f, 0, i * 3.4, 0, pg);
         const roof = kit.cone(5.4 * s, 1.1, black, 0, i * 3.4 + 2.5, 0, pg, {}, 4); roof.rotation.y = Math.PI / 4;
       }
       kit.cyl(0.12, 0.12, 6, 0xc9a24a, 0, 17, 0, pg, { metalness: 1, roughness: 0.3 });
@@ -235,17 +276,12 @@ export default {
       g.scale.setScalar(1.25);
       return g;
     };
-    // a low torii across one lane: duck under the lower beam
+    // a low torii across one lane: duck under the nuki
+    const gateMat = vermilion.clone(); gateMat.color.setHex(0xe24a1c);
+    const LT = torii(THREE, { span: 2.15, h: 2.05, r: 0.12, nukiY: 1.45 });
     const makeGate = () => {
       const g = new THREE.Group();
-      for (const s of [-1, 1]) {
-        kit.cyl(0.11, 0.13, 2.05, vermilion, 0, 0, s * 1.08, g, {}, 14);
-        kit.cyl(0.15, 0.15, 0.3, black, 0, 0, s * 1.08, g, {}, 14);
-      }
-      kit.box(0.2, 0.16, 2.5, vermilion, 0, 1.45, 0, g); // nuki: the one that gets you
-      kit.box(0.22, 0.14, 2.6, vermilion, 0, 1.9, 0, g);
-      kit.box(0.26, 0.17, 2.85, black, 0, 2.04, 0, g);
-      kit.box(0.14, 0.3, 0.16, vermilion, 0, 1.6, 0, g);
+      for (const [geo, mat] of [[LT.red, gateMat], [LT.dark, black], [LT.ink, ink]]) { const m = new THREE.Mesh(geo, mat); m.castShadow = mat !== ink; g.add(m); }
       return g;
     };
     const CATS = ['calico', 'black', 'ginger', 'maneki'];

@@ -3,6 +3,7 @@
 // distro and you've been reinstalled: you join that distro and fight for it from then on. Last distro
 // standing wins (it's finally the year of the Linux desktop). Points for every convert you make, and
 // for being on the biggest distro when time runs out.
+import { makeDecor } from '../../host/decor.js';
 
 const RW = 11.5, RD = 7.5; // half the room's width and depth
 const RUN = 5.6;
@@ -10,7 +11,7 @@ const USB_V = 14, USB_RANGE = 12, THROW_CD = 0.55;
 const HIT = 0.36; // install progress per hit (three hits does it)
 const ROLL_T = 0.3, ROLL_CD = 1.6, ROLL_V = 13;
 const SUDO_T = 6, WALL_T = 5;
-const DOLL = 0.62, PR = 0.45;
+const DOLL = 0.72, PR = 0.45;
 const BTN = { THROW: 1, ROLL: 2 };
 
 const DISTROS = [
@@ -64,52 +65,60 @@ export default {
     const carpetT = new THREE.CanvasTexture(carpetC); carpetT.colorSpace = THREE.SRGBColorSpace; carpetT.wrapS = carpetT.wrapT = THREE.RepeatWrapping; carpetT.repeat.set((RW * 2 + 6) / 2, (RD * 2 + 8) / 2); carpetT.anisotropy = 8;
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(RW * 2 + 6, RD * 2 + 8), new THREE.MeshStandardMaterial({ map: carpetT, roughness: 0.95 }));
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+    const D = makeDecor(kit);
+    const put = (obj, x, z, rot = 0, y = 0) => { obj.position.set(x, y, z); obj.rotation.y = rot; scene.add(obj); return obj; };
+    // the walls: painted plaster with a skirting board, windows with the blinds half down
     const wallM = kit.surf('render', { arg: 0xd8d4c8, unit: 3 });
-    kit.box(RW * 2 + 2, 4, 0.3, wallM, 0, 0, -RD - 0.6);
-    kit.box(0.3, 4, RD * 2 + 1.5, wallM, -RW - 0.8, 0, 0); kit.box(0.3, 4, RD * 2 + 1.5, wallM, RW + 0.8, 0, 0);
-    kit.sign("MR LEE'S LINUX LAN PARTY", 11, 1.0, 0, 2.45, -RD - 0.43, undefined, { bg: '#111418', fg: '#5cff7a', font: '900 120px "Courier New", monospace' });
-    kit.sign('free as in beer 🍺', 3.6, 0.45, 0, 1.7, -RD - 0.43, undefined, { bg: '#f4eedc', fg: '#2a2a2a' });
+    const skirt = kit.mat(0x6a5a4a, { roughness: 0.6 });
+    kit.box(RW * 2 + 2, 3.2, 0.3, wallM, 0, 0, -RD - 0.6);
+    kit.box(0.3, 3.2, RD * 2 + 1.5, wallM, -RW - 0.8, 0, 0); kit.box(0.3, 3.2, RD * 2 + 1.5, wallM, RW + 0.8, 0, 0);
+    kit.box(RW * 2 + 1.4, 0.14, 0.04, skirt, 0, 0, -RD - 0.43);
+    for (const s of [-1, 1]) kit.box(0.04, 0.14, RD * 2 + 1.2, skirt, s * (RW + 0.63), 0, 0);
+    for (const x of [-4.2, 4.2]) put(D.blindWindow(2.2, 1.3), x, -RD - 0.45, 0, 1.1);
+    kit.sign("MR LEE'S LINUX LAN PARTY", 6.2, 0.62, 0, 2.62, -RD - 0.43, undefined, { bg: '#111418', fg: '#5cff7a', font: '900 120px "Courier New", monospace' });
+    // posters and a whiteboard of very serious plans
+    const poster = (title, sub, bg, fg) => D.poster(0.8, 1.1, (g, W, H) => { g.fillStyle = bg; g.fillRect(0, 0, W, H); g.fillStyle = fg; g.textAlign = 'center'; g.font = '900 34px Impact, sans-serif'; g.fillText(title, W / 2, 90, W - 16); g.font = '700 18px system-ui'; g.fillText(sub, W / 2, 140, W - 16); g.beginPath(); g.arc(W / 2, 200, 26, 0, 7); g.fill(); });
+    put(poster('I USE ARCH', 'btw', '#1793d1', '#ffffff'), -1.6, -RD - 0.44, 0, 1.0);
+    put(poster('SUDO', 'make me a sandwich', '#2a2a2a', '#ffd23f'), -0.6, -RD - 0.44, 0, 1.0);
+    put(D.whiteboard(2.2, 1.0, (g, W, H) => { g.strokeStyle = '#1a1a1a'; g.lineWidth = 4; g.font = '700 30px "Comic Sans MS", cursive'; g.fillStyle = '#1a1a1a'; g.fillText('LAN PARTY TODO', 30, 50); g.fillStyle = '#c02020'; g.fillText('1. install arch', 40, 100); g.fillText('2. ???', 40, 140); g.fillStyle = '#2040c0'; g.fillText('3. year of the linux desktop', 40, 180); g.strokeStyle = '#c02020'; g.beginPath(); g.moveTo(36, 92); g.lineTo(240, 92); g.stroke(); }), 1.4, -RD - 0.42, 0, 0.95);
+    for (const [x, rot] of [[-RW - 0.62, Math.PI / 2], [RW + 0.62, -Math.PI / 2]]) put(D.blindWindow(2.6, 1.3), x, -1, rot, 1.1);
+    // a rug in the middle so the floor isn't one flat colour
+    {
+      const rug = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 5), new THREE.MeshStandardMaterial({ map: D.canvasTex(512, 300, (g, W, H) => { g.fillStyle = '#6a2a2a'; g.fillRect(0, 0, W, H); g.strokeStyle = '#e8c87a'; g.lineWidth = 10; g.strokeRect(16, 16, W - 32, H - 32); g.lineWidth = 4; g.strokeRect(34, 34, W - 68, H - 68); for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.12})`; g.fillRect(Math.random() * W, Math.random() * H, 3, 3); } }), roughness: 1 }));
+      rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.006, 0.2); rug.receiveShadow = true; scene.add(rug);
+    }
 
     // server racks along the back wall, with blinking lights
     const leds = [];
-    const ledGeo = new THREE.BoxGeometry(0.06, 0.04, 0.02);
-    for (const sx of [-1, 1]) for (let r = 0; r < 3; r++) {
-      const x = sx * (7.6 + r * 1.15);
-      kit.box(1.0, 2.4, 0.9, 0x1a1c20, x, 0, -RD + 0.1, undefined, { roughness: 0.4, metalness: 0.4 });
-      for (let u = 0; u < 9; u++) {
-        kit.box(0.9, 0.18, 0.02, 0x2a2e34, x, 0.25 + u * 0.24, -RD + 0.56, undefined, { metalness: 0.6, roughness: 0.3 });
-        for (let l = 0; l < 3; l++) {
-          const m = new THREE.Mesh(ledGeo, new THREE.MeshBasicMaterial({ color: rng() < 0.7 ? 0x3aff6a : 0xffa02a }));
-          m.position.set(x + 0.3 + l * 0.08, 0.34 + u * 0.24, -RD + 0.58); scene.add(m); leds.push({ m, rate: 2 + rng() * 9, ph: rng() * 10 });
-        }
-      }
-    }
+    for (const sx of [-1, 1]) for (let r = 0; r < 3; r++) put(D.serverRack({ leds }), sx * (7.4 + r * 0.66), -RD + 0.05);
 
-    // a terminal on each monitor
-    const termTex = (lines) => {
-      const c = document.createElement('canvas'); c.width = 256; c.height = 192;
-      const g = c.getContext('2d'); g.fillStyle = '#0a140a'; g.fillRect(0, 0, 256, 192);
-      g.fillStyle = '#5cff7a'; g.font = '700 17px "Courier New", monospace';
-      lines.forEach((l, i) => g.fillText(l, 10, 26 + i * 24));
-      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-    };
+    // a CRT terminal on each monitor
+    const termTex = (lines) => D.canvasTex(256, 192, (g) => { g.fillStyle = '#0a140a'; g.fillRect(0, 0, 256, 192); g.fillStyle = '#5cff7a'; g.font = '700 17px "Courier New", monospace'; lines.forEach((l, i) => g.fillText(l, 10, 26 + i * 24)); });
     const TERMS = [['$ sudo pacman -Syu', ':: Starting full', '   system upgrade', 'I use Arch btw', '$ _'], ['$ sudo apt install', '  happiness', 'E: Unable to locate', '  package', '$ _'], ['$ vim', '$ how do i exit vim', '$ :q!', '$ :wq', '$ _'], ['$ make -j8', '[ 42%] Building C', '[ 97%] Linking', 'Segmentation fault', '$ _'], ['$ rm -rf node_mod', '$ npm install', 'added 1984 pkgs', '  in 6m', '$ _'], ['$ uptime', ' up 412 days', '$ cowsay moo', ' < moo >', '$ _']];
     const solids = []; // boxes nothing walks or throws through: [x0, z0, x1, z1]
+    const chairCols = [0x233a5c, 0x5c2323, 0x2a4a2a, 0x3a3a3a];
     const desk = (x, z, rot) => {
       const g = kit.group(x, 0, z, rot);
-      kit.box(3.0, 0.08, 1.1, kit.surf('planks', { unit: 1.5, tint: 0xc8a878 }), 0, 0.82, 0, g);
-      for (const lx of [-1.4, 1.4]) for (const lz of [-0.45, 0.45]) kit.box(0.06, 0.82, 0.06, 0x2a2a2a, lx, 0, lz, g, { metalness: 0.6 });
+      g.add(D.desk(3.0, 1.1));
       for (const mx of [-0.75, 0.75]) {
-        kit.box(0.7, 0.55, 0.55, 0xd8d0b8, mx, 0.9, -0.15, g, { roughness: 0.6 });
-        kit.box(0.4, 0.06, 0.4, 0xd8d0b8, mx, 0.9, -0.1, g);
-        const s = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.42), new THREE.MeshBasicMaterial({ map: termTex(TERMS[(rng() * TERMS.length) | 0]) }));
-        s.position.set(mx, 1.2, 0.13); g.add(s);
-        kit.box(0.6, 0.03, 0.2, 0xd8d0b8, mx, 0.86, 0.32, g);
+        const crt = D.crt({ screen: termTex(TERMS[(rng() * TERMS.length) | 0]), rot: (rng() - 0.5) * 0.3 }); crt.position.set(mx, 0.76, -0.12); crt.scale.setScalar(1.25); g.add(crt);
+        const kb = D.keyboard({ rot: (rng() - 0.5) * 0.2 }); kb.position.set(mx - 0.05, 0.76, 0.32); g.add(kb);
+        for (const side of [1, -1]) { const ch = D.officeChair({ color: chairCols[(rng() * 4) | 0], rot: side > 0 ? Math.PI + (rng() - 0.5) * 0.8 : (rng() - 0.5) * 0.8 }); ch.position.set(mx + (rng() - 0.5) * 0.2, 0, side * 0.95); if (side < 0) continue; g.add(ch); }
       }
+      const c = D.can({ color: [0x1a8a3a, 0x1a1a1a, 0xc02020][(rng() * 3) | 0], label: ['ZAP', 'VOLT', 'RAGE'][(rng() * 3) | 0] }); c.position.set((rng() - 0.5) * 2.2, 0.76, 0.2 + rng() * 0.2); g.add(c);
+      if (rng() < 0.6) { const pz = D.pizzaBox({ open: rng() < 0.5, rot: rng() }); pz.position.set(0, 0.76, 0.1); g.add(pz); }
       const hw = rot ? 0.6 : 1.55, hd = rot ? 1.55 : 0.6;
       solids.push([x - hw, z - hd, x + hw, z + hd]);
     };
     desk(-5.6, -2.8, 0); desk(5.6, -2.8, 0); desk(-5.6, 3.2, 0); desk(5.6, 3.2, 0); desk(0, 0.2, 0);
+    // network cables between the desks and the racks, and the odd bit of clutter
+    for (const [a, b, c] of [[[-5.6, -2.2], [-7.4, -RD + 0.5], 0x2a5aa8], [[5.6, -2.2], [7.4, -RD + 0.5], 0xe8c020], [[0, 0.8], [-5.6, 2.6], 0x2a5aa8], [[0, 0.8], [5.6, 2.6], 0xc02a2a], [[-5.6, 3.8], [-5.6, -2.2], 0xe8c020]]) scene.add(D.floorCable(a, b, c, rng() * 10));
+    for (const [x, z, col] of [[RW - 1.0, RD - 0.7, 0x8a2a4a], [RW - 2.2, RD - 0.5, 0x2a5a8a], [-RW + 1.0, RD - 0.8, 0x3a6a2a]]) put(D.beanbag({ color: col }), x, z, rng() * 6);
+    for (const [x, z] of [[RW - 0.5, -RD + 0.4], [-RW + 0.5, 1.2]]) put(D.pottedPlant({ size: 1.6 }), x, z);
+    put(D.bin(), RW - 0.4, -0.6); put(D.bin({ color: 0x2a6a3a }), -RW + 0.4, -3.0);
+    for (let k = 0; k < 4; k++) put(D.pizzaBox({ rot: k * 0.2 }), -RW + 0.8, -1.2, 0, k * 0.05);
+    put(D.esky({ color: 0xc02a2a }), RW - 1.4, 2.0, -0.4);
+    solids.push([RW - 2.9, RD - 1.3, RW - 0.4, RD], [-RW + 0.3, RD - 1.4, -RW + 1.6, RD]);
     // a big inflatable Tux in the corner, because of course
     {
       const t = kit.group(-RW + 1.6, 0, -RD + 1.6, 0.5);
@@ -255,7 +264,7 @@ export default {
     };
 
     const camera = new THREE.PerspectiveCamera(40, 16 / 9, 0.5, 200);
-    camera.position.set(0, 16.2, 14.2);
+    camera.position.set(0, 17.4, 15.4);
     camera.lookAt(0, 0, 0.6);
 
     let tAll = 0, finishAt = null;
@@ -337,7 +346,7 @@ export default {
           }
           if (gone) { scene.remove(u.m); usbs.splice(i, 1); }
         }
-        for (const l of leds) l.m.visible = Math.sin(tAll * l.rate + l.ph) > -0.3;
+        for (let k = 0; k < leds.length; k++) leds[k].material.emissiveIntensity = Math.sin(tAll * (2 + (k * 7) % 9) + k) > -0.3 ? 3.5 : 0.2;
         for (const c of crates) { c.m.rotation.y += dt; c.m.position.y = 0.5 + Math.sin(tAll * 3 + c.x) * 0.1; }
         for (let i = sparks.length - 1; i >= 0; i--) { const s = sparks[i]; s.life += dt; s.vy -= 9 * dt; s.m.position.x += s.vx * dt; s.m.position.y = Math.max(0.05, s.m.position.y + s.vy * dt); s.m.position.z += s.vz * dt; if (s.life > 1.2) { scene.remove(s.m); sparks.splice(i, 1); } }
         for (let i = pops.length - 1; i >= 0; i--) { const q = pops[i]; q.life += dt; if (q.stay) { q.sp.material.opacity = Math.min(1, q.life * 3); continue; } q.sp.position.y += dt * 1.0; q.sp.material.opacity = Math.min(1, 2.4 - q.life * 2); if (q.life > 1.2) { scene.remove(q.sp); pops.splice(i, 1); } }
