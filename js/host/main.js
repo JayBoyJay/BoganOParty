@@ -12,6 +12,7 @@ import { Hub } from './hub.js';
 import { Sfx } from './sfx.js';
 import { Game } from './engine.js';
 import { MinigameRunner } from './minigames.js';
+import { Marathon, MARATHON_POINTS } from './marathon.js';
 import { MOODS, BODIES, PLAYER_COLORS, faceDataUrl } from './doll.js';
 
 const $ = (id) => document.getElementById(id);
@@ -27,12 +28,14 @@ const BOT_BODIES = ['sheila', 'bloke', 'sheila', 'bloke', 'bloke', 'sheila', 'bo
 const state = {
   phase: 'lobby',
   players: new Map(), // pid -> { id, name, body, photos, color, ready, connected }
-  settings: { map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, ...store.load('settings', {}) },
+  settings: { mode: 'board', mgRounds: 5, map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, ...store.load('settings', {}) },
   game: null,
 };
 if (qp.has('bots')) state.settings.cpus = Number(qp.get('bots')) || 0;
 if (qp.has('map') && MAP_BY_ID[qp.get('map')]) state.settings.map = qp.get('map');
 if (qp.has('items')) state.settings.itemsToWin = Number(qp.get('items')) || 5;
+if (qp.get('mode') === 'minigames' || qp.get('mode') === 'board') state.settings.mode = qp.get('mode');
+if (qp.has('mgrounds')) state.settings.mgRounds = Number(qp.get('mgrounds')) || 5;
 const fast = qp.has('fast');
 
 // players are remembered (with photos) so a refresh doesn't lose anyone
@@ -143,7 +146,7 @@ function lobbyView(pid) {
   return {
     t: 'lobby',
     you: p ? { joined: true, name: p.name, body: p.body, color: p.color, ready: !!p.ready, photos: Object.fromEntries(MOODS.map((m) => [m, p.photos?.[m] || null])) } : { joined: false },
-    map: { id: map.id, name: map.name, item: map.item.name, emoji: map.item.emoji },
+    map: state.settings.mode === 'minigames' ? { id: map.id, name: 'Minigames only', item: 'most points', emoji: '🎮' } : { id: map.id, name: map.name, item: map.item.name, emoji: map.item.emoji },
     maps: MAPS.map((m) => ({ id: m.id, name: m.name })),
     bodies: BODIES,
     moods: MOODS,
@@ -157,12 +160,15 @@ const pushLobbyAll = () => { for (const p of state.players.values()) if (p.conne
 function renderLobby() {
   if (state.phase !== 'lobby') return;
   const map = MAP_BY_ID[state.settings.map];
-  $('mapName').textContent = map.name;
-  $('mapBlurb').textContent = map.blurb;
-  $('mapItem').textContent = `${map.item.emoji} Collect ${state.settings.itemsToWin} ${map.item.plural}`;
-  for (const [id, key] of [['segItems', 'itemsToWin'], ['segRounds', 'maxRounds'], ['segCpus', 'cpus']]) {
+  const mg = state.settings.mode === 'minigames';
+  $('lobby').classList.toggle('mode-minigames', mg);
+  $('mapName').textContent = mg ? 'Minigames only' : map.name;
+  $('mapBlurb').textContent = mg ? `No board: ${state.settings.mgRounds} minigames back to back. ${MARATHON_POINTS.join(' / ')} points per finish, most points wins.` : map.blurb;
+  $('mapItem').textContent = mg ? `🎮 ${MINIGAMES.length} minigame${MINIGAMES.length === 1 ? '' : 's'} in the box` : `${map.item.emoji} Collect ${state.settings.itemsToWin} ${map.item.plural}`;
+  for (const [id, key] of [['segItems', 'itemsToWin'], ['segRounds', 'maxRounds'], ['segCpus', 'cpus'], ['segMgRounds', 'mgRounds']]) {
     for (const b of $(id).querySelectorAll('button')) b.classList.toggle('on', Number(b.dataset.v) === state.settings[key]);
   }
+  for (const b of $('segMode').querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === state.settings.mode);
   const people = [...state.players.values()];
   $('playerList').innerHTML = people.length ? people.map((p) => `
     <div class="pcard ${p.ready ? 'ready' : ''} ${p.connected ? '' : 'off'}" style="--pc:${p.color}">
@@ -179,9 +185,10 @@ function renderLobby() {
 function setupLobbyControls() {
   $('mapPrev').onclick = () => cycleMap(-1);
   $('mapNext').onclick = () => cycleMap(1);
-  for (const [id, key] of [['segItems', 'itemsToWin'], ['segRounds', 'maxRounds'], ['segCpus', 'cpus']]) {
+  for (const [id, key] of [['segItems', 'itemsToWin'], ['segRounds', 'maxRounds'], ['segCpus', 'cpus'], ['segMgRounds', 'mgRounds']]) {
     for (const b of $(id).querySelectorAll('button')) b.onclick = () => { state.settings[key] = Number(b.dataset.v); saveSettings(); renderLobby(); };
   }
+  for (const b of $('segMode').querySelectorAll('button')) b.onclick = () => { state.settings.mode = b.dataset.v; saveSettings(); renderLobby(); pushLobbyAll(); };
   $('startBtn').onclick = () => startGame();
   $('fsBtn').onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
   $('soundBtn').onclick = () => { state.settings.sound = !state.settings.sound; sfx.on = state.settings.sound; saveSettings(); $('soundBtn').textContent = sfx.on ? '🔊' : '🔇'; };
@@ -240,6 +247,7 @@ async function startGame() {
   for (const b of bots) { if (used.has(b.color)) b.color = PLAYER_COLORS.find((c) => !used.has(c)) || b.color; used.add(b.color); }
   const players = [...humans, ...bots].sort(() => Math.random() - 0.5);
   if (players.length < 2) return;
+  if (state.settings.mode === 'minigames') return startMarathon(players);
   state.phase = 'board';
   $('lobby').classList.add('hidden');
   hud.show(true);
@@ -265,6 +273,33 @@ async function startGame() {
   for (const p of players) game.setMood(p, p === result.winner ? 'happy' : 'sad', 600000);
   view.focus(result.winner);
   hud.podium(result, map.item);
+  gameOver(players, result);
+}
+
+// Minigames only: no board, minigames back to back, points per finish.
+async function startMarathon(players) {
+  state.phase = 'minigame';
+  $('lobby').classList.add('hidden');
+  hud.faces.clear();
+  hub.players = players;
+  hub.idleAll('Starting!', `Minigames only: ${state.settings.mgRounds} games`);
+  const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1 });
+  const only = qp.get('minigame') && MINIGAME_BY_ID[qp.get('minigame')] ? [qp.get('minigame')] : null;
+  const marathon = new Marathon({ players, rounds: state.settings.mgRounds, runner, hub, hud, sfx, stage, root: $('minigame'), speed: fast ? 0.25 : 1, only });
+  state.game = marathon;
+  window.__game = marathon;
+  const result = await marathon.play();
+  state.phase = 'over';
+  for (const p of players) marathon.setMood(p, p === result.winner ? 'happy' : 'sad');
+  marathon.focus();
+  hud.show(true);
+  hud.setRound(state.settings.mgRounds, state.settings.mgRounds);
+  hud.setGoal('🎮 Minigames only');
+  hud.podium(result, null, (p) => `🏅 ${p.points} pts`);
+  gameOver(players, result);
+}
+
+function gameOver(players, result) {
   sfx.play('item');
   for (const p of players) {
     if (p.bot) continue;

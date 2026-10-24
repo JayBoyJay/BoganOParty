@@ -133,6 +133,14 @@
   .mg-board span, .mg-results span:last-child { margin-left: auto; font-weight: 900; color: var(--gold); padding-left: 14px; }
   .mg-results { display: grid; gap: 8px; max-width: 520px; margin: 16px auto 0; }
   .mg-results .pl { font-weight: 900; width: 28px; }
+  .mg-results em { font-style: normal; color: var(--good); font-weight: 900; }
+  /* minigames-only mode: standings panel beside the pedestals */
+  .mt-panel { position: absolute; left: 28px; top: 28px; width: min(440px, 40vw); background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 20px 24px; }
+  .mt-panel h1 { font-size: 40px; margin: 4px 0; font-style: italic; text-transform: uppercase; }
+  .mt-panel p { font-size: 19px; margin: 0 0 6px; color: var(--dim); }
+  .mt-panel .mg-results { margin: 12px 0 0; }
+  #lobby.mode-minigames .for-board, #lobby:not(.mode-minigames) .for-mg { display: none; }
+  #lobby.mode-minigames .mapcard .arrow { visibility: hidden; }
 </style>
 </head>
 <body>
@@ -154,8 +162,10 @@
       <button class="arrow" id="mapNext">▶</button>
     </div>
     <div class="settings panel">
-      <span>Items to win</span><span class="seg" id="segItems"><button data-v="3">3</button><button data-v="5">5</button><button data-v="7">7</button><button data-v="10">10</button></span>
-      <span>Round limit</span><span class="seg" id="segRounds"><button data-v="0">None</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></span>
+      <span>Mode</span><span class="seg" id="segMode"><button data-v="board">Party board</button><button data-v="minigames">Minigames only</button></span>
+      <span class="for-mg">Minigames</span><span class="seg for-mg" id="segMgRounds"><button data-v="3">3</button><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button></span>
+      <span class="for-board">Items to win</span><span class="seg for-board" id="segItems"><button data-v="3">3</button><button data-v="5">5</button><button data-v="7">7</button><button data-v="10">10</button></span>
+      <span class="for-board">Round limit</span><span class="seg for-board" id="segRounds"><button data-v="0">None</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></span>
       <span>CPU players</span><span class="seg" id="segCpus"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></span>
     </div>
     <div class="startrow panel">
