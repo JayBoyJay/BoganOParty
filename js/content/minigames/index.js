@@ -5,6 +5,8 @@ import chadsJapaneseAdventure from './chads-japanese-adventure.js';
 import dontWakeMyles from './dont-wake-myles.js';
 import burgerBoys from './burger-boys.js';
 import marbleMayhem from './marble-mayhem.js';
+import joeMaster from './joe-master.js';
+import toyCars from './toy-cars.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, dontWakeMyles, burgerBoys, marbleMayhem];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, dontWakeMyles, burgerBoys, marbleMayhem, joeMaster, toyCars];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));

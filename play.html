@@ -56,6 +56,17 @@
   .idle { text-align: center; padding: 30px 10px; }
   .idle .big { font-size: 60px; }
   .tiltbox { text-align: center; }
+  .stickpad { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom)); gap: 10px; }
+  .stickhead { grid-column: 1 / -1; font-size: 15px; }
+  .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); touch-action: none; overflow: hidden; }
+  .stickzone .ghost { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim); font-weight: 800; letter-spacing: 0.1em; font-size: 13px; }
+  .stickzone .base, .stickzone .knob { display: none; position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .stickzone .base { width: 130px; height: 130px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); }
+  .stickzone .knob { width: 62px; height: 62px; background: var(--pc); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .stickbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; touch-action: none; }
+  .stickbtns button { font-size: 18px; min-height: 70px; touch-action: none; }
+  .stickbtns button.dn { transform: scale(0.94); filter: brightness(1.3); }
+  @media (orientation: portrait) { .stickpad { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; } .stickbtns { min-height: 40vh; } }
   .wing { width: 260px; height: 260px; margin: 10px auto; border-radius: 50%; background: radial-gradient(circle, #3c1f10, #2c160b); border: 3px solid var(--line); display: grid; place-items: center; position: relative; }
   .wing .plane { width: 220px; height: 14px; background: var(--pc); border-radius: 7px; position: relative; transition: transform 60ms linear; }
   .wing .plane::after { content: ''; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; border-radius: 50%; background: var(--pc); transform: translate(-50%, -50%); }

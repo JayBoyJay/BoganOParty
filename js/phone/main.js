@@ -184,6 +184,7 @@ function renderScreen() {
   }
   if (s.t === 'pad') {
     if (s.kind === 'tilt') return renderTilt(s, el);
+    if (s.kind === 'stick') return renderStick(s, el);
     el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : '<div style="height:12px"></div>'}
       <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px' : ''}">${esc(b.label)}</button>`).join('')}</div>`;
     // pads fire on touch-down, not on release: in action games every millisecond counts
@@ -211,6 +212,49 @@ async function askMotion() {
     else motionOk = !!DM;
   } catch { motionOk = false; }
   return motionOk;
+}
+
+// a thumbstick on the left and held buttons on the right (fighting games). Sends the stick as x/y in
+// -1..1 (y up) and the buttons as a bitmask of the ones held down: { b: 'stick', x, y, h }
+function renderStick(s, el) {
+  el.innerHTML = `<div class="stickpad"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span></div>
+    <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
+    <div class="stickbtns">${s.buttons.map((b) => `<button data-bit="${b.bit}" class="${b.tone === 'go' ? 'go' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
+  let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
+  const push = (force) => {
+    const now = Date.now(), key = `${sx.toFixed(2)},${sy.toFixed(2)},${held}`;
+    if (!force && (key === last || now - lastSent < 40)) return;
+    last = key; lastSent = now;
+    send({ t: 'in', id: s.id, b: 'stick', x: +sx.toFixed(2), y: +sy.toFixed(2), h: held });
+  };
+  const zone = $('stickzone'), base = zone.querySelector('.base'), knob = zone.querySelector('.knob');
+  let sid = null, ox = 0, oy = 0;
+  const R = 60;
+  zone.onpointerdown = (e) => {
+    e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
+    const r = zone.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top;
+    for (const n of [base, knob]) { n.style.left = ox + 'px'; n.style.top = oy + 'px'; n.style.display = 'block'; }
+    zone.querySelector('.ghost').style.display = 'none';
+  };
+  zone.onpointermove = (e) => {
+    if (e.pointerId !== sid) return;
+    const r = zone.getBoundingClientRect();
+    let dx = e.clientX - r.left - ox, dy = e.clientY - r.top - oy;
+    const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
+    knob.style.left = ox + dx + 'px'; knob.style.top = oy + dy + 'px';
+    sx = dx / R; sy = -dy / R;
+    push(false);
+  };
+  const end = (e) => { if (e.pointerId !== sid) return; sid = null; sx = sy = 0; knob.style.left = ox + 'px'; knob.style.top = oy + 'px'; push(true); };
+  zone.onpointerup = end; zone.onpointercancel = end;
+  for (const b of el.querySelectorAll('[data-bit]')) {
+    const bit = Number(b.dataset.bit);
+    b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('dn'); held |= bit; push(true); buzz(12); };
+    const up = () => { b.classList.remove('dn'); held &= ~bit; push(true); };
+    b.onpointerup = up; b.onpointercancel = up;
+  }
+  const keep = setInterval(() => push(true), 200);
+  tiltStop = () => clearInterval(keep);
 }
 
 function renderTilt(s, el) {
