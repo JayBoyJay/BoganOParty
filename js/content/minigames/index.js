@@ -23,6 +23,7 @@ import eskyTetris from './esky-tetris.js';
 import wheelieBinDerby from './wheelie-bin-derby.js';
 import twoUp from './two-up.js';
 import sunscreenSlap from './sunscreen-slap.js';
+import footyKickToKick from './footy-kick-to-kick.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw, thongThrow, sausageSizzle, eskyTetris, wheelieBinDerby, twoUp, sunscreenSlap];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw, thongThrow, sausageSizzle, eskyTetris, wheelieBinDerby, twoUp, sunscreenSlap, footyKickToKick];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));
