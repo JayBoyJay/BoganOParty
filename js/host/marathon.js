@@ -116,8 +116,8 @@ function drawLabel(sprite, p, pts, gained, rank) {
 }
 
 export class Marathon {
-  constructor({ players, rounds, runner, hub, hud, sfx, stage, root, speed = 1, only = null }) {
-    Object.assign(this, { players, rounds, runner, hub, hud, sfx, stage, root, speed, only });
+  constructor({ players, rounds, runner, hub, hud, sfx, stage, root, speed = 1, only = null, drinks = null, drinkOn = false }) {
+    Object.assign(this, { players, rounds, runner, hub, hud, sfx, stage, root, speed, only, drinks, drinkOn });
     this.points = new Map(players.map((p) => [p.id, 0]));
     this.wins = new Map(players.map((p) => [p.id, 0]));
     for (const p of players) { p.points = 0; p.mood = 'neutral'; }
@@ -142,6 +142,7 @@ export class Marathon {
 
   async play() {
     this.hud.show(false);
+    if (this.drinks?.kingCup) { this.view.activate(); this.view.show(this.points, null, this.ranked()); await this.drinks.kingCupStart(); }
     for (let r = 1; r <= this.rounds; r++) {
       const def = this.runner.pick(this.only);
       this.view.activate();
@@ -168,6 +169,7 @@ export class Marathon {
       this.panel(`After minigame ${r} of ${this.rounds}`, last ? 'Final scores' : 'Standings', last ? '' : this.leadLine(), gained);
       this.hub.idleAll(last ? 'That was the last one!' : 'Standings', this.ranked().map((p, i) => `${i + 1}. ${p.name} ${this.points.get(p.id)}`).join('  ·  '));
       await sleep((last ? 3000 : 4500) * this.speed);
+      if (this.drinkOn && placings[0]?.length) await this.drinks.winnersPick(placings[0]);
     }
     this.root.classList.add('hidden');
     this.root.innerHTML = '';

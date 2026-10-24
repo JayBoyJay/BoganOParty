@@ -35,6 +35,15 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | ✨ Teleport | 10 | Rock paper scissors, best of 3, on both phones. The winner decides whether you swap places. |
 | 🌀 Vacuum | 12 | Point it down any road out of your space. Everyone in the cone loses 1–8 coins to you, with a 1 in 4 chance you also take one of their power-ups. |
 | ✝️ Holy Hand Grenade | 15 | Lob it up to 8 spaces. One, two… three! 50/35/20 damage by distance, and a knock-back for anyone close. It can hit you too. |
+| 🍺 Drink Voucher | 15 | Drinking on only. Pick anyone: they drink. |
+| 🍻 Group Drink Discount | 30 | Drinking on only. Everyone drinks, you included. |
+| 🔄 Reverse Card | 8 | Drinking on only. Just hold it: the next time someone sends you a drink you can bounce it straight back (and if they've got one too, they can bounce it again). |
+
+### Drinking and King Cup
+
+Two lobby switches. **Drinking** (on by default) puts the three drink power-ups in the shop and lets every minigame winner hand out a drink from their phone, in both modes. Drinks pop up on the TV, buzz the drinker's phone, and are tallied (had and given out) on the player cards and the podium. **King Cup (oopsie)** starts the game with everyone tipping some of their drink into one big real cup; whoever finishes last drinks it. Test hooks: `&drinks=0|1`, `&kingcup=0|1`.
+
+Phones: games played with the stick or tilt suggest turning the phone sideways (the stick pad splits into two-hand layout, and tilt steering works either way up). Zombies vs Plants uses a sideways touchpad where the phone screen maps to the TV.
 
 ### Minigames
 
@@ -67,6 +76,9 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🛒 Bottle-O Run | Trolley dash round the bottle shop for the four things on your list (shown on the TV), then hit the checkout. Watch out for slow shoppers, the wet floor and the can pyramid. First through wins. |
 | 🛻 Ute Muster | Drive your ute across a bumpy paddock with a hay bale, esky, bar fridge and swag loose on the back. Floor it and they slide off; hit the humps fast and they fly off. 15 points per item delivered plus a bonus for finishing first. |
 | 🎣 Fishing Off the Jetty | Everyone fishing off the end of the jetty, using the stick like a rod and reel: pull back and flick up to cast (quicker flick = further out = bigger fish, and more junk), flick up to strike when the float goes under, then wind the stick round in circles to reel it in, easing off when the fish runs or the line snaps. No tapping. Stingrays nick your bait. Heaviest catch wins. |
+| 🧟 Zombies vs Plants | A spud-gun shooting gallery in the veggie patch at dusk. Hold the phone sideways: its screen is a map of the TV, so touch where a blow-up zombie is and the spud lands right there. Zombies pop up behind the tomato bed (1), the hedge (2) and the back fence (3). A miss jams your gun for 1 s; your mates pop up too, and shooting one jams it for 5 s. 1:30. |
+| 🏉 Football Boy | Backyard Bomberman. Drop an overpumped footy, get out of its line, and it bursts in a cross that smashes eskies and sets off other footies. Eskies hide gear: more footies, bigger bursts, faster thongs, and a boot to kick footies along. The yard closes in near the end. Seconds survived + 20 a knockout + 40 for the last one standing. |
+| ✋ Hand Tennis | King of the court on the school asphalt. One bounce in your square, then HIT it into theirs, aiming with the stick. Out, own square or a double bounce loses the point. Winner stays on with the crown, the loser joins the back of the line. A point a point. |
 
 ## Adding content
 
@@ -74,7 +86,7 @@ Everything is plain JavaScript modules with no build step. Each kind of content 
 
 - **Map:** copy `js/content/maps/broken-hill.js`, change the id, name, item, colours, board layout, landmarks and events, and add it to `js/content/maps/index.js`. The board is a loop of control points plus branches that leave and rejoin the loop; spaces are spread along them automatically. A landmark can name a real model with `glb: 'assets/models/thing.glb'` and it's loaded instead of the built-in placeholder.
 - **Power-up:** copy `js/content/powerups/coin-flip.js`, write its `use(game, player)`, and add it to `js/content/powerups/index.js`. The game object gives you `ask`, `pickPlayer`, `aim` (move a target around the board), `aimDirection`, `banner`, `coins`, `damage`, `addEffect`, `knockBack`, `teleport` and `view` effects. Lasting effects (like Sugar Rush) live in `effects.js`.
-- **Minigame:** copy `js/content/minigames/plane-instructor.js` and add it to `js/content/minigames/index.js`. It builds its own scene, takes phone input (`pad` decides the controls: `tilt` (optionally with buttons under it), `buttons` (optionally coloured), `stick` for a thumbstick plus held buttons, or `slider` for a tall up-and-down slider) and returns scores. The runner handles the title card, ready-up, countdown, timer and results.
+- **Minigame:** copy `js/content/minigames/plane-instructor.js` and add it to `js/content/minigames/index.js`. It builds its own scene, takes phone input (`pad` decides the controls: `tilt` (optionally with buttons under it), `buttons` (optionally coloured), `stick` for a thumbstick plus held buttons, `slider` for a tall up-and-down slider, or `touchpad` for a sideways screen that maps onto the TV) and returns scores. The runner handles the title card, ready-up, countdown, timer and results.
 
 ## Project layout
 
@@ -90,4 +102,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby, two-up, sunscreen-slap, footy-kick-to-kick, bottle-o-run, ute-muster, fishing-off-the-jetty), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby, two-up, sunscreen-slap, footy-kick-to-kick, bottle-o-run, ute-muster, fishing-off-the-jetty, zombies-vs-plants, football-boy, hand-tennis), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.

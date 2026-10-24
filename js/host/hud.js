@@ -38,7 +38,7 @@ export class Hud {
         <img class="face" src="${this.faceFor(p, p.mood)}" alt="">
         <div class="info">
           <div class="nm">${esc(p.name)}${p.bot ? ' <span class="cpu">CPU</span>' : ''}</div>
-          <div class="row"><span>${item.emoji} <b>${p.items}</b></span><span>🪙 <b>${p.coins}</b></span></div>
+          <div class="row"><span>${item.emoji} <b>${p.items}</b></span><span>🪙 <b>${p.coins}</b></span>${p.drinks !== undefined ? `<span>🍺 <b>${p.drinks}</b></span>` : ''}</div>
           <div class="hpbar"><i style="width:${Math.round(p.hp / p.maxHp * 100)}%"></i></div>
           <div class="pus">${p.powerups.map(() => '<span class="pu">◆</span>').join('')}${p.effects.map((e) => `<span class="fx">🍬${e.rounds}</span>`).join('')}</div>
         </div>`;
@@ -125,13 +125,13 @@ export class Hud {
 
   // game over: winners happy, losers sad
   // line(p) is the stat under each face; the board shows items and coins, minigames-only shows points
-  podium(result, item, line = (p) => `${item.emoji} ${p.items} · 🪙 ${p.coins}`) {
+  podium(result, item, line = (p) => `${item.emoji} ${p.items} · 🪙 ${p.coins}`, extra = '') {
     const o = this.$('hudOverlay');
     o.classList.remove('hidden');
     o.innerHTML = `<div class="ov-card podium"><h1>🏆 ${esc(result.winner.name)} wins!</h1>
       <div class="pod">${result.ranked.map((p, i) => `<div class="pp ${i === 0 ? 'win' : ''}" style="--pc:${p.color}">
         <img src="${this.faceFor(p, i === 0 ? 'happy' : i === result.ranked.length - 1 ? 'angry' : 'sad')}" alt="">
-        <div class="nm">${i + 1}. ${esc(p.name)}</div><div>${line(p)}</div></div>`).join('')}</div>
+        <div class="nm">${i + 1}. ${esc(p.name)}</div><div>${line(p)}</div></div>`).join('')}</div>${extra}
       <div class="cap">Press <b>Play again</b> on any phone, or <b>Enter</b> here.</div></div>`;
   }
   hideOverlay() { this.$('hudOverlay').classList.add('hidden'); }

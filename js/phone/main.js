@@ -192,6 +192,7 @@ function renderScreen() {
     if (s.kind === 'tilt') return renderTilt(s, el);
     if (s.kind === 'stick') return renderStick(s, el);
     if (s.kind === 'slider') return renderSlider(s, el);
+    if (s.kind === 'touchpad') return renderTouchpad(s, el);
     el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : '<div style="height:12px"></div>'}
       <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px;' : ''}${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;min-height:${b.tall ? '30vh' : '76px'};font-size:26px` : ''}">${esc(b.label)}</button>`).join('')}</div>`;
     // pads fire on touch-down, not on release: in action games every millisecond counts
@@ -224,7 +225,7 @@ async function askMotion() {
 // a thumbstick on the left and held buttons on the right (fighting games). Sends the stick as x/y in
 // -1..1 (y up) and the buttons as a bitmask of the ones held down: { b: 'stick', x, y, h }
 function renderStick(s, el) {
-  el.innerHTML = `<div class="stickpad"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span></div>
+  el.innerHTML = `<div class="stickpad"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
     <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
     <div class="stickbtns">${s.buttons.map((b) => `<button data-bit="${b.bit}" class="${b.tone === 'go' ? 'go' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
   let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
@@ -282,14 +283,68 @@ function renderSlider(s, el) {
   tiltStop = () => clearInterval(keep);
 }
 
+// how far the page is rotated from the phone's upright position, in degrees (0, 90, 180, 270)
+function screenAngle() {
+  const a = screen.orientation?.angle ?? window.orientation ?? 0;
+  return ((Number(a) || 0) + 360) % 360;
+}
+// shown on portrait phones for pads that play better sideways (hidden by CSS in landscape)
+const SIDEWAYS = '<div class="sideways">↻ Turn your phone sideways: it plays better</div>';
+
+// Zombies vs Plants style aiming: the phone is held sideways and the screen is a map of the TV.
+// Touch down = shoot at that spot ({ b: 'shot', x, y }, 0..1 from the top left); moving a held finger
+// moves your crosshair ({ b: 'aim', x, y }). If the page is stuck upright (rotation lock on) it turns the
+// pad itself, assuming the phone's top is to the left; FLIP covers the other way round.
+function renderTouchpad(s, el) {
+  let flip = store.get('tpflip') === '1';
+  el.innerHTML = `<div class="tpad" id="tpad"><div class="tpbox" id="tpbox"><div class="tpgrid"></div><div class="tphint"><b>${esc(s.title)}</b><br>${esc(s.body || 'Your screen is the TV. Touch where you want to shoot.')}</div><div class="tpdot" id="tpdot"></div>
+    <div class="tpcool" id="tpcool"></div></div><button id="tpflip" class="tpflipbtn">⇅ Flip</button><div class="tprot">Rotation lock on? Hold the phone with its top to the left, or press ⇅ Flip.</div></div>`;
+  const pad = $('tpad'), box = $('tpbox'), dot = $('tpdot');
+  const portrait = () => innerHeight > innerWidth;
+  // fit a 16:9 box (the TV's shape) in the screen as the phone is held
+  const layout = () => {
+    const rot = portrait();
+    pad.classList.toggle('rot', rot);
+    const W = rot ? innerHeight : innerWidth, H = rot ? innerWidth : innerHeight;
+    let w = W - 16, h = w * 9 / 16; if (h > H - 16) { h = H - 16; w = h * 16 / 9; }
+    box.style.width = w + 'px'; box.style.height = h + 'px';
+    box.style.transform = rot ? `translate(-50%, -50%) rotate(${flip ? -90 : 90}deg)` : 'translate(-50%, -50%)';
+  };
+  // pointer position -> 0..1 across the TV, using the box's own (unrotated) frame
+  const at = (e) => {
+    const r = box.getBoundingClientRect(), cx = (e.clientX - r.left) / r.width, cy = (e.clientY - r.top) / r.height;
+    let x = cx, y = cy;
+    if (portrait()) { x = flip ? 1 - cy : cy; y = flip ? cx : 1 - cx; }
+    return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+  };
+  const show = (p) => { dot.style.left = p.x * 100 + '%'; dot.style.top = p.y * 100 + '%'; dot.style.display = 'block'; };
+  let sid = null, lastSent = 0;
+  pad.onpointerdown = (e) => {
+    if (e.target.id === 'tpflip') return;
+    e.preventDefault(); sid = e.pointerId; pad.setPointerCapture(sid);
+    const p = at(e); show(p);
+    send({ t: 'in', id: s.id, b: 'shot', x: +p.x.toFixed(3), y: +p.y.toFixed(3) }); buzz(25);
+  };
+  pad.onpointermove = (e) => {
+    if (e.pointerId !== sid) return;
+    const p = at(e); show(p);
+    const now = Date.now(); if (now - lastSent > 40) { lastSent = now; send({ t: 'in', id: s.id, b: 'aim', x: +p.x.toFixed(3), y: +p.y.toFixed(3) }); }
+  };
+  pad.onpointerup = pad.onpointercancel = (e) => { if (e.pointerId === sid) { sid = null; dot.style.display = 'none'; } };
+  $('tpflip').onclick = () => { flip = !flip; store.set('tpflip', flip ? '1' : '0'); layout(); };
+  layout();
+  addEventListener('resize', layout);
+  tiltStop = () => removeEventListener('resize', layout);
+}
+
 function renderTilt(s, el) {
   let invert = store.get('invert') === '1';
-  el.innerHTML = `<div class="tiltbox"><h1>${esc(s.title)}</h1><div class="dim">${esc(s.body || 'Tilt your phone like a steering wheel')}</div>
-    <div class="wing"><div class="plane" id="plane"></div></div>
+  el.innerHTML = `<div class="tiltbox"><div class="tilthead"><h1>${esc(s.title)}</h1><div class="dim">${esc(s.body || 'Hold your phone sideways and tilt it like a steering wheel')}</div>${SIDEWAYS}</div>
+    <div class="wing"><div class="plane" id="plane"></div></div><div class="tiltctl">
     <button id="perm" class="go wide hidden">Turn on tilt</button>
     <div class="label">No tilt? Slide instead</div><input type="range" id="slide" min="-55" max="55" step="1" value="0">
     <div style="height:10px"></div><button id="inv" class="wide">${invert ? 'Tilt is flipped ↔' : 'Flip tilt direction ↔'}</button>
-    ${s.buttons?.length ? `<div style="height:12px"></div><div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}">${esc(b.label)}</button>`).join('')}</div>` : ''}</div>`;
+    ${s.buttons?.length ? `<div style="height:12px"></div><div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}">${esc(b.label)}</button>`).join('')}</div>` : ''}</div></div>`;
   for (const b of el.querySelectorAll('[data-b]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(15); };
   let angle = 0, lastSent = 0, usingTilt = false;
   const plane = $('plane');
@@ -299,7 +354,9 @@ function renderTilt(s, el) {
   const onMotion = (e) => {
     const g = e.accelerationIncludingGravity;
     if (!g || g.x == null) return;
-    let gx = g.x, gy = g.y;
+    // turn gravity into screen axes, so holding the phone sideways steers the same as upright
+    const th = screenAngle() * Math.PI / 180;
+    let gx = g.x * Math.cos(th) - g.y * Math.sin(th), gy = g.x * Math.sin(th) + g.y * Math.cos(th);
     if (gy < 0) { gx = -gx; gy = -gy; }
     let a = Math.atan2(-gx, gy) * 180 / Math.PI;
     if (invert) a = -a;

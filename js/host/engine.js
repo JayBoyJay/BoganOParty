@@ -6,6 +6,7 @@
 import { chooseItemSpace, leaderOf, spacesWithin, spacesApart, SPACE } from '../board.js';
 import { POWERUPS, POWERUP_BY_ID } from '../content/powerups/index.js';
 import { EFFECTS } from '../content/powerups/effects.js';
+import { Drinks } from './drinks.js';
 
 export const RULES = {
   startCoins: 10,
@@ -34,6 +35,10 @@ export class Game {
       coins: RULES.startCoins, items: 0, hp: RULES.maxHp, maxHp: RULES.maxHp,
       space: board.start, powerups: [...(settings.give || [])], effects: [], mood: 'neutral', // give: test hook
     });
+    // drinks: minigame winners hand out drinks, drink power-ups in the shop; King Cup: loser drinks the cup
+    this.drinkOn = !!settings.drinks;
+    this.drinks = settings.drinks || settings.kingCup ? new Drinks({ players, hub, sfx, rng, speed: this.speed, kingCup: !!settings.kingCup }) : null;
+    if (this.drinks) this.drinks.onChange = () => this.refresh();
   }
 
   get target() { return this.settings.itemsToWin || 5; }
@@ -45,6 +50,7 @@ export class Game {
     this.refresh();
     this.hud.setRound(1, this.settings.maxRounds);
     await this.banner(this.map.name, `First to ${this.target} ${this.item.plural} wins`, { ms: 2600 });
+    await this.drinks?.kingCupStart();
     await this.placeItem(true);
     while (!this.over) {
       this.round++;
@@ -89,7 +95,8 @@ export class Game {
     }
     this.refresh();
     const top = placings[0] || [];
-    if (top.length) await this.banner(`${top.map((p) => p.name).join(' & ')} won the minigame`, `+${RULES.minigameCoins[0]} coins`, { ms: 1800 });
+    if (top.length) await this.banner(`${top.map((p) => p.name).join(' & ')} won the minigame`, `+${RULES.minigameCoins[0]} coins${this.drinkOn ? ' and a drink to give out' : ''}`, { ms: 1800 });
+    if (this.drinkOn && top.length) await this.drinks.winnersPick(top);
   }
 
   finish(winner) {
@@ -113,7 +120,8 @@ export class Game {
       const options = [{ id: 'roll', label: '🎲 Roll the dice', tone: 'go' }];
       for (const [i, id] of p.powerups.entries()) {
         const pu = POWERUP_BY_ID[id];
-        if (pu) options.push({ id: 'pu:' + i, label: `${pu.emoji} ${pu.name}`, sub: this.turn.used ? 'One power-up per turn' : pu.short, disabled: this.turn.used });
+        // passive ones (the Reverse Card) work by themselves, so they just sit in the list
+        if (pu) options.push({ id: 'pu:' + i, label: `${pu.emoji} ${pu.name}`, sub: pu.passive ? pu.short : this.turn.used ? 'One power-up per turn' : pu.short, disabled: this.turn.used || !!pu.passive });
       }
       const ans = await this.ask(p, {
         title: 'Your turn', body: options.length > 1 ? 'Use a power-up before you roll?' : '', options,
@@ -267,7 +275,7 @@ export class Game {
 
   // ================= shop =================
   async shop(p, passing) {
-    const forSale = POWERUPS.filter((pu) => !pu.hidden);
+    const forSale = POWERUPS.filter((pu) => !pu.hidden && (!pu.drinks || this.drinkOn));
     const full = p.powerups.length >= RULES.maxPowerups;
     if (passing) {
       const go = await this.ask(p, {

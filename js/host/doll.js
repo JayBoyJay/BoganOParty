@@ -56,7 +56,7 @@ function paintFace(c, mood, photo, skin, hair, onPhoto) {
     img.src = photo;
   }
 }
-const skinOf = (player) => '#' + new THREE.Color('#ffcdb8').lerp(new THREE.Color(player.color || '#ff9fb8'), 0.22).getHexString();
+const skinOf = (player) => player.skin || '#' + new THREE.Color('#ffcdb8').lerp(new THREE.Color(player.color || '#ff9fb8'), 0.22).getHexString();
 
 const faceCache = new Map(); // `${pid}:${mood}:${photoKey}` -> texture
 function faceTexture(pid, mood, photo, skin, hair = 0x3a2418) {

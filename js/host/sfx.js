@@ -61,6 +61,8 @@ export class Sfx {
       case 'snare': this.noise(0.14, 0.18); this.tone(220, 0.08, { type: 'triangle', vol: 0.05 }); break;
       case 'hat': this.noise(0.03, 0.06); break;
       case 'clank': this.tone(1900, 0.12, { type: 'square', vol: 0.03 }); this.tone(2600, 0.2, { type: 'triangle', vol: 0.03, delay: 0.02 }); break; // plates hitting the bar
+      case 'shot': this.noise(0.09, 0.14); this.tone(220, 0.1, { type: 'square', vol: 0.05, slide: -150 }); break; // a toy blaster
+      case 'deflate': this.noise(0.7, 0.04); this.tone(620, 0.7, { type: 'sine', vol: 0.03, slide: -420 }); break; // pssssht, a blow-up doll going down
       case 'miss': this.tone(140, 0.2, { type: 'sawtooth', vol: 0.05, slide: -40 }); break;
       case 'baa': this.tone(520, 0.45, { type: 'sawtooth', vol: 0.04, slide: -120 }); for (let i = 0; i < 6; i++) this.tone(480 - i * 15, 0.06, { type: 'square', vol: 0.02, delay: 0.05 + i * 0.06 }); break;
       case 'yell': this.tone(260, 0.6, { type: 'sawtooth', vol: 0.09, slide: 140 }); this.noise(0.5, 0.12); break;
