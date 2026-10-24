@@ -6,7 +6,7 @@ It uses the same phone connection as Marble Mayhem and Joe Master Universe: it r
 
 ## Play it
 
-**Online (GitHub Pages):** push this folder to a repository, then **Settings → Pages → Deploy from a branch → `main` / root**. Open the site on the TV and scan the QR. Anyone can also open `…/play.html` and type the 4-letter game code.
+**Online (GitHub Pages):** live at **https://jayboyjay.github.io/BoganOParty/** (served from the `first-playable` branch: **Settings → Pages → Deploy from a branch → `first-playable` / root**). Open the site on the TV and scan the QR. Anyone can also open `…/play.html` and type the 4-letter game code.
 
 **Offline (your Wi-Fi):** needs [Node.js](https://nodejs.org) 18+, nothing to install.
 - Windows: double-click `start.bat`
