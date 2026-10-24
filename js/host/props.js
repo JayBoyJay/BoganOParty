@@ -269,15 +269,20 @@ export function cherryTreeParts(seed = 1) {
     wood.push(tapered([0.3, H * 0.48, 0], mid, 0.24, 0.15), tapered(mid, tip, 0.15, 0.06));
     for (let j = 0; j < 4; j++) {
       const cx = tip[0] * (0.6 + rng() * 0.5) + (rng() - 0.5), cy = tip[1] + (rng() - 0.2) * 1.4, cz = tip[2] * (0.6 + rng() * 0.5) + (rng() - 0.5), size = 2.2 + rng() * 1.4;
-      bloom.push(...leafCluster(cx, cy, cz, size, rng));
-      // a solid puff inside each clump so the canopy reads as a mass, not cards
-      const puff = new THREE.IcosahedronGeometry(size * 0.3, 1); puff.scale(1, 0.75, 1); puff.translate(cx, cy, cz); core.push(puff);
+      // solid, lumpy clouds of blossom (flat cards read as cardboard from the low cameras)
+      for (let q = 0; q < 3; q++) {
+        const r = size * (0.26 + rng() * 0.12), puff = new THREE.IcosahedronGeometry(r, 2), P = puff.attributes.position, ph = rng() * 9;
+        for (let k = 0; k < P.count; k++) { const x = P.getX(k), y = P.getY(k), z = P.getZ(k), f = 1 + 0.16 * Math.sin(x * 5 / r + ph) * Math.sin(y * 4 / r + z * 3 / r); P.setXYZ(k, x * f, y * f * 0.72, z * f); }
+        puff.computeVertexNormals();
+        puff.translate(cx + (rng() - 0.5) * size * 0.45, cy + (rng() - 0.5) * size * 0.2, cz + (rng() - 0.5) * size * 0.45); bloom.push(puff);
+      }
+      const puff = new THREE.IcosahedronGeometry(size * 0.22, 1); puff.translate(cx, cy - size * 0.1, cz); core.push(puff);
     }
   }
   return [
     { geo: mergeGeometries(wood), material: surf('cherrybark', { unit: 1.2 }) },
-    { geo: mergeGeometries(bloom), material: surf('blossom', { unit: 2.2 }) },
-    { geo: mergeGeometries(core), material: mat(0xe9a3bd, { roughness: 0.9 }) },
+    { geo: mergeGeometries(bloom), material: surf('blossom', { unit: 1.4 }) },
+    { geo: mergeGeometries(core), material: mat(0xd88aa8, { roughness: 0.9 }) },
   ];
 }
 
