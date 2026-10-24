@@ -1,14 +1,24 @@
-// Sausage Sizzle: the hardware store snag sizzle, and everyone's on the barbie. Four snags each on the
-// hotplate. Only the side touching the plate cooks, so flip each one at the right time, and SERVE them
-// in bread once both sides are done. Golden both sides is 3 points. Raw or burnt and the customers
-// complain. Leave one too long and it's charcoal. Watch the smoke: it goes grey, then black. And
-// there's a magpie about.
+// Sausage Sizzle: the hardware store snag sizzle, and everyone's on the barbie with a line of Under 12s
+// footy kids (and their dads) out the front. Four snags each on the hotplate; only the side touching the
+// plate cooks, so flip each one at the right time. Every customer wants theirs a certain way: just done,
+// golden, well done, or cremated for the dads. SERVE hands over whichever snag is closest to what they
+// asked for. Nail it for 3 (plus a tip if they weren't kept waiting); leave them too long and they walk
+// off. Fat flare-ups cook a snag three times as fast, the magpie nicks one now and then, and the last
+// 25 seconds are the lunch rush: shorter tempers, double points.
 import { addSky } from '../../host/sky.js';
 
 const N_SNAGS = 4;
 const SEC = 1.7; // each player's bit of the hotplate
-const HEAT = 0.11; // cook per second on the down side; 1.0 is golden
-const GOOD = [0.8, 1.3], PERFECT = [0.9, 1.15], BURNT = 1.42, CHAR = 1.95;
+const HEAT = 0.2; // cook per second on the down side; 1.0 is golden
+const CHAR = 1.95, READY = 0.6; // charcoal; and under this on either side it's still raw and stays on
+// what the customers ask for: both sides inside the band is a match, within CLOSE of it is near enough
+const WANTS = [
+  { id: 'light', say: 'Just done', band: [0.7, 1.0] },
+  { id: 'golden', say: 'Golden', band: [0.95, 1.25] },
+  { id: 'well', say: 'Well done', band: [1.2, 1.5] },
+  { id: 'crem', say: 'Cremated!', band: [1.5, 1.88] },
+];
+const CLOSE = 0.18, PATIENCE = 15, RUSH_PATIENCE = 10, RUSH_T = 25, FLARE_T = 2.4;
 const SNAG_L = 0.95, SNAG_R = 0.075;
 const DOLL = 0.7;
 
@@ -19,9 +29,9 @@ const cookCol = (c, out) => { for (let i = 1; i < STOPS.length; i++) if (c <= ST
 export default {
   id: 'sausage-sizzle',
   name: 'Sausage Sizzle',
-  blurb: 'Four snags each on the barbie. Flip them on time, serve them golden. Mind the magpie.',
-  howTo: 'Only the side touching the hotplate cooks. Tap a snag number to flip that snag. When both sides are golden, hit SERVE to put every snag that is done into bread. Golden both sides is 3 points, a bit under or over is 1 or 2, and burnt loses a point. Watch the smoke: grey means flip it soon, black means you are burning it.',
-  padText: 'Flip 1-4, then SERVE',
+  blurb: 'A line of hungry footy kids, four snags each on the barbie. Cook every one the way they asked.',
+  howTo: 'Only the side touching the hotplate cooks. Tap a snag number to flip it. Your customer\'s bubble shows how they want it (just done, golden, well done, or cremated) and the colour to aim for. SERVE gives them your snag that is closest. Spot on is 3 points, plus 1 if they weren\'t kept waiting; near enough is 1. Keep them waiting too long and they walk off (-1). Flare-ups cook fast, charcoal loses a point, and the last 25 seconds are the lunch rush: double points.',
+  padText: 'Flip 1-4. SERVE when it looks right',
   duration: 80,
   pad: { kind: 'buttons', buttons: [
     { id: 's1', label: '🌭 1', color: '#ffd8a8' }, { id: 's2', label: '🌭 2', color: '#ffd8a8' },
@@ -93,6 +103,24 @@ export default {
       sp.position.set(x, y, z); scene.add(sp); pops.push({ sp, life: 0 });
     };
     const breadM = kit.mat(0xf0dcb0, { roughness: 0.9 });
+    // fat flare-ups: a bright sprite of flame, pushed over the bloom threshold so it glows
+    const flameMat = (() => {
+      const c = document.createElement('canvas'); c.width = 64; c.height = 96; const g = c.getContext('2d');
+      const gr = g.createRadialGradient(32, 70, 2, 32, 60, 40); gr.addColorStop(0, 'rgba(255,250,200,1)'); gr.addColorStop(0.35, 'rgba(255,170,40,0.95)'); gr.addColorStop(0.7, 'rgba(230,60,10,0.6)'); gr.addColorStop(1, 'rgba(200,30,0,0)');
+      g.fillStyle = gr; g.beginPath(); g.moveTo(32, 2); g.quadraticCurveTo(64, 60, 32, 94); g.quadraticCurveTo(0, 60, 32, 2); g.fill();
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }); m.color.setScalar(3.2); return m;
+    })();
+    // the customers' orders: everyone's line asks for the same things in the same order
+    const orders = [];
+    const order = (k) => {
+      while (orders.length <= k) {
+        const i = orders.length, w = i < 2 ? WANTS[1] : WANTS[(rng() * WANTS.length) | 0];
+        orders.push({ want: w, count: i > 3 && rng() < 0.3 ? 2 : 1, dad: w.id === 'crem' || rng() < 0.2 });
+      }
+      return orders[k];
+    };
+    const KIDS = ['#ffd23f', '#3da5ff', '#5cff9d', '#ff8a3d', '#c8a0ff', '#ff5a8a'];
 
     const cooks = players.map((p, i) => {
       const x0 = -W / 2 + SEC / 2 + i * SEC;
@@ -109,41 +137,80 @@ export default {
         mesh.position.set(x0 + 0.1, 0.83 + SNAG_R, z); scene.add(mesh);
         const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nums[k], depthTest: false })); tag.scale.setScalar(0.17); tag.renderOrder = 12;
         tag.position.set(x0 - SNAG_L / 2 - 0.12 + 0.1, 0.96, z); scene.add(tag);
-        snags.push({ k, mesh, mats, z, x: x0 + 0.1, cook: [0, 0], down: 1, rot: 0, rotTo: 0, gone: 0, smokeT: rng() * 0.3, heat: 0.92 + rng() * 0.16 });
+        const flame = new THREE.Sprite(flameMat.clone()); flame.visible = false; flame.renderOrder = 11; scene.add(flame);
+        snags.push({ k, mesh, mats, z, x: x0 + 0.1, cook: [0, 0], down: 1, rot: 0, rotTo: 0, gone: 0, smokeT: rng() * 0.3, heat: 0.92 + rng() * 0.16, flare: 0, flame });
       }
-      return { p, x0, doll, tongs, snags, score: 0, served: 0, armT: 0,
-        bot: p.bot ? { target: 0.95 + rng() * 0.15, lag: 0, slop: 0.06 + rng() * 0.12 } : null };
+      // the customer: a little footy kid (or a dad, for the cremated ones) at the front of the table
+      const kid = { face: '#fff', dad: false, k: -1, wait: 0, max: PATIENCE, walk: 0, leaving: 0, bubble: null, ctx: null, tex: null, drawn: '' };
+      const c = document.createElement('canvas'); c.width = 300; c.height = 170;
+      kid.ctx = c.getContext('2d'); kid.tex = new THREE.CanvasTexture(c); kid.tex.colorSpace = THREE.SRGBColorSpace;
+      kid.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: kid.tex, depthTest: false, transparent: true })); kid.bubble.scale.set(Math.min(1.5, SEC * 0.9), Math.min(1.5, SEC * 0.9) * 170 / 300, 1); kid.bubble.renderOrder = 15; scene.add(kid.bubble);
+      return { p, x0, doll, tongs, snags, kid, score: 0, served: 0, armT: 0, streak: 0,
+        bot: p.bot ? { lag: 0, slop: 0.04 + rng() * 0.1, react: 0.2 + rng() * 0.35 } : null };
     });
-    const resetSnag = (s, delay = 0.7) => { s.cook = [0, 0]; s.down = 1; s.rot = s.rotTo = 0; s.gone = delay; s.mesh.visible = delay <= 0; s.bot = null; };
+    const resetSnag = (s, delay = 0.7) => { s.cook = [0, 0]; s.down = 1; s.rot = s.rotTo = 0; s.gone = delay; s.mesh.visible = delay <= 0; s.bot = null; s.flare = 0; if (s.flame) s.flame.visible = false; };
 
     const flip = (C, k) => {
       const s = C.snags[k]; if (!s || s.gone > 0 || Math.abs(s.rot - s.rotTo) > 0.3) return;
       s.down = 1 - s.down; s.rotTo += Math.PI;
       C.armT = 0.25; sfx.play('squeak');
     };
-    const grade = (s) => {
-      const [a, b] = s.cook;
-      if (a >= BURNT || b >= BURNT) return { pts: -1, say: 'BURNT', col: '#ff5a5a' };
-      if (a < GOOD[0] - 0.25 || b < GOOD[0] - 0.25) return { pts: -1, say: 'RAW!', col: '#ff8aa0' };
-      const perfect = (c) => c >= PERFECT[0] && c <= PERFECT[1], good = (c) => c >= GOOD[0] && c <= GOOD[1];
-      if (perfect(a) && perfect(b)) return { pts: 3, say: 'PERFECT', col: '#5cff9d' };
-      if (good(a) && good(b)) return { pts: 2, say: 'GOOD', col: '#ffd23f' };
-      return { pts: 1, say: 'MEH', col: '#ffffff' };
+    const bandMiss = (c, [lo, hi]) => (c < lo ? lo - c : c > hi ? c - hi : 0);
+    const miss = (s, w) => Math.max(bandMiss(s.cook[0], w.band), bandMiss(s.cook[1], w.band));
+    const rush = () => mg.timeLeft() <= RUSH_T;
+    // a new customer walks up to the table
+    const nextKid = (C) => {
+      const K = C.kid; K.k += 1; const o = order(K.k);
+      K.face = KIDS[K.k % KIDS.length]; K.dad = o.dad;
+      K.wait = 0; K.max = rush() ? RUSH_PATIENCE : PATIENCE; K.walk = 1; K.leaving = 0; K.drawn = '';
+    };
+    const drawBubble = (C) => {
+      const K = C.kid, o = order(K.k), left = Math.max(0, 1 - K.wait / K.max), key = `${K.k}:${Math.ceil(left * 20)}`;
+      if (key === K.drawn) return; K.drawn = key;
+      const g = K.ctx; g.clearRect(0, 0, 300, 170);
+      g.fillStyle = 'rgba(255,255,255,0.95)'; g.beginPath(); g.roundRect(4, 4, 292, 140, 26); g.fill();
+      g.beginPath(); g.moveTo(130, 142); g.lineTo(150, 168); g.lineTo(170, 142); g.fill();
+      g.lineWidth = 6; g.strokeStyle = C.p.color; g.beginPath(); g.roundRect(4, 4, 292, 140, 26); g.stroke();
+      // the colour to aim for: a little snag drawn in it
+      const col = cookCol((o.want.band[0] + o.want.band[1]) / 2, new THREE.Color());
+      g.fillStyle = '#' + col.getHexString(); g.beginPath(); g.roundRect(18, 26, 84, 34, 17); g.fill();
+      if (o.count > 1) { g.beginPath(); g.roundRect(18, 66, 84, 34, 17); g.fill(); }
+      // who's asking: a little round face (a mo and a cap for the dads)
+      g.fillStyle = '#f2c8a8'; g.beginPath(); g.arc(258, 40, 22, 0, 7); g.fill();
+      g.fillStyle = K.face; g.beginPath(); g.arc(258, 34, 23, Math.PI, 0); g.fill(); g.fillRect(258, 28, 30, 6);
+      g.fillStyle = '#1a1a1a'; g.beginPath(); g.arc(250, 42, 3, 0, 7); g.arc(266, 42, 3, 0, 7); g.fill();
+      if (K.dad) { g.fillStyle = '#5a3a20'; g.fillRect(247, 50, 22, 5); }
+      g.fillStyle = '#1a1a1a'; g.font = '900 40px system-ui'; g.textAlign = 'left'; g.textBaseline = 'middle';
+      g.fillText(o.want.say, 112, 46, 118);
+      g.font = '800 28px system-ui'; g.fillStyle = '#555'; g.fillText(o.count > 1 ? 'Two, ta' : o.dad ? 'Cheers mate' : 'Please!', 114, 86, 176);
+      g.fillStyle = '#ddd'; g.fillRect(18, 114, 264, 16);
+      g.fillStyle = left > 0.5 ? '#3ac85a' : left > 0.25 ? '#f0b020' : '#e83a2a'; g.fillRect(18, 114, 264 * left, 16);
+      K.tex.needsUpdate = true;
     };
     const breads = [];
+    const handOver = (C, s, good) => {
+      const b = new THREE.Group(); const sl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.3), breadM); b.add(sl);
+      const sn = new THREE.Mesh(snagGeo, [s.mats[0].clone(), s.mats[1].clone()]); sn.scale.setScalar(0.32); sn.rotation.y = Math.PI / 4; sn.position.y = 0.03; b.add(sn);
+      const kp = C.kid.bubble.position;
+      b.position.set(s.x, 1.0, s.z); scene.add(b); breads.push({ b, life: 0, from: b.position.clone(), to: kp.clone(), good });
+      resetSnag(s);
+    };
     const serve = (C) => {
-      let any = false, total = 0;
-      for (const s of C.snags) {
-        if (s.gone > 0) continue;
-        if (s.cook[0] < 0.55 || s.cook[1] < 0.55) continue; // still raw: leave it on
-        const g = grade(s); total += g.pts; C.score += g.pts; C.served++; any = true;
-        // into a slice of bread on the table
-        const b = new THREE.Group(); const sl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.3), breadM); b.add(sl);
-        const sn = new THREE.Mesh(snagGeo, [s.mats[0].clone(), s.mats[1].clone()]); sn.scale.setScalar(0.32); sn.rotation.y = Math.PI / 4; sn.position.y = 0.03; b.add(sn);
-        b.position.set(s.x, 1.0, s.z); scene.add(b); breads.push({ b, life: 0, from: b.position.clone(), to: new THREE.Vector3(C.x0 - 0.5 + (C.served % 5) * 0.25, 0.76, 1.05 + ((C.served / 5) | 0 % 2) * 0.05) });
-        resetSnag(s);
-      }
-      if (any) { pop(C.x0, 2.3, 0.3, total > 0 ? `+${total}` : `${total}`, total >= 0 ? C.p.color : '#ff5a5a', 1); sfx.play(total > 0 ? 'coin' : 'lose'); C.armT = 0.3; }
+      const K = C.kid; if (K.walk > 0 || K.leaving > 0) return;
+      const o = order(K.k), ready = C.snags.filter((s) => s.gone <= 0 && s.cook[0] >= READY && s.cook[1] >= READY);
+      if (ready.length < o.count) { pop(C.x0, 2.0, 0.3, ready.length ? 'NEED TWO' : 'NOT READY', '#ffffff', 0.6); return; }
+      ready.sort((a, b) => miss(a, o.want) - miss(b, o.want));
+      let pts = 0, worst = 0;
+      for (const s of ready.slice(0, o.count)) { const m = miss(s, o.want); worst = Math.max(worst, m); pts += m === 0 ? 3 : m <= CLOSE ? 1 : 0; handOver(C, s, m <= CLOSE); }
+      const quick = K.wait < K.max * 0.5 && worst === 0 ? 1 : 0;
+      pts = (pts + quick) * (rush() ? 2 : 1);
+      C.score += pts; C.served += 1; C.armT = 0.3;
+      C.streak = worst === 0 ? C.streak + 1 : 0;
+      const say = worst === 0 ? (quick ? 'BEAUTY! +' : 'SPOT ON +') + pts : worst <= CLOSE ? `NEAR ENOUGH +${pts}` : 'NOT WHAT I ASKED';
+      pop(C.x0, 2.3, 0.3, say, worst === 0 ? '#5cff9d' : worst <= CLOSE ? '#ffd23f' : '#ff8a8a', 0.8);
+      if (C.streak >= 3 && C.streak % 3 === 0) pop(C.x0, 2.85, 0.3, `ON A ROLL x${C.streak}`, C.p.color, 0.7);
+      sfx.play(pts > 0 ? 'coin' : 'lose');
+      K.leaving = 1;
     };
 
     // ----- the magpie -----
@@ -163,29 +230,45 @@ export default {
     const span = Math.max(W + 1.2, 5.2), hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(18)) * 16 / 9);
     const dist = span / 2 / Math.tan(hfov / 2);
     camera.position.set(0, 0.9 + dist * 0.62, 0.4 + dist * 0.8);
-    camera.lookAt(0, 0.85, -0.2);
+    camera.lookAt(0, 1.3, -0.4); // a touch high, so the dockets over the cooks sit in shot with the hotplate
 
-    let tAll = 0;
+    let tAll = 0, flareT = 5 + rng() * 3, rushSaid = false;
     return {
       camera,
       update(dt, t, running) {
         tAll += dt;
+        if (running) {
+          // a flare-up under someone's snag every few seconds
+          if ((flareT -= dt) <= 0) {
+            flareT = 3.5 + rng() * 3.5;
+            const C = cooks[(rng() * n) | 0], s = C.snags.filter((q) => q.gone <= 0 && q.flare <= 0)[(rng() * 4) | 0];
+            if (s) { s.flare = FLARE_T; pop(s.x, 1.5, s.z, 'FLARE UP!', '#ffb030', 0.6); sfx.play('whoosh'); }
+          }
+          if (!rushSaid && mg.timeLeft() <= RUSH_T) { rushSaid = true; pop(0, 3.2, 0, 'LUNCH RUSH! x2', '#ffd23f', 1.6); sfx.play('whistle'); }
+        }
         for (const C of cooks) {
-          if (C.bot && running) {
+          if (C.bot && running && C.kid.k >= 0) {
             const B = C.bot; B.lag -= dt;
             if (B.lag <= 0) {
-              B.lag = 0.25 + rng() * 0.3;
-              const ready = C.snags.filter((s) => s.gone <= 0);
-              const flipMe = ready.find((s) => s.cook[s.down] >= B.target + (rng() - 0.5) * B.slop && s.cook[1 - s.down] < B.target);
-              if (ready.length && ready.every((s) => s.cook[0] >= 0.85 && s.cook[1] >= 0.85)) serve(C);
+              B.lag = B.react + rng() * 0.3;
+              const w = order(C.kid.k).want, mid = (w.band[0] + w.band[1]) / 2;
+              const live = C.snags.filter((s) => s.gone <= 0);
+              const hits = live.filter((s) => miss(s, w) <= B.slop * 0.5 && s.cook[0] >= READY && s.cook[1] >= READY);
+              const flipMe = live.find((s) => s.cook[s.down] >= mid + (rng() - 0.5) * B.slop && s.cook[1 - s.down] < mid);
+              if (hits.length >= order(C.kid.k).count) serve(C);
               else if (flipMe) flip(C, flipMe.k);
-              else if (ready.some((s) => s.cook[0] >= 0.85 && s.cook[1] >= 0.85 && rng() < 0.15)) serve(C);
+              else if (C.kid.wait > C.kid.max * 0.8 && live.some((s) => s.cook[0] >= READY && s.cook[1] >= READY)) serve(C); // better something than nothing
             }
           }
           for (const s of C.snags) {
             if (s.gone > 0) { s.gone -= dt; if (s.gone <= 0) { s.mesh.visible = true; s.mesh.rotation.x = 0; } continue; }
-            if (running) s.cook[s.down] += HEAT * s.heat * dt;
-            if (s.cook[s.down] >= CHAR) { C.score -= 1; pop(s.x, 1.6, s.z, 'CHARCOAL -1', '#ff5a5a', 0.7); sfx.play('lose'); resetSnag(s, 1); continue; }
+            if (running) s.cook[s.down] += HEAT * s.heat * dt * (s.flare > 0 ? 3 : 1);
+            if (s.flare > 0) {
+              s.flare -= dt; s.flame.visible = s.flare > 0;
+              s.flame.position.set(s.x + Math.sin(tAll * 23 + s.k) * 0.25, 1.0 + Math.abs(Math.sin(tAll * 17 + s.k)) * 0.08, s.z);
+              s.flame.scale.set(0.4 + Math.sin(tAll * 31) * 0.06, 0.55 + Math.sin(tAll * 27 + 1) * 0.1, 1);
+            }
+            if (s.cook[s.down] >= CHAR) { s.flare = 0; s.flame.visible = false; C.score -= 1; pop(s.x, 1.6, s.z, 'CHARCOAL -1', '#ff5a5a', 0.7); sfx.play('lose'); resetSnag(s, 1); continue; }
             // flip animation: a quick roll with a little hop
             const d = s.rotTo - s.rot; s.rot += Math.sign(d) * Math.min(Math.abs(d), dt * 14);
             s.mesh.rotation.x = s.rot;
@@ -195,6 +278,25 @@ export default {
             s.smokeT -= dt;
             const dc = s.cook[s.down];
             if (running && s.smokeT <= 0 && dc > 0.3) { s.smokeT = dc > 1.2 ? 0.08 : dc > 0.85 ? 0.16 : 0.35; puff(s.x + (rng() - 0.5) * SNAG_L * 0.8, 0.9, s.z, dc); }
+          }
+          // the customer: walk up, wait (and get the sulks), take the snag and wander off
+          {
+            const K = C.kid;
+            if (running && K.k < 0) nextKid(C);
+            if (K.k >= 0) {
+              if (K.walk > 0) K.walk = Math.max(0, K.walk - dt / 0.8);
+              else if (K.leaving > 0) { K.leaving -= dt / 1.1; if (K.leaving <= 0) { nextKid(C); } }
+              else if (running) {
+                K.wait += dt;
+                if (K.wait >= K.max) { C.score -= 1; C.streak = 0; pop(C.x0, 2.3, 0.3, 'STUFF THIS! -1', '#ff5a5a', 0.75); sfx.play('lose'); K.leaving = 1; }
+              }
+              // the docket drops in over the cook's head, shakes when they're getting cranky, and lifts away when done
+              const off = K.walk > 0 ? K.walk * K.walk : K.leaving > 0 ? (1 - K.leaving) ** 2 : 0;
+              const cranky = K.walk <= 0 && K.leaving <= 0 && K.wait > K.max * 0.65 ? Math.sin(tAll * 30) * 0.03 : 0;
+              K.bubble.position.set(C.x0 + cranky, 1.95 + off * 1.6, -0.7);
+              K.bubble.material.opacity = 1 - off;
+              drawBubble(C);
+            }
           }
           // the cook waves the tongs about
           C.armT -= dt;
@@ -219,7 +321,7 @@ export default {
             if (F.k >= 1) { if (F.held) bird.remove(F.held); M.fly = null; bird.visible = false; }
           }
         }
-        for (let i = breads.length - 1; i >= 0; i--) { const q = breads[i]; q.life += dt * 2.5; const k = Math.min(1, q.life); q.b.position.lerpVectors(q.from, q.to, k); q.b.position.y += Math.sin(k * Math.PI) * 0.4; if (q.life > 6) { scene.remove(q.b); breads.splice(i, 1); } }
+        for (let i = breads.length - 1; i >= 0; i--) { const q = breads[i]; q.life += dt * 2.5; const k = Math.min(1, q.life); q.b.position.lerpVectors(q.from, q.to, k); q.b.position.y += Math.sin(k * Math.PI) * 0.4; if (q.life > 1.2) { scene.remove(q.b); breads.splice(i, 1); } }
         for (let i = puffs.length - 1; i >= 0; i--) { const q = puffs[i]; q.life += dt; q.s.position.y += q.v * dt; q.s.scale.multiplyScalar(1 + dt * 0.9); q.s.material.opacity *= 1 - dt * 0.9; if (q.life > q.max) { scene.remove(q.s); q.s.material.dispose(); puffs.splice(i, 1); } }
         for (let i = pops.length - 1; i >= 0; i--) { const q = pops[i]; q.life += dt; q.sp.position.y += dt * 0.8; q.sp.material.opacity = Math.min(1, 2.4 - q.life * 2); if (q.life > 1.2) { scene.remove(q.sp); pops.splice(i, 1); } }
       },

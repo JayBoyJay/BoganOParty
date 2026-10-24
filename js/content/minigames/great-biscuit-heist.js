@@ -1,5 +1,5 @@
 // The Great Biscuit Heist: Myles is passed out on the couch after a big one, and the Scotch Fingers
-// are right in front of him. Tap SNEAK to creep up, nick a biscuit, then sneak it all the way back to
+// are right in front of him. Push the slider up to creep in (higher is faster), nick a biscuit, then sneak it all the way back to
 // the front door for a point. Then go again. When he snorts and stirs, stop: if he rolls over and sees
 // anyone moving, OI! Back to the door you go, and any biscuit you were carrying stays behind.
 // Red light, green light, but it's a bloke on a mustard couch.
@@ -10,9 +10,9 @@ const LANE = 1.5; // metres per lane
 const DOLL = 0.68; // player doll scale (Myles is 0.95, so he's a big unit)
 const START_Z = 4.5, GRAB_Z = -5.4; // the front door line, and where the biscuit plate is
 const FRONT_Z = START_Z + 2.5, BACK_Z = -14, LEN = FRONT_Z - BACK_Z, MID_Z = (FRONT_Z + BACK_Z) / 2;
-const STEP = 0.25, STEP_T = 0.22; // each tap: this far, taking this long
-const QUEUE = 1; // taps that can be banked while a step is under way
-const GRACE = 0.22; // after he looks, a step already under way can finish
+const MAXV = 2.0; // metres a second with the slider right up
+const STILL = 0.12; // slower than this and Myles won't notice you
+const GRACE = 0.3; // after he looks, a moment to stop dead
 const SEAT_Y = 0.85, COUCH_Z = -9.2;
 
 // Myles' face: printed like the players' dolls, with a mullet, a mo and a five o'clock shadow
@@ -55,10 +55,10 @@ export default {
   id: 'great-biscuit-heist',
   name: 'The Great Biscuit Heist',
   blurb: "Myles is asleep on the couch, guarding the Scotch Fingers. Nick one and get it back to the door.",
-  howTo: "Tap SNEAK to creep a step. Get to the plate, grab a Scotch Finger, and sneak it back to the front door for a point, then go again. When Myles snorts and stirs, STOP. If he rolls over and sees you move, you're sent back to the door and lose the biscuit.",
-  padText: 'Tap to sneak. Freeze when he stirs!',
+  howTo: "Slide up to sneak: the higher, the faster. Get to the plate, grab a Scotch Finger, and sneak it back to the front door for a point, then go again. When Myles snorts and stirs, drag it right down and STOP. If he rolls over and sees you move, you're sent back to the door and lose the biscuit.",
+  padText: 'Slide up to sneak. Drop it when he stirs!',
   duration: 75,
-  pad: { kind: 'buttons', buttons: [{ id: 'step', label: '🤫 SNEAK', tone: 'go', wide: true }] },
+  pad: { kind: 'slider', thumb: '🤫', start: 0, hint: 'Up = sneak faster. Down = freeze' },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer } = mg;
@@ -326,8 +326,8 @@ export default {
       holder.position.set(x, 0, START_Z);
       // the biscuit they're carrying, held up in front of them
       const carry = biscuit(); carry.scale.setScalar(1.4); carry.rotation.set(-1.2, 0, 0); carry.position.set(0, 1.45 * DOLL / 0.68, 0.55); carry.visible = false; holder.add(carry);
-      return { p, doll, holder, carry, x, z: START_Z, from: START_Z, st: 0, queue: 0, back: 0, has: false, points: 0, caught: 0, phase: rng() * 6, turn: Math.PI,
-        bot: p.bot ? { rate: 3.5 + rng() * 2.5, react: 0.12 + rng() * 0.38, cool: 0, greedy: rng() * 0.25 } : null };
+      return { p, doll, holder, carry, x, z: START_Z, from: START_Z, want: 0, v: 0, back: 0, has: false, points: 0, caught: 0, phase: rng() * 6, turn: Math.PI,
+        bot: p.bot ? { pace: 0.55 + rng() * 0.45, react: 0.12 + rng() * 0.38, greedy: rng() * 0.25 } : null };
     });
     const pops = [];
     const pop = (s, text, color) => {
@@ -347,18 +347,12 @@ export default {
     let state = 'sleep', stT = 0, stDur = 2.2 + rng() * 1.2, wake = 0, snoreT = 0, fake = false, scan = 0, lookT = 0, anger = 0;
     const setState = (s, dur) => { state = s; stT = 0; stDur = dur; };
     const caught = (s) => {
-      s.caught += 1; s.back = 1; s.from = s.z; s.queue = 0; s.st = 0; s.has = false; s.carry.visible = false;
+      s.caught += 1; s.back = 1; s.from = s.z; s.v = 0; s.has = false; s.carry.visible = false;
       s.doll.flinch();
       pop(s, 'OI!', '#ff4a3a');
       mg.sfx.play('oi');
       anger = 1.2;
       myles.setMood('angry');
-    };
-    const tap = (s) => {
-      if (s.back > 0) return;
-      if (s.st > 0) { s.queue = Math.min(QUEUE, s.queue + 1); return; }
-      s.st = 1e-4;
-      if (!s.p.bot) mg.sfx.play('tiptoe');
     };
 
     return {
@@ -416,17 +410,17 @@ export default {
             // CPUs tap away while he sleeps and stop once they notice him stirring (some notice late)
             const alarmed = (state === 'stir' && !fake && stT > s.bot.react) || (state === 'stir' && fake && stT > s.bot.react + 0.1) || state === 'look' || (state === 'settle' && stT < 0.3);
             const greedy = state === 'stir' && stT < s.bot.react + s.bot.greedy;
-            s.bot.cool -= dt;
-            if ((!alarmed || greedy && state === 'stir') && s.bot.cool <= 0) { tap(s); s.bot.cool = 1 / s.bot.rate * (0.7 + rng() * 0.6); }
+            s.want = !alarmed || (greedy && state === 'stir') ? s.bot.pace : 0;
           }
-          if (s.st > 0) {
-            const k0 = s.st;
-            s.st += dt / STEP_T;
-            s.z += (Math.min(1, s.st) - Math.min(1, k0)) * STEP * (s.has ? 1 : -1); // in for a biscuit, then back out
-            if (s.st >= 1) { s.st = 0; if (s.queue > 0) { s.queue -= 1; s.st = 1e-4; } }
-          }
+          // ease towards the slider's speed (a slowish start, a quick stop), in for a biscuit, then back out
+          if (s.back <= 0 && running) {
+            const target = s.want * MAXV * (s.has ? 0.85 : 1);
+            s.v += (target - s.v) * Math.min(1, dt * (target > s.v ? 5 : 12));
+            s.z += s.v * dt * (s.has ? 1 : -1);
+          } else s.v = 0;
+          const moving = s.v > STILL;
           // spotted?
-          if (running && state === 'look' && lookT > GRACE && s.st > 0) caught(s);
+          if (running && state === 'look' && lookT > GRACE && moving) caught(s);
           if (s.back > 0) {
             // whisked back to the front door
             s.back = Math.max(0, s.back - dt / 1.1);
@@ -435,24 +429,26 @@ export default {
           }
           if (!s.has && s.back <= 0 && s.z <= GRAB_Z) {
             // got one: turn round with it
-            s.has = true; s.z = GRAB_Z; s.queue = 0; s.st = 0; s.carry.visible = true;
+            s.has = true; s.z = GRAB_Z; s.carry.visible = true;
             pop(s, 'GOT ONE!', '#ffd23f'); if (!s.p.bot) mg.sfx.play('squeak');
           }
           if (s.has && s.z >= START_Z) {
-            s.has = false; s.z = START_Z; s.queue = 0; s.st = 0; s.carry.visible = false; s.points += 1;
+            s.has = false; s.z = START_Z; s.carry.visible = false; s.points += 1;
             pop(s, '+1 🍪', '#5cff9d'); mg.sfx.play('coin'); s.doll.bounce(1.2);
           }
           // creep animation: knees up, lean forward, a little bob each step
-          const moving = s.st > 0;
-          s.phase += dt * (moving ? 14 : 0);
-          const bob = moving ? Math.abs(Math.sin(s.st * Math.PI)) * 0.12 : 0;
+          // a stride cycle driven by distance covered, so it speeds up and slows down with them
+          const before = Math.floor(s.phase / Math.PI);
+          s.phase += dt * s.v * 7;
+          if (moving && !s.p.bot && Math.floor(s.phase / Math.PI) !== before) mg.sfx.play('tiptoe');
+          const bob = Math.abs(Math.sin(s.phase)) * 0.07 * Math.min(1, s.v / 1.2);
           const fly = s.back > 0 ? Math.sin(s.back * Math.PI) * 1.2 : 0;
           s.holder.position.set(s.x, bob + fly, s.z);
           // face the way they're going: towards Myles on the way in, the door on the way out
           s.turn += ((s.has ? 0 : Math.PI) - s.turn) * Math.min(1, dt * 8);
           s.holder.rotation.y = s.turn;
           s.doll.group.rotation.x = s.back > 0 ? -0.8 * Math.sin(s.back * Math.PI) : 0.28; // hunched over, sneaking
-          s.doll.group.rotation.z = moving ? Math.sin(s.st * Math.PI) * 0.12 * (s.phase % 2 > 1 ? 1 : -1) : 0;
+          s.doll.group.rotation.z = Math.sin(s.phase) * 0.1 * Math.min(1, s.v / 1.2);
           s.doll.setArms(s.has ? 0.35 : s.back > 0 ? 0.7 : -0.15, 0);
           s.doll.update(dt);
         }
@@ -467,7 +463,7 @@ export default {
         camera.position.set(1.6 + Math.sin(t * 0.2) * 0.3, 5.0 + W * 0.1, COUCH_Z - 4.6 - W * 0.15);
         camera.lookAt(0, 0.6, -1);
       },
-      input(p, m) { const s = sneakers.find((x) => x.p === p); if (s && m.b === 'step') tap(s); },
+      input(p, m) { const s = sneakers.find((x) => x.p === p); if (s && m.b === 'slide') s.want = Math.max(0, Math.min(1, Number(m.v) || 0)); },
       // a point per biscuit got home; how far along this trip only breaks ties (never enough to round up)
       scores() { return Object.fromEntries(sneakers.map((s) => { const trip = (START_Z - s.z) / (START_Z - GRAB_Z); return [s.p.id, s.points + 0.24 * (s.has ? 1 + (1 - trip) : trip) / 2]; })); },
     };
