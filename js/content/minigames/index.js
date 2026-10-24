@@ -17,6 +17,10 @@ import perfectPour from './perfect-pour.js';
 import likeMyPost from './like-my-post.js';
 import distroWars from './distro-wars.js';
 import draw from './draw.js';
+import thongThrow from './thong-throw.js';
+import sausageSizzle from './sausage-sizzle.js';
+import eskyTetris from './esky-tetris.js';
+import wheelieBinDerby from './wheelie-bin-derby.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw, thongThrow, sausageSizzle, eskyTetris, wheelieBinDerby];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));
