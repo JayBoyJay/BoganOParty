@@ -57,7 +57,7 @@ export default {
   blurb: "Myles is asleep on the couch, guarding the Scotch Fingers. Nick one and get it back to the door.",
   howTo: "Tap SNEAK to creep a step. Get to the plate, grab a Scotch Finger, and sneak it back to the front door for a point, then go again. When Myles snorts and stirs, STOP. If he rolls over and sees you move, you're sent back to the door and lose the biscuit.",
   padText: 'Tap to sneak. Freeze when he stirs!',
-  duration: 60,
+  duration: 75,
   pad: { kind: 'buttons', buttons: [{ id: 'step', label: '🤫 SNEAK', tone: 'go', wide: true }] },
 
   create(mg) {

@@ -44,7 +44,8 @@ export class MinigameRunner {
     }).then(() => { ready.add(p.id); drawReady(); })));
 
     // ----- build the scene -----
-    const dur = this.speed < 1 ? Math.min(8, def.duration) : def.duration; // fast mode is for automated tests
+    const full = def.duration + Math.max(0, players.length - 4) * (def.perPlayer || 0);
+    const dur = this.speed < 1 ? Math.min(8, full) : full; // fast mode is for automated tests
     const scene = new THREE.Scene();
     const mg = {
       THREE, players, rng: this.rng, sfx: this.sfx, kit: makeKit(scene), scene, renderer: this.stage.renderer,

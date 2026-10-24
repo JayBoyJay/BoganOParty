@@ -20,7 +20,7 @@ export default {
   blurb: "Trev's asleep face down at the beach and going red. Cover more of his back in your sunscreen than anyone else.",
   howTo: "You're tiny and you're standing on Trev's back. Move with the stick and hold RUB to spread your sunscreen as you go. SLAP drops a big dollop and knocks anyone close by out of the way (it needs a couple of seconds to reload). You can rub over other people's sunscreen. When a red patch starts burning, get your sunscreen on it: whoever covers most of it before the timer runs out gets a bonus. Score is how much of the back is yours.",
   padText: 'Move, hold RUB, SLAP!',
-  duration: 45,
+  duration: 60,
   pad: { kind: 'stick', buttons: [{ bit: BTN.RUB, label: '🧴 RUB', tone: 'go' }, { bit: BTN.SLAP, label: '👋 SLAP' }] },
 
   create(mg) {

@@ -50,6 +50,11 @@
   .set > span:first-child { white-space: nowrap; }
   .seg { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; background: rgba(0,0,0,0.3); border-radius: 0.65rem; padding: 0.2rem; gap: 0.15rem; }
   .seg button { padding: 0.35rem 0.75rem; border-radius: 0.5rem; background: transparent; font-size: 0.88rem; }
+  #segCpus { flex-wrap: nowrap; }
+  #segCpus button { padding-inline: 0.5rem; }
+  .many .pcard { padding: 0.35rem 0.6rem; }
+  .many .pcard img { width: 2.5rem; height: 2.5rem; }
+  .many .pslot { padding-block: 0.4rem; }
   .seg button.on { background: var(--ochre); box-shadow: inset 0 -0.15rem 0 rgba(0,0,0,0.2); }
   .startrow { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0.9rem 1.4rem; }
   .startrow .primary { font-size: 1.4rem; padding: 0.85rem 1.9rem; border-radius: 1rem; }
@@ -250,7 +255,7 @@
       <div class="set for-mg"><span>Minigames</span><span class="seg" id="segMgRounds"><button data-v="3">3</button><button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button></span></div>
       <div class="set for-board"><span>Items to win</span><span class="seg" id="segItems"><button data-v="3">3</button><button data-v="5">5</button><button data-v="7">7</button><button data-v="10">10</button></span></div>
       <div class="set for-board"><span>Round limit</span><span class="seg" id="segRounds"><button data-v="0">None</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button></span></div>
-      <div class="set"><span>CPU players</span><span class="seg" id="segCpus"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button></span></div>
+      <div class="set"><span>CPU players</span><span class="seg" id="segCpus"><button data-v="0">0</button><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button><button data-v="7">7</button></span></div>
       <div class="set"><span>Drinking</span><span class="seg" id="segDrinks"><button data-v="0">Off</button><button data-v="1">On</button></span></div>
       <div class="set"><span>King Cup (oopsie)</span><span class="seg" id="segKingCup"><button data-v="0">Off</button><button data-v="1">On</button></span></div>
     </div>

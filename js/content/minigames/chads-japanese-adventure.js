@@ -64,7 +64,7 @@ export default {
   blurb: 'Chad is running late through Kyoto. Jump the cats, duck under the torii gates.',
   howTo: 'Tap JUMP to hop over the cats and DUCK to squash under the low torii gates. Every one you clear scores. Hit one and you go flying.',
   padText: 'Jump the cats, duck the gates!',
-  duration: 45,
+  duration: 55,
   pad: { kind: 'buttons', buttons: [{ id: 'jump', label: '⬆️ JUMP', tone: 'go', wide: true }, { id: 'duck', label: '⬇️ DUCK', wide: true }] },
 
   create(mg) {

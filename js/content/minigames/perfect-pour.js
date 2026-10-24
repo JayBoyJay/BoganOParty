@@ -45,7 +45,7 @@ export default {
   blurb: 'One schooner, one pour. Fill it to the rim with a proper head. Closest to perfect wins.',
   howTo: 'Slide up on your phone to open the tap and slide back down to shut it. You only get one go: once the tap is shut, that is your beer. Open it right up and you get all froth. Go easy and it is flat. Aim for beer to the rim with a finger of head on top, after it settles.',
   padText: 'Slide up to pour, down to stop',
-  duration: 32,
+  duration: 40,
   pad: { kind: 'slider', thumb: '🍺', start: 0, hint: 'Up = tap open. Back down = done' },
 
   create(mg) {

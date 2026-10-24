@@ -27,13 +27,13 @@ export default {
   blurb: "Tickets on the rail, grill's hot. Stack every burger exactly as ordered.",
   howTo: 'Each order ticket shows a burger from the bottom bun up. Tap the ingredients in that order. One wrong tap and the burger hits the floor. Bigger burgers score more.',
   padText: 'Build it bottom up, exactly like the ticket.',
-  duration: 50,
+  duration: 70,
   pad: { kind: 'buttons', buttons: ['bun', 'patty', 'cheese', 'lettuce', 'tomato', 'beetroot', 'egg', 'pineapple'].map((id) => ({ id, label: ING[id].label })) },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer } = mg;
-    const n = players.length, W = n * GAP;
-    const stX = (i) => (i - (n - 1) / 2) * GAP;
+    const n = players.length, gap = n > 4 ? 2.5 : GAP, W = n * gap; // a bigger crew squeezes up along the counter
+    const stX = (i) => (i - (n - 1) / 2) * gap;
 
     // ----- the orders (everyone gets the same ones) -----
     const orders = [];
@@ -76,11 +76,12 @@ export default {
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
     };
     const lino = tile(64, 64, '#e8e2d6', '#b8282a'); lino.repeat.set((W + 20) / 2, 6);
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W + 20, 12), new THREE.MeshStandardMaterial({ map: lino, roughness: 0.35 }));
-    floor.rotation.x = -Math.PI / 2; floor.position.z = -1; floor.receiveShadow = true; scene.add(floor);
-    const subway = tile(64, 32, '#f4f2ec', null, 3); subway.repeat.set((W + 20) / 1.2, 7 / 0.6);
-    const wall = new THREE.Mesh(new THREE.PlaneGeometry(W + 20, 7), new THREE.MeshPhysicalMaterial({ map: subway, roughness: 0.2, clearcoat: 0.6 }));
-    wall.position.set(0, 3.5, -4.2); wall.receiveShadow = true; scene.add(wall);
+    lino.repeat.y = 11; // deep enough to reach the camera with a big crew
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W + 20, 22), new THREE.MeshStandardMaterial({ map: lino, roughness: 0.35 }));
+    floor.rotation.x = -Math.PI / 2; floor.position.z = 6.8; floor.receiveShadow = true; scene.add(floor);
+    const subway = tile(64, 32, '#f4f2ec', null, 3); subway.repeat.set((W + 20) / 1.2, 13 / 0.6);
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(W + 20, 13), new THREE.MeshPhysicalMaterial({ map: subway, roughness: 0.2, clearcoat: 0.6 }));
+    wall.position.set(0, 6.5, -4.2); wall.receiveShadow = true; scene.add(wall);
     kit.box(W + 20, 0.25, 0.1, 0xb8282a, 0, 1.2, -4.12); // a red stripe in the tiles
 
     // the back line: flat-top grill with patties sizzling, fryers, a range hood
@@ -189,9 +190,9 @@ export default {
     const stations = players.map((p, i) => {
       const x = stX(i), g = kit.group(x, 0, 0);
       // counter: stainless top on a white cabinet
-      kit.box(GAP - 0.15, COUNTER_Y - 0.06, 1.2, 0xeeeeee, 0, 0, 0.2, g, { roughness: 0.4 });
-      const top = kit.box(GAP - 0.1, 0.06, 1.3, steel, 0, COUNTER_Y - 0.06, 0.2, g); top.receiveShadow = true;
-      kit.box(GAP - 0.15, 0.12, 0.02, p.color, 0, 0.6, 0.86, g, { emissive: p.color, emissiveIntensity: 0.3 });
+      kit.box(gap - 0.15, COUNTER_Y - 0.06, 1.2, 0xeeeeee, 0, 0, 0.2, g, { roughness: 0.4 });
+      const top = kit.box(gap - 0.1, 0.06, 1.3, steel, 0, COUNTER_Y - 0.06, 0.2, g); top.receiveShadow = true;
+      kit.box(gap - 0.15, 0.12, 0.02, p.color, 0, 0.6, 0.86, g, { emissive: p.color, emissiveIntensity: 0.3 });
       // a wooden board to build on, and the pass at the end
       kit.box(1.3, 0.05, 1.0, kit.surf('planks', { unit: 1.2, tint: 0xd8b088 }), 0, COUNTER_Y, 0.3, g);
       const doll = mg.makeDoll(p, { scale: DOLL, tag: false }); // the ticket has their name
@@ -241,15 +242,15 @@ export default {
         const fillings = o.stack.length - 2;
         s.score += fillings; s.served += 1;
         const burger = s.pieces.splice(0);
-        s.flying.push(...burger.map((q) => ({ m: q.m, slide: true, life: 0, delay: 0.35 })));
+        s.flying.push(...burger.map((q) => ({ m: q.m, q, slide: true, life: 0, delay: 0.6 }))); // the top bun still lands before it goes
         s.done = 0; s.k += 1; s.lock = 0.4; s.flash = 1;
         pop(s, `ORDER UP! +${fillings}`, '#5cff9d'); mg.sfx.play('coin');
         s.doll.bounce(1);
       }
     };
 
-    const camera = new THREE.PerspectiveCamera(40, 16 / 9, 0.3, 200);
-    const camZ = Math.max(7.5, (W / 2 + 0.8) / 0.64);
+    const camera = new THREE.PerspectiveCamera(n > 4 ? 46 : 40, 16 / 9, 0.3, 200);
+    const camZ = Math.max(7.5, (W / 2 + (n > 4 ? 1.3 : 0.8)) / (n > 4 ? 0.755 : 0.64)), camX = W * (n > 4 ? 0.035 : 0.07);
 
     return {
       camera,
@@ -278,9 +279,9 @@ export default {
           s.pieces.forEach((q, i) => { if (!q.landed) return; q.m.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, dt * 12)); q.m.position.x = s.x + lean * i * 0.25; q.m.rotation.z = lean * 0.5; });
           for (let i = s.flying.length - 1; i >= 0; i--) {
             const f = s.flying[i]; f.life += dt;
-            if (f.slide) { if (f.life > f.delay) { f.m.position.x += dt * 7; f.m.position.y += dt * 0.6; f.m.scale.multiplyScalar(1 - dt * 1.4); } }
+            if (f.slide) { const q = f.q; if (q && !q.landed) { q.vy -= 28 * dt; f.m.position.y += q.vy * dt; if (f.m.position.y <= q.y) { f.m.position.y = q.y; q.landed = true; } } else if (q && f.life <= f.delay) f.m.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(1, dt * 12)); if (f.life > f.delay) { f.m.position.x += dt * 7; f.m.position.y += dt * 0.6; f.m.scale.multiplyScalar(1 - dt * 1.4); } }
             else { f.v.y -= 20 * dt; f.m.position.addScaledVector(f.v, dt); f.m.rotation.x += f.w.x * dt; f.m.rotation.z += f.w.z * dt; if (f.m.position.y < 0.05) { f.m.position.y = 0.05; f.v.multiplyScalar(0.4); f.v.y = Math.abs(f.v.y) * 0.3; } }
-            if (f.life > 1.6) { scene.remove(f.m); s.flying.splice(i, 1); }
+            if (f.life > 1.6 + (f.delay || 0)) { scene.remove(f.m); s.flying.splice(i, 1); }
           }
           // the doll reaches out to drop each layer, then stands back up
           s.reach = Math.max(0, s.reach - dt * 4);
@@ -296,8 +297,8 @@ export default {
           q.sp.material.opacity = 1 - Math.max(0, q.life - 0.8) / 0.4;
           if (q.life > 1.2) { scene.remove(q.sp); pops.splice(i, 1); }
         }
-        camera.position.set(W * 0.07 + Math.sin(t * 0.25) * 0.4, 3.3, camZ);
-        camera.lookAt(W * 0.07, 2.9, 0); // a touch right of centre, so the scoreboard doesn't cover the last ticket
+        camera.position.set(camX + Math.sin(t * 0.25) * 0.4, 3.3, camZ);
+        camera.lookAt(camX, 2.9, 0); // a touch right of centre, so the scoreboard doesn't cover the last ticket
       },
       input(p, m) { const s = stations.find((x) => x.p === p); if (s && ING[m.b]) place(s, m.b); },
       scores() { return Object.fromEntries(stations.map((s) => [s.p.id, s.score])); },

@@ -22,7 +22,7 @@ export default {
   blurb: 'Four snags each on the barbie. Flip them on time, serve them golden. Mind the magpie.',
   howTo: 'Only the side touching the hotplate cooks. Tap a snag number to flip that snag. When both sides are golden, hit SERVE to put every snag that is done into bread. Golden both sides is 3 points, a bit under or over is 1 or 2, and burnt loses a point. Watch the smoke: grey means flip it soon, black means you are burning it.',
   padText: 'Flip 1-4, then SERVE',
-  duration: 60,
+  duration: 80,
   pad: { kind: 'buttons', buttons: [
     { id: 's1', label: '🌭 1', color: '#ffd8a8' }, { id: 's2', label: '🌭 2', color: '#ffd8a8' },
     { id: 's3', label: '🌭 3', color: '#ffd8a8' }, { id: 's4', label: '🌭 4', color: '#ffd8a8' },

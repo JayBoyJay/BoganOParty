@@ -19,7 +19,7 @@ export default {
   blurb: 'Five thongs each, one wheelie bin, a gusty arvo and a kelpie. In the bin is 3 points.',
   howTo: "Push the stick left and right to aim and up and down to throw harder or softer. The ring on the grass shows where it would land with no wind. Check the windsock and allow for it, then hit THROW. In the bin is 3 points, off the side of the bin is 1. The dog will nick any thong that flies low past her.",
   padText: 'Aim with the stick, THROW!',
-  duration: 50,
+  duration: 65,
   pad: { kind: 'stick', buttons: [{ bit: BTN.THROW, label: '🩴 THROW', tone: 'go' }] },
 
   create(mg) {

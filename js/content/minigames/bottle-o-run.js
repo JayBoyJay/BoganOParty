@@ -31,7 +31,7 @@ export default {
   blurb: 'The bottle-o shuts in a minute. Trolley dash for the four things on your list, then hit the checkout.',
   howTo: "Your shopping list is on the TV. Steer your trolley with the stick and roll into the right coloured bays to grab each thing on your list. Once you've got all four, get to the checkout. First through wins. DASH gives you a burst of speed. Mind the other shoppers, the wet floor (slippery!) and the can pyramid.",
   padText: 'Steer with the stick, DASH!',
-  duration: 60,
+  duration: 75,
   pad: { kind: 'stick', buttons: [{ bit: BTN.DASH, label: '💨 DASH', tone: 'go' }] },
 
   create(mg) {

@@ -24,6 +24,9 @@ const store = {
   save(k, v) { try { localStorage.setItem('bop:' + k, JSON.stringify(v)); } catch { /* full or private */ } },
 };
 const BOT_NAMES = ['Shazza', 'Davo', 'Kylie', 'Gazza', 'Bazza', 'Tracey', 'Macca', 'Narelle'];
+const MAX_PLAYERS = 8;
+// CPUs fill whatever seats the phones leave, up to the cap
+const cpuCount = () => Math.max(0, Math.min(state.settings.cpus, MAX_PLAYERS - [...state.players.values()].filter((p) => p.connected).length));
 const BOT_BODIES = ['sheila', 'bloke', 'sheila', 'bloke', 'bloke', 'sheila', 'both', 'smooth'];
 
 const state = {
@@ -32,7 +35,7 @@ const state = {
   settings: { mode: 'board', mgRounds: 5, map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, drinks: 1, kingCup: 0, ...store.load('settings', {}) },
   game: null,
 };
-if (qp.has('bots')) state.settings.cpus = Number(qp.get('bots')) || 0;
+if (qp.has('bots')) state.settings.cpus = Math.min(7, Number(qp.get('bots')) || 0);
 if (qp.has('drinks')) state.settings.drinks = Number(qp.get('drinks')) ? 1 : 0;
 if (qp.has('kingcup')) state.settings.kingCup = Number(qp.get('kingcup')) ? 1 : 0;
 if (qp.has('map') && MAP_BY_ID[qp.get('map')]) state.settings.map = qp.get('map');
@@ -99,6 +102,7 @@ function onNet(m) {
       const name = String(msg.name || '').trim().slice(0, 16) || 'Player';
       const body = BODIES.some((b) => b.id === msg.body) ? msg.body : 'smooth';
       if (p) Object.assign(p, { name, body, connected: true });
+      else if ([...state.players.values()].filter((q) => q.connected).length >= MAX_PLAYERS) return; // the couch is full
       else state.players.set(pid, { id: pid, name, body, photos: {}, color: nextColor(), ready: false, connected: true });
       savePlayers(); pushLobby(pid); renderLobby();
       break;
@@ -174,12 +178,13 @@ function renderLobby() {
   for (const b of $('segMode').querySelectorAll('button')) b.classList.toggle('on', b.dataset.v === state.settings.mode);
   const people = [...state.players.values()];
   // joined phones, then the CPUs, then empty seats so it's obvious there's room for more
-  const cpuCards = Array.from({ length: state.settings.cpus }, (_, i) => `
+  const cpuCards = Array.from({ length: cpuCount() }, (_, i) => `
     <div class="pcard" style="--pc:${PLAYER_COLORS[(people.length + i) % PLAYER_COLORS.length]}">
       <img src="${faceDataUrl({ id: 'cpu' + i, name: BOT_NAMES[i % BOT_NAMES.length], body: BOT_BODIES[i % BOT_BODIES.length], photos: {}, color: PLAYER_COLORS[(people.length + i) % PLAYER_COLORS.length] }, 'neutral')}" alt="">
       <div><div class="nm">${BOT_NAMES[i % BOT_NAMES.length]}</div><div class="st">CPU · ${BODIES.find((b) => b.id === BOT_BODIES[i % BOT_BODIES.length])?.label || ''}</div></div>
     </div>`);
-  const empty = Math.max(0, 4 - people.length - state.settings.cpus);
+  const empty = Math.max(0, Math.min(MAX_PLAYERS, Math.max(4, people.length + cpuCount() + 1)) - people.length - cpuCount());
+  $('playerList').classList.toggle('many', people.length + cpuCount() > 5);
   $('playerList').innerHTML = people.map((p) => `
     <div class="pcard ${p.ready ? 'ready' : ''} ${p.connected ? '' : 'off'}" style="--pc:${p.color}">
       <img src="${faceDataUrl(p, 'neutral')}" alt="">
@@ -188,7 +193,7 @@ function renderLobby() {
     </div>`).join('') + cpuCards.join('')
     + Array.from({ length: empty }, (_, i) => `<div class="pslot"><i>+</i>${i === 0 && !people.length ? 'Scan the QR code to join' : 'Free seat'}</div>`).join('');
   for (const b of $('playerList').querySelectorAll('[data-kick]')) b.onclick = () => { const id = b.dataset.kick; state.players.delete(id); net.kick(id); savePlayers(); renderLobby(); };
-  const n = people.filter((p) => p.connected).length + state.settings.cpus;
+  const n = people.filter((p) => p.connected).length + cpuCount();
   $('startBtn').disabled = n < 2;
   $('startHint').textContent = n < 2 ? 'Need at least 2 players (add CPUs to test)' : `${n} players`;
 }
@@ -223,7 +228,7 @@ let autoT = null;
 function maybeAutoStart() {
   clearTimeout(autoT);
   const humans = [...state.players.values()].filter((p) => p.connected);
-  if (humans.length && humans.every((p) => p.ready) && humans.length + state.settings.cpus >= 2) {
+  if (humans.length && humans.every((p) => p.ready) && humans.length + cpuCount() >= 2) {
     $('startHint').textContent = 'Everyone is ready: starting…';
     autoT = setTimeout(() => { if (state.phase === 'lobby') startGame(); }, 2500);
   }
@@ -250,7 +255,7 @@ async function startGame() {
   sfx.unlock();
   const map = MAP_BY_ID[state.settings.map];
   const humans = [...state.players.values()].filter((p) => p.connected);
-  const bots = Array.from({ length: state.settings.cpus }, (_, i) => ({
+  const bots = Array.from({ length: cpuCount() }, (_, i) => ({
     id: 'cpu' + i, name: BOT_NAMES[i % BOT_NAMES.length], body: BOT_BODIES[i % BOT_BODIES.length], photos: {}, bot: true, color: PLAYER_COLORS[(humans.length + i) % PLAYER_COLORS.length],
   }));
   const used = new Set();

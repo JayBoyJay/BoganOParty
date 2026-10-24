@@ -18,6 +18,7 @@ export default {
   howTo: "Let the ball bounce once in your square, then press HIT when it's near you. Push the stick where you want it to go: towards them to hit it deep, up or down to angle it. Hit it out, or let it bounce twice, and you lose the point. The winner stays on as King, the loser goes to the back of the line. A point a point.",
   padText: 'Stick to move and aim. HIT when the ball is near.',
   duration: 100,
+  perPlayer: 10, // more players, a longer line: everyone needs time on court
   pad: { kind: 'stick', buttons: [{ bit: BTN.HIT, label: '✋ HIT', tone: 'go' }] },
 
   create(mg) {
