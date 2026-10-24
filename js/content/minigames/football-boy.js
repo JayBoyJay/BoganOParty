@@ -5,6 +5,8 @@
 // footy at a time, 💥 a longer burst, 🩴 thongs to run faster, 👢 a boot, so walking into a footy
 // kicks it along till it hits something. The yard shrinks near the end. Last doll standing wins.
 import { addSky } from '../../host/sky.js';
+import { makeDecor } from '../../host/decor.js';
+import { gumTreeParts } from '../../host/props.js';
 
 const BTN = { DROP: 1 };
 const W = 15, H = 11; // cells, walls round the outside included
@@ -37,7 +39,8 @@ export default {
       s.receiveShadow = true; s.castShadow = false;
     }
     const brick = kit.surf('brick', { unit: 1.4, tint: 0xd89a7a });
-    const cap = kit.mat(0x8a7a6a, { roughness: 0.85 });
+    const cap = kit.surf('concrete', { unit: 0.8, tint: 0xe0cfa8 }); // sandstone
+    const D = makeDecor(kit);
     const fence = kit.surf('corrugated', { unit: 0.8, tint: 0x5c6e5a, metalness: 0.4 });
 
     // cell types: 0 open, 1 wall, 2 pillar, 3 esky
@@ -49,6 +52,18 @@ export default {
       if (i === 0 || j === 0 || i === W - 1 || j === H - 1) grid[i][j] = 1;
       else if (i % 2 === 0 && j % 2 === 0) grid[i][j] = 2;
     }
+    // over the fence: the back of the house up top, gum trees round the rest
+    {
+      const wall = kit.surf('brick', { unit: 1.6, tint: 0xc8906a }), top = wz(0) - C * 0.1 - 2.2;
+      kit.box(W * C + 8, 3.2, 4, wall, 0, 0, top - 2);
+      kit.box(W * C + 9, 0.3, 5, 0x6a6e72, 0, 3.2, top - 1.8); // gutter and eave
+      for (const x of [-W * C * 0.3, W * C * 0.3]) { const w = kit.box(2.2, 1.3, 0.1, 0x9ac0d8, x, 1.2, top - 0.02, scene, { roughness: 0.05, metalness: 0.3 }); w.castShadow = false; kit.box(2.4, 0.08, 0.2, 0xf2f2f0, x, 1.15, top + 0.05); }
+      kit.box(3.2, 2.4, 0.1, 0x30383e, 0, 0, top - 0.02, scene, { roughness: 0.1, metalness: 0.4 }); // the sliding door
+      kit.box(W * C + 8, 0.12, 2.2, kit.surf('pavers', { unit: 1, tint: 0xd8c8b0 }), 0, 0, top + 1.1);
+      const trees = [];
+      for (let k = 0; k < 8; k++) { const side = k % 2 ? 1 : -1, z = -H * C * 0.35 + (k >> 1) * H * C * 0.28; trees.push([side * ((W - 1) / 2 * C + 3.2 + rng() * 2), z, k]); }
+      for (const [x, z, k] of trees) for (const { geo, material } of gumTreeParts(k + 3, 0.8)) { const m = new THREE.Mesh(geo, material); m.position.set(x, 0, z); m.rotation.y = rng() * 6; m.castShadow = true; scene.add(m); }
+    }
     // the Colorbond fence round the edge
     kit.box(W * C, 1.3, 0.08, fence, 0, 0, wz(0) - C * 0.1);
     kit.box(W * C, 1.3, 0.08, fence, 0, 0, wz(H - 1) + C * 0.1);
@@ -56,7 +71,14 @@ export default {
     // the border cells are a low brick garden edge, so it reads as a wall from up top
     for (let i = 0; i < W; i++) for (let j = 0; j < H; j++) {
       if (grid[i][j] === 1) kit.box(C * 0.98, 0.5, C * 0.98, brick, wx(i), 0, wz(j));
-      if (grid[i][j] === 2) { kit.box(C * 0.84, 1.15, C * 0.84, brick, wx(i), 0, wz(j)); kit.box(C * 0.94, 0.12, C * 0.94, cap, wx(i), 1.15, wz(j)); }
+      if (grid[i][j] === 2) {
+        // a rendered-brick pillar with a sandstone cap, and a pot plant on every other one
+        const g = kit.group(wx(i), 0, wz(j));
+        D.bx(g, C * 0.84, 1.1, C * 0.84, brick, 0, 0, 0, 0.04);
+        D.bx(g, C * 0.92, 0.08, C * 0.92, cap, 0, 1.1, 0, 0.03); D.bx(g, C * 0.8, 0.06, C * 0.8, cap, 0, 1.18, 0, 0.03);
+        if ((i + j) % 4 === 0) { const pl = D.pottedPlant({ size: 0.55 }); pl.position.y = 1.24; g.add(pl); }
+        g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      }
     }
 
     // spawn spots: the corners first, then the middles of the edges
@@ -70,9 +92,7 @@ export default {
     const gearBag = [];
     const addEsky = (i, j) => {
       const g = kit.group(wx(i), 0, wz(j), (rng() - 0.5) * 0.2);
-      kit.box(C * 0.82, 0.8, C * 0.6, kit.mat(eskyBody[(i * 7 + j * 3) % 4], { roughness: 0.45 }), 0, 0, 0, g);
-      kit.box(C * 0.86, 0.14, C * 0.64, lid, 0, 0.8, 0, g);
-      kit.box(C * 0.3, 0.05, 0.08, 0x333333, 0, 0.94, 0, g);
+      const e = D.esky({ color: eskyBody[(i * 7 + j * 3) % 4], w: C * 0.84, h: 0.95, dp: C * 0.62 }); g.add(e); void lid;
       grid[i][j] = 3; eskies.set(key(i, j), g);
     };
     for (let i = 1; i < W - 1; i++) for (let j = 1; j < H - 1; j++) {

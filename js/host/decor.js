@@ -27,6 +27,7 @@ export function makeDecor(kit) {
   const chrome = M(0xc8ccd0, { metalness: 0.9, roughness: 0.25 });
   const blackPlastic = M(0x1c1d20, { roughness: 0.45 });
 
+  let chilla = null; // one logo texture for every esky
   const d = {
     rbox, bx, cyl, ball, tube, canvasTex, panel, shade,
 
@@ -200,7 +201,7 @@ export function makeDecor(kit) {
       for (const s of [-1, 1]) cyl(g, 0.015, 0.015, 0.08, M(0xcfcfc8), s * w * 0.3, h * 0.84, -dp / 2 - 0.005, 8).rotation.x = Math.PI / 2;
       cyl(g, 0.025, 0.025, 0.02, M(0xf6f6f2), w * 0.35, 0.06, dp / 2, 10).rotation.x = Math.PI / 2;
       if (logo) {
-        const t = canvasTex(256, 80, (x) => { x.fillStyle = '#ffffff'; x.font = '900 italic 56px Impact, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('CHILLA', 128, 42); });
+        const t = chilla || (chilla = canvasTex(256, 80, (x) => { x.fillStyle = '#ffffff'; x.font = '900 italic 56px Impact, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('CHILLA', 128, 42); }));
         panel(g, w * 0.55, w * 0.17, t, 0, h * 0.45, dp / 2 + 0.003, { transparent: true });
       }
       return shade(g);
