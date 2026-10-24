@@ -6,6 +6,7 @@
 // under everyone else. Gas pockets go off in your face. First to the lump of lead wins; the rest
 // place by how deep they got.
 import { addSky } from '../../host/sky.js';
+import { RoundedBoxGeometry } from '../../../vendor/RoundedBoxGeometry.js';
 
 const CS = 1.3; // metres per cell
 const ROWS = 78;
@@ -95,15 +96,31 @@ export default {
     kit.box(0.2, 3, 0.2, 0x5a3a24, -W / 2 - 6.4, 0, -2.05); kit.box(0.2, 3, 0.2, 0x5a3a24, -W / 2 - 1.6, 0, -2.05);
 
     // ----- drawing the cells -----
-    const cellGeo = new THREE.BoxGeometry(CS, CS, CS);
+    // lumpy, bevelled cells so the ground reads as packed clods, not tiles. Each instance gets a quarter
+    // turn and a flip, so the one lump pattern doesn't repeat down the face
+    const cellGeo = (() => {
+      const g = new RoundedBoxGeometry(CS, CS, CS, 3, CS * 0.12), P = g.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i); const k = 1 + 0.05 * Math.sin(v.x * 7.1 + v.y * 5.3) * Math.cos(v.y * 6.7 - v.z * 4.1); P.setXYZ(i, v.x * k, v.y * k, v.z * (v.z > 0 ? k : 1)); }
+      g.computeVertexNormals(); return g;
+    })();
+    // Broken Hill in section: red topsoil, ochre, pale clay, red-brown, grey-purple shale, then dark lode country
+    const STRATA = [[0, 0xe07448], [6, 0xe89a52], [9, 0xf0c48a], [22, 0xc0643e], [40, 0x8e6450], [56, 0x6a5a5a], [ROWS, 0x463c40]].map(([r, c]) => [r, new THREE.Color(c)]);
+    const strata = (r, c, out) => {
+      const rr = r + Math.sin(c * 0.55 + 1.7) * 1.4 + Math.sin(c * 0.21) * 1.1; // wavy bedding
+      let k = 0; while (k < STRATA.length - 2 && rr >= STRATA[k + 1][0]) k++;
+      const [r0, c0] = STRATA[k], [r1, c1] = STRATA[k + 1], f = Math.min(1, Math.max(0, (rr - r0) / (r1 - r0)));
+      return out.copy(c0).lerp(c1, f * f * 0.6).offsetHSL(0, 0, (rng() - 0.5) * 0.06);
+    };
     const boulderGeo = new THREE.DodecahedronGeometry(CS * 0.62, 1);
+    const soil = kit.surf('gravel', { unit: CS * 1.4, tint: 0xffffff }); // pale, so the strata colours come through
+    const boneTint = new THREE.Color(0xf4e4c4), gasTint = new THREE.Color(0x9ab85a);
     const kinds = {
-      dirt: { geo: cellGeo, mat: kit.surf('redDirt', { unit: CS * 2, tint: 0xffffff }) },
-      clay: { geo: cellGeo, mat: kit.surf('redDirt', { unit: CS * 2, tint: 0xc87a5a }) },
+      dirt: { geo: cellGeo, mat: soil },
+      clay: { geo: cellGeo, mat: soil },
       rock: { geo: boulderGeo, mat: kit.surf('slag', { unit: 1.2, tint: 0x9a9aa0 }) },
-      bones: { geo: cellGeo, mat: kit.surf('redDirt', { unit: CS * 2, tint: 0xb89070 }) },
-      gas: { geo: cellGeo, mat: kit.surf('redDirt', { unit: CS * 2, tint: 0xa8b070 }) },
-      opal: { geo: cellGeo, mat: kit.surf('redDirt', { unit: CS * 2, tint: 0xffffff }) },
+      bones: { geo: cellGeo, mat: soil },
+      gas: { geo: cellGeo, mat: soil },
+      opal: { geo: cellGeo, mat: soil },
     };
     const meshes = {}, slot = []; // slot[r][c] = { kind, i }
     for (let r = 0; r < ROWS; r++) slot.push(new Array(COLS).fill(null));
@@ -114,10 +131,11 @@ export default {
       m.receiveShadow = true; m.castShadow = k === 'rock';
       const M = new THREE.Matrix4(), col = new THREE.Color();
       list.forEach(([r, c], i) => {
-        if (k === 'rock') M.makeRotationFromEuler(new THREE.Euler(rng() * 3, rng() * 3, rng() * 3)).setPosition(cx(c), cy(r), 0); else M.makeTranslation(cx(c), cy(r), 0);
+        if (k === 'rock') M.makeRotationFromEuler(new THREE.Euler(rng() * 3, rng() * 3, rng() * 3)).setPosition(cx(c), cy(r), 0); else M.makeRotationFromEuler(new THREE.Euler(0, 0, ((rng() * 4) | 0) * Math.PI / 2)).setPosition(cx(c), cy(r), 0);
         m.setMatrixAt(i, M);
         // deeper is darker and redder
-        const d = r / ROWS; col.setRGB(1 - d * 0.35 + (rng() - 0.5) * 0.08, 1 - d * 0.45 + (rng() - 0.5) * 0.08, 1 - d * 0.5 + (rng() - 0.5) * 0.08);
+        const d = r / ROWS; if (k === 'rock') col.setRGB(1 - d * 0.35 + (rng() - 0.5) * 0.08, 1 - d * 0.45 + (rng() - 0.5) * 0.08, 1 - d * 0.5 + (rng() - 0.5) * 0.08);
+        else { strata(r, c, col); if (k === 'bones') col.lerp(boneTint, 0.35); if (k === 'gas') col.lerp(gasTint, 0.4); void d; }
         m.setColorAt(i, col);
         slot[r][c] = { kind: k, i };
       });
