@@ -245,6 +245,8 @@ export class BoardView {
       d.group.position.lerpVectors(from, dest, k);
       d.group.position.y = from.y + Math.sin(k * Math.PI) * 1.3;
     }, easeInOut);
+    // the engine also sets this, but only after we return: lay out against where the doll actually is now
+    p.space = to;
     p._hopping = false;
     this.followNow(dest);
     this.layout();
@@ -256,6 +258,7 @@ export class BoardView {
     p._hopping = true;
     d.group.position.copy(this.pos(to));
     await this.tweens.add(0.35 * speed, (k) => d.group.scale.setScalar(0.01 + k * 0.99), easeOut);
+    p.space = to;
     p._hopping = false;
     this.layout();
   }
