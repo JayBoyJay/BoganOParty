@@ -41,6 +41,12 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | Minigame | Controls |
 |---|---|
 | ✈️ Plane Instructor | Hold the phone like a steering wheel and tilt to bank your arms like the instructor. Score while you're in line. Past halfway, your doll takes off. One minute. (Slider fallback if a phone has no tilt.) |
+| ⛩️ Chad's Japanese Adventure | Running through the torii tunnels in Kyoto. JUMP the cats, DUCK under the low gates. Every one cleared scores; hit one and you go flying. 45 seconds. |
+| 😴 Don't Wake Myles | Myles is passed out on the couch. Tap SNEAK to creep towards the beer fridge. When he snorts and stirs, stop: if he rolls over and sees you move, OI! Back to the front door. Red light, green light. |
+| 🍔 Burger Boys | Order tickets on the rail. Tap the ingredients in order, bottom bun up. One wrong tap and the burger hits the floor. Bigger burgers score more. |
+| 🔮 Marble Mayhem | The MarbleDrinks race on a fresh short track. You're a glass marble with your doll's head inside. BOOST three times; roll through a vape for a power, then USE POWER. |
+| 🤼 Joe Master Universe | The Joe Master wrestling game: everyone in the ring as NAME MASTER. Thumbstick to move, STRIKE, GRAB (grab again to slam, grab a downed Master to pin), RUN, BLOCK. Mash to escape. Last one standing. With under 4 players, the Original JOE MASTER joins as a CPU. |
+| 🏎️ Toy Cars | Orange track through a giant house. Your car drives flat out; tilt to steer. Three laps. |
 
 ## Adding content
 
@@ -48,7 +54,7 @@ Everything is plain JavaScript modules with no build step. Each kind of content 
 
 - **Map:** copy `js/content/maps/broken-hill.js`, change the id, name, item, colours, board layout, landmarks and events, and add it to `js/content/maps/index.js`. The board is a loop of control points plus branches that leave and rejoin the loop; spaces are spread along them automatically. A landmark can name a real model with `glb: 'assets/models/thing.glb'` and it's loaded instead of the built-in placeholder.
 - **Power-up:** copy `js/content/powerups/coin-flip.js`, write its `use(game, player)`, and add it to `js/content/powerups/index.js`. The game object gives you `ask`, `pickPlayer`, `aim` (move a target around the board), `aimDirection`, `banner`, `coins`, `damage`, `addEffect`, `knockBack`, `teleport` and `view` effects. Lasting effects (like Sugar Rush) live in `effects.js`.
-- **Minigame:** copy `js/content/minigames/plane-instructor.js` and add it to `js/content/minigames/index.js`. It builds its own scene, takes phone input (`pad` decides the controls: `tilt` or `buttons`) and returns scores. The runner handles the title card, ready-up, countdown, timer and results.
+- **Minigame:** copy `js/content/minigames/plane-instructor.js` and add it to `js/content/minigames/index.js`. It builds its own scene, takes phone input (`pad` decides the controls: `tilt`, `buttons`, or `stick` for a thumbstick plus held buttons) and returns scores. The runner handles the title card, ready-up, countdown, timer and results.
 
 ## Project layout
 
@@ -64,4 +70,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one, or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, dont-wake-myles, burger-boys, marble-mayhem, joe-master, toy-cars), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
