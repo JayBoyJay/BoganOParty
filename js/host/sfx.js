@@ -69,6 +69,7 @@ export class Sfx {
       case 'meow': this.tone(700, 0.4, { type: 'triangle', vol: 0.06, slide: 300 }); break;
       case 'whoosh': this.noise(0.25, 0.16); break;
       case 'trim': this.tone(95, 0.12, { type: 'sawtooth', vol: 0.025 }); break; // a hedge trimmer buzzing
+      case 'pour': this.noise(0.32, 0.035); this.tone(180 + Math.random() * 60, 0.08, { type: 'sine', vol: 0.03 }); break; // beer out of the tap
       case 'thud': this.tone(90, 0.3, { type: 'sine', vol: 0.25, slide: -50 }); this.noise(0.2, 0.25); break;
       case 'tiptoe': this.tone(1800, 0.03, { type: 'sine', vol: 0.02 }); break;
       case 'cheers': this.tone(1200, 0.05, { type: 'triangle', vol: 0.06 }); this.tone(1600, 0.08, { type: 'triangle', vol: 0.05, delay: 0.06 }); this.noise(0.25, 0.08, 0.1); break; // cans clinking, then the pssht
