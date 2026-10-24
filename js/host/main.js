@@ -29,7 +29,7 @@ const MAX_PLAYERS = 8;
 const cpuCount = () => Math.max(0, Math.min(state.settings.cpus, MAX_PLAYERS - [...state.players.values()].filter((p) => p.connected).length));
 const BOT_BODIES = ['sheila', 'bloke', 'sheila', 'bloke', 'bloke', 'sheila', 'both', 'smooth'];
 const BOT_HATS = ['bucket', 'akubra', 'none', 'trucker', 'corks', 'beanie', 'lifesaver', 'hardhat'];
-const BOT_OUTFITS = ['bikini', 'singlet', 'lifesaver', 'smugglers', 'hivis', 'flanno', 'nude', 'footy'];
+const BOT_OUTFITS = ['bikini', 'singlet', 'lifesaver', 'smugglers', 'hivis', 'flanno', 'cricket', 'footy']; // CPUs always wear something
 
 const state = {
   phase: 'lobby',

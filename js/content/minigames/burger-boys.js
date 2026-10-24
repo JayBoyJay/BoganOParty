@@ -199,7 +199,7 @@ export default {
       doll.group.position.set(0, 0, -0.85); g.add(doll.group);
       // a paper hat
       const hat = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.22, 0.3), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }));
-      hat.position.set(0, 0.32, 0); doll.head.add(hat);
+      hat.position.set(0, 0.32, 0); if (!doll.hat) doll.head.add(hat); // the paper hat, unless they brought their own
       const tk = ticket(); tk.mesh.position.set(0, 3.95, -0.3); g.add(tk.mesh);
       const clip = kit.box(0.24, 0.14, 0.05, steel, 0, 4.96, -0.3, g);
       return { p, x, g, doll, tk, clip, k: 0, done: 0, pieces: [], flying: [], lock: 0, score: 0, served: 0, wobble: 0, reach: 0, ticketDirty: true, flash: 0,

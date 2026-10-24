@@ -65,6 +65,7 @@ export default {
     // ----- the cowboys -----
     const hatColours = [0x5a3a1e, 0x2a2a2a, 0xd8c8a8, 0x7a4a2a, 0x3a2a1a, 0xe8e0d0, 0x8a6a4a, 0x4a3a3a];
     const addHat = (doll, col) => {
+      if (doll.hat) return; // they brought their own
       const hat = new THREE.Group();
       const m = kit.mat(col, { roughness: 0.75 });
       const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.035, 28), m); hat.add(brim);

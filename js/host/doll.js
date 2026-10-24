@@ -545,7 +545,10 @@ export class Doll {
       uArm: { value: new THREE.Vector2() },
       uBend: { value: new THREE.Vector3(0, 1, 0) },
     };
-    const look = { outfit: OUTFITS.some((o) => o.id === player.outfit) ? player.outfit : defaultOutfit(kind), color: player.color, num: [...String(player.id || player.name || '')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 997, 7) % 44 + 1 };
+    const hash = [...String(player.id || player.name || '')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 997, 7);
+    // phones always send an outfit; anyone without one (CPUs, zombies, extras) gets dressed, never nude
+    const clothed = OUTFITS.filter((o) => o.id !== 'nude');
+    const look = { outfit: OUTFITS.some((o) => o.id === player.outfit) && !(player.bot && player.outfit === 'nude') ? player.outfit : clothed[hash % clothed.length].id, color: player.color, num: hash % 44 + 1 };
     const shape = bodyShape(kind);
     const normalMap = creaseMap(kind);
     const mk = (back) => jiggly(vinyl(0xffffff, { map: paintBody(kind, this.skinCss, back, look), normalMap, normalScale: new THREE.Vector2(0.35, 0.35) }), this.U);
