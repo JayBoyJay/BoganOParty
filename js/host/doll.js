@@ -358,6 +358,7 @@ export class Doll {
     this.player = player;
     const kind = player.body || 'smooth';
     this.group = new THREE.Group();
+    this.group.userData.doll = this; // so tools can find the doll from the scene
     this.scaler = new THREE.Group(); // overall size (bigger on the board so faces read on the TV)
     this.scaler.scale.setScalar(opts.scale || 1);
     this.group.add(this.scaler);
