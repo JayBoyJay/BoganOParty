@@ -56,6 +56,7 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🍺 Perfect Pour | One schooner, one pour. Slide up to open the tap, back down to shut it, and that's your go. Wide open is all froth, too gentle is flat. Judged after it settles: beer to the rim with a finger of head scores 100. |
 | ❤️ Like My Post | Everyone scrolls the same Bogangram feed on the TV. Some photos have a player's face pasted on (their photo, or their doll face). LIKE a post with a mate in it for +1; liking a stranger or your own face is −1; SKIP is free. 20 scrolls each. |
 | 🐧 Distro Wars | Mr Lee's Linux LAN party. Everyone starts on their own distro (Arch, Ubuntu, Debian, Fedora...). Stick to move, THROW install USBs, ROLL to dodge. Three hits from one distro and you're reinstalled onto it. Crates: sudo (triple throw) and iptables (shield). Last distro standing wins; 10 a convert, 40 for being on the biggest distro, 15 for never switching. |
+| 🤠 Draw! | Knockout quick-draw duels on a western main street. Two at a time; when the ref blows the whistle, first to hit DRAW! wins and goes through. Draw before the whistle and the other one goes through (the ref sneezes to catch you out). Odd one out gets a bye. 25 a duel won, champion +40. |
 
 ## Adding content
 
@@ -79,4 +80,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.

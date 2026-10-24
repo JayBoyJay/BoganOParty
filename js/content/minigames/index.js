@@ -16,6 +16,7 @@ import mineYourOwnBusiness from './mine-your-own-business.js';
 import perfectPour from './perfect-pour.js';
 import likeMyPost from './like-my-post.js';
 import distroWars from './distro-wars.js';
+import draw from './draw.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));
