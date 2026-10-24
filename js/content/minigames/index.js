@@ -26,6 +26,7 @@ import sunscreenSlap from './sunscreen-slap.js';
 import footyKickToKick from './footy-kick-to-kick.js';
 import bottleORun from './bottle-o-run.js';
 import uteMuster from './ute-muster.js';
+import fishingOffTheJetty from './fishing-off-the-jetty.js';
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw, thongThrow, sausageSizzle, eskyTetris, wheelieBinDerby, twoUp, sunscreenSlap, footyKickToKick, bottleORun, uteMuster];
+export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw, thongThrow, sausageSizzle, eskyTetris, wheelieBinDerby, twoUp, sunscreenSlap, footyKickToKick, bottleORun, uteMuster, fishingOffTheJetty];
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));

@@ -66,6 +66,7 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | 🏉 Footy Kick-to-Kick | Coach Robbo boots it high into the pack: run under it and time your JUMP to take the mark. Then line up for goal with the stick and stop the power meter, allowing for the wind. Goal 6, behind 1, mark 1. Seven kicks. |
 | 🛒 Bottle-O Run | Trolley dash round the bottle shop for the four things on your list (shown on the TV), then hit the checkout. Watch out for slow shoppers, the wet floor and the can pyramid. First through wins. |
 | 🛻 Ute Muster | Drive your ute across a bumpy paddock with a hay bale, esky, bar fridge and swag loose on the back. Floor it and they slide off; hit the humps fast and they fly off. 15 points per item delivered plus a bonus for finishing first. |
+| 🎣 Fishing Off the Jetty | Everyone fishing off the end of the jetty. CAST starts the power meter and CAST again lets it go (further out = bigger fish, and more junk). Hit REEL quick when the float goes under, then tap REEL to wind it in, easing off when the fish runs or the line snaps. Stingrays nick your bait. Heaviest catch wins. |
 
 ## Adding content
 
@@ -89,4 +90,4 @@ tests/                    node --test (npm test)
 
 ## Testing
 
-`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby, two-up, sunscreen-slap, footy-kick-to-kick, bottle-o-run, ute-muster), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby, two-up, sunscreen-slap, footy-kick-to-kick, bottle-o-run, ute-muster, fishing-off-the-jetty), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
