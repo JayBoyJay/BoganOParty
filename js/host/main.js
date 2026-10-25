@@ -4,7 +4,7 @@ import { qrSvg } from '../qr.js';
 import { buildBoard } from '../board.js';
 import { MAPS, MAP_BY_ID } from '../content/maps/index.js';
 import { POWERUPS } from '../content/powerups/index.js';
-import { MINIGAMES, MINIGAME_BY_ID } from '../content/minigames/index.js';
+import { MINIGAMES, MINIGAME_BY_ID, prefetchMinigames } from '../content/minigames/index.js';
 import { Stage } from './stage.js';
 import { BoardView } from './boardview.js';
 import { Hud } from './hud.js';
@@ -52,6 +52,7 @@ const savePlayers = () => { try { store.save('players', Object.fromEntries([...s
 const saveSettings = () => store.save('settings', state.settings);
 
 const stage = new Stage($('scene'));
+window.__stage = stage; // renderer.info etc. for tests (add ?fps to see it on screen)
 const sfx = new Sfx();
 const hud = new Hud($('hud'));
 hud.show(false);
@@ -243,6 +244,7 @@ let lobbyBoard = null;
 function showLobbyBoard() {
   const map = MAP_BY_ID[state.settings.map];
   if (lobbyBoard?.map === map) return;
+  dropLobbyBoard();
   lobbyBoard = new BoardView(stage, map, buildBoard(map.board));
   window.__lobbyBoard = lobbyBoard; // for screenshots and debugging
   lobbyBoard.placeAll([]);
@@ -250,6 +252,10 @@ function showLobbyBoard() {
   const up = lobbyBoard.update.bind(lobbyBoard);
   lobbyBoard.update = (dt) => { t += dt * 0.06; lobbyBoard.orbit(t); up(dt); };
   lobbyBoard.show();
+}
+function dropLobbyBoard() {
+  if (lobbyBoard) stage.release(lobbyBoard.scene);
+  lobbyBoard = null;
 }
 
 // ---------------- game ----------------
@@ -278,6 +284,7 @@ async function startGame() {
   const board = buildBoard(map.board);
   const view = new BoardView(stage, map, board);
   view.show();
+  dropLobbyBoard();
   hud.setGoal(`${map.item.emoji} First to ${state.settings.itemsToWin}`);
   const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1 });
   const only = qp.get('minigame') && MINIGAME_BY_ID[qp.get('minigame')] ? [qp.get('minigame')] : null;
@@ -312,6 +319,8 @@ async function startMarathon(players) {
   const marathon = new Marathon({ players, rounds: state.settings.mgRounds, runner, hub, hud, sfx, stage, root: $('minigame'), speed: fast ? 0.25 : 1, only, drinks, drinkOn: !!drinkOn });
   state.game = marathon;
   window.__game = marathon;
+  marathon.view.activate();
+  dropLobbyBoard();
   const result = await marathon.play();
   state.phase = 'over';
   for (const p of players) marathon.setMood(p, p === result.winner ? 'happy' : 'sad');
@@ -340,6 +349,7 @@ function backToLobby() {
   hud.show(false);
   for (const p of state.players.values()) p.ready = false;
   $('lobby').classList.remove('hidden');
+  for (const s of [...stage.keep]) stage.release(s); // the finished game's board or standings
   lobbyBoard = null;
   showLobbyBoard();
   renderLobby();
@@ -354,3 +364,4 @@ setupLobbyControls();
 showLobbyBoard();
 renderLobby();
 if (qp.has('autostart')) setTimeout(() => startGame(), 800);
+setTimeout(prefetchMinigames, 4000); // after the lobby is up, so it doesn't slow the first load

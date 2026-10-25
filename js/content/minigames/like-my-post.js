@@ -165,12 +165,10 @@ export default {
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(80, 40), new THREE.MeshBasicMaterial({ map: bgT })); wall.position.z = -3; scene.add(wall);
     scene.add(new THREE.HemisphereLight(0xffffff, 0x8a6a9a, 1.6));
     const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(-4, 6, 10); scene.add(key);
-    {
-      const pm = new THREE.PMREMGenerator(mg.renderer), env = new THREE.Scene();
+    mg.env((env) => {
       env.add(new THREE.Mesh(new THREE.BoxGeometry(40, 20, 40), new THREE.MeshBasicMaterial({ color: 0x6a4a7a, side: THREE.BackSide })));
       const l = new THREE.Mesh(new THREE.PlaneGeometry(16, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); l.position.set(0, 6, 19); l.rotation.y = Math.PI; env.add(l);
-      scene.environment = pm.fromScene(env, 0.04).texture; pm.dispose();
-    }
+    }, 0.04);
 
     const rows = n > 4 ? 2 : 1, perRow = Math.ceil(n / rows);
     const PW = 2.3, PHt = 4.6, GAPX = 0.7, GAPY = 0.95;

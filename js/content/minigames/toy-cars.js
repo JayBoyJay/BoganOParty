@@ -57,15 +57,14 @@ export default {
 
     // ----- the house -----
     scene.background = new THREE.Color(0x2a2a30);
-    {
-      const pm = new THREE.PMREMGenerator(mg.renderer), env = new THREE.Scene();
+    mg.env((env) => {
       env.add(new THREE.Mesh(new THREE.BoxGeometry(40, 20, 40), new THREE.MeshBasicMaterial({ color: 0xa8a090, side: THREE.BackSide })));
       const win = new THREE.Mesh(new THREE.PlaneGeometry(14, 8), new THREE.MeshBasicMaterial({ color: 0xffffff })); win.position.set(0, 4, -19.9); env.add(win);
-      scene.environment = pm.fromScene(env, 0.04).texture; scene.environmentIntensity = 0.7; pm.dispose();
-    }
+    }, 0.04);
+    scene.environmentIntensity = 0.7;
     scene.add(new THREE.HemisphereLight(0xfff6ea, 0x6a5a48, 1.0));
     const sun = new THREE.DirectionalLight(0xfff0dc, 2.6);
-    sun.position.set(-50, 90, 40); sun.target.position.set(0, 0, 0); sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
+    sun.position.set(-50, 90, 40); sun.target.position.set(0, 0, 0); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -75, right: 75, top: 60, bottom: -60, near: 10, far: 260 });
     sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.05;
     scene.add(sun, sun.target);

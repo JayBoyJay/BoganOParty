@@ -40,12 +40,11 @@ export default {
 
     // ----- the room: carpet tiles, beige computers, a server rack wall, and a big Tux -----
     scene.background = new THREE.Color(0x14161c);
-    {
-      const pm = new THREE.PMREMGenerator(mg.renderer), env = new THREE.Scene();
+    mg.env((env) => {
       env.add(new THREE.Mesh(new THREE.BoxGeometry(40, 20, 40), new THREE.MeshBasicMaterial({ color: 0x8a909a, side: THREE.BackSide })));
       for (let i = -1; i <= 1; i++) { const l = new THREE.Mesh(new THREE.PlaneGeometry(4, 1.5), new THREE.MeshBasicMaterial({ color: 0xffffff })); l.position.set(i * 9, 9.5, 0); l.rotation.x = Math.PI / 2; env.add(l); }
-      scene.environment = pm.fromScene(env, 0.04).texture; scene.environmentIntensity = 0.7; pm.dispose();
-    }
+    }, 0.04);
+    scene.environmentIntensity = 0.7;
     scene.add(new THREE.HemisphereLight(0xeef4ff, 0x40384a, 1.2));
     const key = new THREE.DirectionalLight(0xfff4e8, 2.4);
     key.position.set(-8, 22, 12); key.target.position.set(0, 0, 0); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);

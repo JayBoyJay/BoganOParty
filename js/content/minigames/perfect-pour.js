@@ -56,13 +56,12 @@ export default {
 
     // ----- the front bar of the Bogan Arms -----
     scene.background = new THREE.Color(0x1a100a);
-    {
-      const pm = new THREE.PMREMGenerator(mg.renderer), env = new THREE.Scene();
+    mg.env((env) => {
       env.add(new THREE.Mesh(new THREE.BoxGeometry(40, 20, 40), new THREE.MeshBasicMaterial({ color: 0x5a4030, side: THREE.BackSide })));
       for (let i = -2; i <= 2; i++) { const l = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.2), new THREE.MeshBasicMaterial({ color: 0xfff0d0 })); l.position.set(i * 7, 9.5, 0); l.rotation.x = Math.PI / 2; env.add(l); }
       const front = new THREE.Mesh(new THREE.PlaneGeometry(30, 8), new THREE.MeshBasicMaterial({ color: 0xc8b8a0 })); front.position.set(0, 4, 19.9); front.rotation.y = Math.PI; env.add(front);
-      scene.environment = pm.fromScene(env, 0.04).texture; scene.environmentIntensity = 0.9; pm.dispose();
-    }
+    }, 0.04);
+    scene.environmentIntensity = 0.9;
     scene.add(new THREE.HemisphereLight(0xffe2c0, 0x3a2418, 0.9));
     const key = new THREE.DirectionalLight(0xffe8cc, 2.2);
     key.position.set(-3, 9, 8); key.target.position.set(0, BAR, -0.5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);

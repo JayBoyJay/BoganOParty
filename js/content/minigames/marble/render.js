@@ -1,6 +1,6 @@
 // three.js scene: track geometry, terrain, decorations, marbles and effects.
 import * as THREE from 'three';
-import { RoomEnvironment } from '../../../../vendor/RoomEnvironment.js';
+import { roomEnv } from '../../../host/sky.js';
 import { DS, MARBLE_R, START_S, worldPos, frameAt, surfH, surfSlope, renderH, LIP_W, LIP_H } from './track.js';
 import { gateAmp } from './sim.js';
 import { skinCanvas, skinMaterial, SKIN_BY_ID } from './skins.js';
@@ -14,8 +14,7 @@ export class World {
     this.adaptive = { t: 0, frames: 0, locked: true };
     this.scene = scene;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 900);
-    const pm = new THREE.PMREMGenerator(r);
-    this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    roomEnv(r, this.scene);
     this.scene.environmentIntensity = 0.55;
 
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x445533, 1.1);

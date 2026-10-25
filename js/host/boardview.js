@@ -73,6 +73,7 @@ export class BoardView {
   constructor(stage, map, board) {
     this.stage = stage; this.map = map; this.board = board;
     this.scene = new THREE.Scene();
+    stage.persist(this.scene);
     this.camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.5, 1400);
     this.tweens = new Tweens();
     this.dolls = new Map();
@@ -131,7 +132,7 @@ export class BoardView {
     const sun = new THREE.DirectionalLight(look.sun, look.sunIntensity ?? 3.2);
     sun.position.copy(sunDir).multiplyScalar(150);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(4096, 4096);
+    sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
     Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 1, far: 400 });
     s.add(sun);
