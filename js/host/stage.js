@@ -100,6 +100,16 @@ export class Stage {
 
   // a scene that lives all game; disposeScene leaves anything it uses alone
   persist(scene) { this.keep.add(scene); }
+  // take things out of a kept scene for good (a step counter, a popup, a thrown grenade) and free
+  // what only they used
+  drop(...objs) {
+    const mine = new Set();
+    for (const o of objs) if (o) { o.removeFromParent(); collect(o, mine); }
+    const keep = new Set();
+    for (const k of this.keep) collect(k, keep);
+    for (const r of mine) if (!keep.has(r)) r.dispose();
+  }
+
   // done with a kept scene (the lobby fly-over, a finished game's board): free it
   release(scene) { if (this.keep.delete(scene)) this.disposeScene(scene); }
 

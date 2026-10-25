@@ -313,7 +313,7 @@ export class BoardView {
   setStepsLeft(p, n) {
     const d = this.dolls.get(p.id);
     if (!d) return;
-    if (d.steps) { d.group.remove(d.steps); d.steps = null; }
+    if (d.steps) { this.stage.drop(d.steps); d.steps = null; }
     if (n > 0) {
       d.steps = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture(String(n), { w: 128, h: 128, bg: null, fg: '#fff', font: '900 110px system-ui' }), depthTest: false }));
       d.steps.scale.set(1.6, 1.6, 1); d.steps.position.y = 4.4; d.steps.renderOrder = 11;
@@ -329,7 +329,7 @@ export class BoardView {
     const base = d.group.position.clone().setY(3.6);
     s.position.copy(base);
     this.scene.add(s);
-    this.tweens.add(1.4, (k) => { s.position.y = base.y + k * 2; s.material.opacity = 1 - k * k; }).then(() => this.scene.remove(s));
+    this.tweens.add(1.4, (k) => { s.position.y = base.y + k * 2; s.material.opacity = 1 - k * k; }).then(() => this.stage.drop(s));
   }
 
   // ---------- item ----------
@@ -358,7 +358,7 @@ export class BoardView {
 
   // ---------- aiming ----------
   highlight(spaces, color = 0xff4fd8, cursor = null) {
-    for (const r of this.rings) this.scene.remove(r);
+    this.stage.drop(...this.rings);
     this.rings = [];
     if (!spaces) return;
     for (const idx of spaces) {
@@ -372,7 +372,7 @@ export class BoardView {
   }
 
   showFork(nexts) {
-    for (const a of this.forkArrows) this.scene.remove(a);
+    this.stage.drop(...this.forkArrows);
     this.forkArrows = [];
     for (const j of nexts || []) {
       const a = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.4, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
@@ -412,7 +412,7 @@ export class BoardView {
         this.tweens.add(0.25, (kk) => { g.position.lerpVectors(from, to, kk); g.rotation.z = kk * Math.PI * 2; });
       },
       setText: (t) => {
-        if (label) g.remove(label);
+        if (label) this.stage.drop(label);
         label = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture(t, { w: 128, h: 128, bg: null, fg: '#ff3b3b', font: '900 100px system-ui' }), depthTest: false }));
         label.scale.set(1.5, 1.5, 1); label.position.y = 3; label.renderOrder = 12;
         g.add(label);
@@ -422,7 +422,7 @@ export class BoardView {
         this.focusSpace(s);
         await this.tweens.add(1.1 * speed, (kk) => { g.position.lerpVectors(from, to, kk); g.position.y += Math.sin(kk * Math.PI) * 10; g.rotation.x = kk * 8; });
       },
-      remove: () => this.scene.remove(g),
+      remove: () => this.stage.drop(g),
     };
     return api;
   }
@@ -450,7 +450,7 @@ export class BoardView {
       light.intensity = 400 * (1 - k);
       for (const [b, v] of bits) { b.position.copy(c).addScaledVector(v, k); b.position.y = Math.max(0.2, c.y + v.y * k * 1.6 - 9 * k * k); }
     });
-    this.scene.remove(ball, light, ...bits.map(([b]) => b));
+    this.stage.drop(ball, light, ...bits.map(([b]) => b));
   }
 
   async vacuum(p, spaces, speed = 1) {
@@ -469,7 +469,7 @@ export class BoardView {
       d.body.rotation.y = Math.sin(k * 40) * 0.1;
     });
     this.highlight(null);
-    this.scene.remove(...motes.map(([m]) => m));
+    this.stage.drop(...motes.map(([m]) => m));
   }
 
   update(dt) {
