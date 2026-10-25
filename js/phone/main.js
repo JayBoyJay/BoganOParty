@@ -26,6 +26,7 @@ const net = new PhoneNet({
   onStatus: (t) => { $('status').textContent = t; $('status').classList.toggle('hidden', !t); },
 });
 const send = (m) => net.send(m);
+const sendFast = (m) => net.sendFast(m); // control positions: newest wins (see net.js)
 net.start(pid);
 // phones zoom on a pinch or a quick double tap, which wrecks a game pad mid-minigame: block both
 document.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -248,7 +249,7 @@ function renderStick(s, el) {
     const now = Date.now(), key = `${sx.toFixed(2)},${sy.toFixed(2)},${held}`;
     if (!force && (key === last || now - lastSent < 40)) return;
     last = key; lastSent = now;
-    send({ t: 'in', id: s.id, b: 'stick', x: +sx.toFixed(2), y: +sy.toFixed(2), h: held });
+    sendFast({ t: 'in', id: s.id, b: 'stick', x: +sx.toFixed(2), y: +sy.toFixed(2), h: held });
   };
   const zone = $('stickzone'), base = zone.querySelector('.base'), knob = zone.querySelector('.knob');
   let sid = null, ox = 0, oy = 0;
@@ -287,7 +288,7 @@ function renderSlider(s, el) {
   const tr = $('vtrack'), th = tr.querySelector('.vthumb'), fill = tr.querySelector('.vfill');
   let v = Number.isFinite(s.start) ? s.start : 1, lastSent = 0;
   const draw = () => { th.style.bottom = `calc(${v * 100}% - ${v * 64}px)`; fill.style.height = `${v * 100}%`; };
-  const push = (force) => { const now = Date.now(); if (force || now - lastSent > 40) { lastSent = now; send({ t: 'in', id: s.id, b: 'slide', v: +v.toFixed(3) }); } };
+  const push = (force) => { const now = Date.now(); if (force || now - lastSent > 40) { lastSent = now; sendFast({ t: 'in', id: s.id, b: 'slide', v: +v.toFixed(3) }); } };
   const at = (e) => { const r = tr.getBoundingClientRect(); v = Math.max(0, Math.min(1, 1 - (e.clientY - r.top - 32) / (r.height - 64))); draw(); push(false); };
   let sid = null;
   tr.onpointerdown = (e) => { e.preventDefault(); sid = e.pointerId; tr.setPointerCapture(sid); at(e); buzz(10); };
@@ -343,7 +344,7 @@ function renderTouchpad(s, el) {
   pad.onpointermove = (e) => {
     if (e.pointerId !== sid) return;
     const p = at(e); show(p);
-    const now = Date.now(); if (now - lastSent > 40) { lastSent = now; send({ t: 'in', id: s.id, b: 'aim', x: +p.x.toFixed(3), y: +p.y.toFixed(3) }); }
+    const now = Date.now(); if (now - lastSent > 40) { lastSent = now; sendFast({ t: 'in', id: s.id, b: 'aim', x: +p.x.toFixed(3), y: +p.y.toFixed(3) }); }
   };
   pad.onpointerup = pad.onpointercancel = (e) => { if (e.pointerId === sid) { sid = null; dot.style.display = 'none'; } };
   $('tpflip').onclick = () => { flip = !flip; store.set('tpflip', flip ? '1' : '0'); layout(); };
@@ -364,7 +365,7 @@ function renderTilt(s, el) {
   let angle = 0, lastSent = 0, usingTilt = false;
   const plane = $('plane');
   const draw = () => { plane.style.transform = `rotate(${angle}deg)`; };
-  const push = () => { const now = Date.now(); if (now - lastSent > 60) { lastSent = now; send({ t: 'in', id: s.id, b: 'tilt', v: angle }); } };
+  const push = () => { const now = Date.now(); if (now - lastSent > 60) { lastSent = now; sendFast({ t: 'in', id: s.id, b: 'tilt', v: angle }); } };
   // clockwise roll of the phone (as you look at it), from gravity; works the same on iPhone and Android
   const onMotion = (e) => {
     const g = e.accelerationIncludingGravity;
@@ -387,6 +388,6 @@ function renderTilt(s, el) {
   $('slide').oninput = () => { if (usingTilt) return; angle = Number($('slide').value); draw(); push(); };
   $('slide').onpointerdown = () => { usingTilt = false; };
   $('inv').onclick = () => { invert = !invert; store.set('invert', invert ? '1' : '0'); $('inv').textContent = invert ? 'Tilt is flipped ↔' : 'Flip tilt direction ↔'; };
-  const keep = setInterval(() => { send({ t: 'in', id: s.id, b: 'tilt', v: angle }); }, 250);
+  const keep = setInterval(() => { sendFast({ t: 'in', id: s.id, b: 'tilt', v: angle }); }, 250);
   tiltStop = () => { removeEventListener('devicemotion', onMotion); clearInterval(keep); };
 }

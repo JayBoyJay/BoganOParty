@@ -8,6 +8,11 @@
 //
 // The TV screen sees the same events either way: 'phone-connect', 'phone-disconnect',
 // 'phone-msg' and 'phones', exactly as the local server sends them.
+//
+// Peer-to-peer phones also open a second, unordered channel for the stream of joystick / slider /
+// tilt positions (sendFast). On the main channel one lost Wi-Fi packet holds up everything behind
+// it until it's resent; on this one newer positions get through straight away. Each carries a
+// number q, and the TV drops any that turn up after a newer one.
 
 export const PEER_PREFIX = 'boganoparty-';
 const PEERJS_URLS = [
@@ -108,6 +113,7 @@ export class HostNet {
   async _startPeer() {
     this.mode = 'peer';
     this.conns = new Map(); // pid -> DataConnection
+    this.lastQ = new Map(); // pid -> newest control-position number seen
     this.onStatus('Connecting…', false);
     try { this.Peer = await loadPeerJS(); } catch {
       this.onStatus('Couldn’t reach the internet to set up phone connections. Check the connection and refresh.', false);
@@ -167,6 +173,7 @@ export class HostNet {
   newRoom() { this._open(makeRoomCode(), 0); }
 
   _accept(conn) {
+    if (conn.metadata?.fast) { conn.on('data', (m) => this._fromFast(conn, m)); return; }
     conn.on('data', (m) => this._fromPhone(conn, m));
     const gone = () => {
       if (conn.pid && this.conns.get(conn.pid) === conn) {
@@ -188,12 +195,33 @@ export class HostNet {
       if (old && old !== conn) { old.pid = null; try { old.send({ t: 'moved' }); } catch { /* ignore */ } setTimeout(() => { try { old.close(); } catch { /* ignore */ } }, 200); }
       conn.pid = pid;
       this.conns.set(pid, conn);
+      this.lastQ.delete(pid); // a reloaded phone counts from 0 again
       try { conn.send({ t: 'welcome', pid, host: true }); } catch { /* ignore */ }
       this.onEvent({ t: 'phone-connect', pid });
       return;
     }
     if (m.t === 'pong' || !conn.pid) return;
-    this.onEvent({ t: 'phone-msg', pid: conn.pid, msg: m });
+    this._deliver(conn.pid, m);
+  }
+
+  // the phone's unordered channel: it says who it is, then sends nothing but control positions
+  _fromFast(conn, m) {
+    if (typeof m === 'string') { try { m = JSON.parse(m); } catch { return; } }
+    if (!m || typeof m !== 'object') return;
+    if (m.t === 'fast') { conn.pid = typeof m.pid === 'string' ? m.pid : null; return; }
+    const main = conn.pid && this.conns.get(conn.pid);
+    if (!main || m.t !== 'in') return;
+    main.lastSeen = Date.now();
+    this._deliver(conn.pid, m);
+  }
+
+  _deliver(pid, m) {
+    if (typeof m.q === 'number') {
+      if (m.q <= (this.lastQ.get(pid) ?? -1)) return; // an older position arriving late
+      this.lastQ.set(pid, m.q);
+      delete m.q;
+    }
+    this.onEvent({ t: 'phone-msg', pid, msg: m });
   }
 }
 
@@ -208,6 +236,7 @@ export class PhoneNet {
     this.mode = this.room ? 'peer' : 'ws';
     this.pid = null;
     this.moved = false;
+    this.q = 0;
   }
 
   start(pid) {
@@ -219,6 +248,13 @@ export class PhoneNet {
   send(m) {
     if (this.mode === 'ws') { if (this.ws?.readyState === 1) this.ws.send(JSON.stringify(m)); }
     else if (this.conn && this.conn.open) { try { this.conn.send(m); } catch { /* closing */ } }
+  }
+  // joystick / slider / tilt positions: newest wins, so they go on the unordered channel when it's up
+  sendFast(m) {
+    if (this.mode !== 'peer') return this.send(m); // the local server's WebSocket has only one lane
+    m.q = this.q++;
+    if (this.fast?.open) { try { this.fast.send(m); return; } catch { /* fall back */ } }
+    this.send(m);
   }
   isOpen() { return this.mode === 'ws' ? this.ws?.readyState === 1 : !!(this.conn && this.conn.open); }
   reconnectNow() {
@@ -260,6 +296,7 @@ export class PhoneNet {
         this.onStatus('');
         conn.send({ t: 'phone', pid: this.pid });
         this._lastHeard = Date.now();
+        this._openFast();
       });
       conn.on('data', (m) => { this._lastHeard = Date.now(); if (m && m.t === 'ping') { try { conn.send({ t: 'pong' }); } catch { /* ignore */ } return; } this._got(m); });
       const retry = () => {
@@ -286,6 +323,16 @@ export class PhoneNet {
       this.peer = null;
       setTimeout(() => this._peerConnect(), 3000);
     }
+  }
+
+  _openFast() {
+    try { this.fast?.close(); } catch { /* ignore */ }
+    const fast = this.peer.connect(PEER_PREFIX + this.room, { reliable: false, metadata: { fast: 1 } });
+    this.fast = fast;
+    fast.on('open', () => { try { fast.send({ t: 'fast', pid: this.pid }); } catch { /* ignore */ } });
+    const gone = () => { if (this.fast === fast) this.fast = null; };
+    fast.on('close', gone);
+    fast.on('error', gone);
   }
 
   _got(m) {

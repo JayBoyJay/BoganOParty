@@ -49,13 +49,11 @@ export default {
 
     // ----- the shop -----
     scene.background = new THREE.Color(0x101014);
-    const pm = new THREE.PMREMGenerator(renderer);
-    {
-      const env = new THREE.Scene();
+    mg.env((env) => {
       env.add(new THREE.Mesh(new THREE.BoxGeometry(30, 10, 30), new THREE.MeshBasicMaterial({ color: 0x8a8a90, side: THREE.BackSide })));
       for (const x of [-8, 0, 8]) { const l = new THREE.Mesh(new THREE.PlaneGeometry(5, 0.6), new THREE.MeshBasicMaterial({ color: 0xffffff })); l.position.set(x, 4.9, 0); l.rotation.x = Math.PI / 2; env.add(l); }
-      scene.environment = pm.fromScene(env, 0.03).texture; scene.environmentIntensity = 0.8; pm.dispose();
-    }
+    }, 0.03);
+    scene.environmentIntensity = 0.8;
     scene.add(new THREE.HemisphereLight(0xfff4e8, 0x40342a, 0.8));
     const key = new THREE.DirectionalLight(0xfff0e0, 2.2);
     key.position.set(4, 12, 10); key.target.position.set(0, 1, 0); key.castShadow = true; key.shadow.mapSize.set(2048, 2048);

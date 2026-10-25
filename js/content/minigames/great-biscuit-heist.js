@@ -67,15 +67,12 @@ export default {
 
     // ----- the lounge room, at night -----
     scene.background = new THREE.Color(0x07070c);
-    const pm = new THREE.PMREMGenerator(renderer);
     // a dim room for reflections: warm walls, one bright window
-    {
-      const env = new THREE.Scene();
+    mg.env((env) => {
       env.add(new THREE.Mesh(new THREE.BoxGeometry(20, 8, 20), new THREE.MeshBasicMaterial({ color: 0x3a2a1e, side: THREE.BackSide })));
       const win = new THREE.Mesh(new THREE.PlaneGeometry(6, 3), new THREE.MeshBasicMaterial({ color: 0x9fb4ff })); win.position.set(0, 2, 9.9); win.rotation.y = Math.PI; env.add(win);
-      scene.environment = pm.fromScene(env, 0.04).texture; scene.environmentIntensity = 1.0;
-      pm.dispose();
-    }
+    }, 0.04);
+    scene.environmentIntensity = 1.0;
     scene.add(new THREE.HemisphereLight(0xb0a0c0, 0x4a3020, 0.9));
     // the ceiling light: a single bulb, dim and orange
     const bulb = new THREE.SpotLight(0xffc98a, 320, 40, 1.1, 0.7, 1.3);

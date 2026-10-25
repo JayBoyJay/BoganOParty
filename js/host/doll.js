@@ -107,15 +107,18 @@ export function faceCanvas(player, mood = 'neutral', onPhoto) {
 }
 
 // small square image for the HUD and phones (photo or cartoon)
+const cartoonUrls = new Map(); // mood -> data URL (they're all the same face, so draw each once)
 export function faceDataUrl(player, mood = 'neutral') {
   const photo = player.photos?.[mood] || player.photos?.neutral;
   if (photo) return photo;
+  if (cartoonUrls.has(mood)) return cartoonUrls.get(mood);
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d');
   g.scale(0.5, 0.5);
   drawCartoon(g, mood, '#ffd3c4');
-  return c.toDataURL('image/png');
+  cartoonUrls.set(mood, c.toDataURL('image/png'));
+  return cartoonUrls.get(mood);
 }
 
 // ---------- body ----------

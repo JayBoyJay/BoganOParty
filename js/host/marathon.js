@@ -2,7 +2,7 @@
 // (10 / 6 / 3 / 1, ties share the better place) and the most points after the last game wins.
 // Between games the dolls stand on pedestals that rise with their score.
 import * as THREE from 'three';
-import { RoomEnvironment } from '../../vendor/RoomEnvironment.js';
+import { roomEnv } from './sky.js';
 import { RULES } from './engine.js';
 import { Doll, faceDataUrl } from './doll.js';
 import { makeKit } from './kit.js';
@@ -17,13 +17,14 @@ class StandingsView {
   constructor(stage, players) {
     this.stage = stage; this.players = players;
     this.scene = new THREE.Scene();
+    stage.persist(this.scene);
     this.camera = new THREE.PerspectiveCamera(40, 16 / 9, 0.5, 300);
     this.tweens = new Tweens();
     this.t = 0;
     const s = this.scene, k = makeKit(s);
     s.background = new THREE.Color(0x1a0f24);
     s.fog = new THREE.Fog(0x1a0f24, 30, 70);
-    s.environment = new THREE.PMREMGenerator(stage.renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    roomEnv(stage.renderer, s);
     s.environmentIntensity = 0.5;
     s.add(new THREE.HemisphereLight(0xb9a6ff, 0x2a1530, 0.5));
     // a glossy stage floor and a back wall with the show's name in neon

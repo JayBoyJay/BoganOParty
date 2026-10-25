@@ -1,35 +1,58 @@
 // Every minigame. One is picked at random after each round (no repeats until they've all been played).
-// To add one, copy plane-instructor.js, give it a new id, and add it here. See README.md → "Adding content".
-import planeInstructor from './plane-instructor.js';
-import chadsJapaneseAdventure from './chads-japanese-adventure.js';
-import greatBiscuitHeist from './great-biscuit-heist.js';
-import burgerBoys from './burger-boys.js';
-import marbleMayhem from './marble-mayhem.js';
-import joeMaster from './joe-master.js';
-import toyCars from './toy-cars.js';
-import ripstickRider from './ripstick-rider.js';
-import alansFarm from './alans-farm.js';
-import backYard from './back-yard.js';
-import justATrim from './just-a-trim.js';
-import dubaiHighFlyer from './dubai-high-flyer.js';
-import mineYourOwnBusiness from './mine-your-own-business.js';
-import perfectPour from './perfect-pour.js';
-import likeMyPost from './like-my-post.js';
-import distroWars from './distro-wars.js';
-import draw from './draw.js';
-import thongThrow from './thong-throw.js';
-import sausageSizzle from './sausage-sizzle.js';
-import eskyTetris from './esky-tetris.js';
-import wheelieBinDerby from './wheelie-bin-derby.js';
-import twoUp from './two-up.js';
-import sunscreenSlap from './sunscreen-slap.js';
-import footyKickToKick from './footy-kick-to-kick.js';
-import bottleORun from './bottle-o-run.js';
-import uteMuster from './ute-muster.js';
-import fishingOffTheJetty from './fishing-off-the-jetty.js';
-import zombiesVsPlants from './zombies-vs-plants.js';
-import footballBoy from './football-boy.js';
-import handTennis from './hand-tennis.js';
+// Only the id and name live here (the wheel needs those); the game itself, in <id>.js, is loaded when
+// it's picked, so the TV starts without downloading and building all of them. To add one, copy
+// plane-instructor.js, give it a new id (the file is named after it) and add [id, name] here.
+// See README.md → "Adding content".
+const LIST = [
+  ['plane-instructor', 'Plane Instructor'],
+  ['chads-japanese-adventure', "Chad's Japanese Adventure"],
+  ['great-biscuit-heist', 'The Great Biscuit Heist'],
+  ['burger-boys', 'Burger Boys'],
+  ['marble-mayhem', 'Marble Mayhem'],
+  ['joe-master', 'Joe Master Universe'],
+  ['toy-cars', 'Toy Cars'],
+  ['ripstick-rider', 'Ripstick Rider'],
+  ['alans-farm', "Alan's Farm"],
+  ['back-yard', 'The (Back) Yard'],
+  ['just-a-trim', 'Just a Trim'],
+  ['dubai-high-flyer', 'Dubai High Flyer'],
+  ['mine-your-own-business', 'Mine Your Own Business'],
+  ['perfect-pour', 'Perfect Pour'],
+  ['like-my-post', 'Like My Post'],
+  ['distro-wars', 'Distro Wars'],
+  ['draw', 'Draw!'],
+  ['thong-throw', 'Thong Throw'],
+  ['sausage-sizzle', 'Sausage Sizzle'],
+  ['esky-tetris', 'Esky Tetris'],
+  ['wheelie-bin-derby', 'Wheelie Bin Derby'],
+  ['two-up', 'Two-Up'],
+  ['sunscreen-slap', 'Sunscreen Slap'],
+  ['footy-kick-to-kick', 'Footy Kick-to-Kick'],
+  ['bottle-o-run', 'Bottle-O Run'],
+  ['ute-muster', 'Ute Muster'],
+  ['fishing-off-the-jetty', 'Fishing Off the Jetty'],
+  ['zombies-vs-plants', 'Zombies vs Plants'],
+  ['football-boy', 'Football Boy'],
+  ['hand-tennis', 'Hand Tennis'],
+];
 
-export const MINIGAMES = [planeInstructor, chadsJapaneseAdventure, greatBiscuitHeist, burgerBoys, marbleMayhem, joeMaster, toyCars, ripstickRider, alansFarm, backYard, justATrim, dubaiHighFlyer, mineYourOwnBusiness, perfectPour, likeMyPost, distroWars, draw, thongThrow, sausageSizzle, eskyTetris, wheelieBinDerby, twoUp, sunscreenSlap, footyKickToKick, bottleORun, uteMuster, fishingOffTheJetty, zombiesVsPlants, footballBoy, handTennis];
+export const MINIGAMES = LIST.map(([id, name]) => ({ id, name }));
 export const MINIGAME_BY_ID = Object.fromEntries(MINIGAMES.map((m) => [m.id, m]));
+
+// the full minigame ({ id, name, howTo, create... }) for a list entry; a failed download can be retried
+const loading = new Map();
+export function loadMinigame(entry) {
+  if (!loading.has(entry.id)) {
+    loading.set(entry.id, import(`./${entry.id}.js`).then((m) => m.default, (e) => { loading.delete(entry.id); throw e; }));
+  }
+  return loading.get(entry.id);
+}
+
+// Once the TV is up, quietly fetch the rest one at a time, so later picks start instantly and a
+// flaky connection mid-party doesn't matter.
+export async function prefetchMinigames() {
+  for (const m of MINIGAMES) {
+    await new Promise((r) => (window.requestIdleCallback || setTimeout)(r, { timeout: 2000 }));
+    await loadMinigame(m).catch(() => {});
+  }
+}
