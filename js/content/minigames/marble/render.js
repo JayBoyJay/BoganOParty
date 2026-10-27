@@ -394,34 +394,39 @@ export class World {
     if (this.terrain?.water && this.track.theme === 'lava') this.terrain.water.material.emissiveIntensity = 0.9 + Math.sin(time * 1.5) * 0.15;
   }
 
-  // split screen: one viewport per pane, each with its own camera
-  renderPanes() {
-    const r = this.renderer, W = window.innerWidth, H = window.innerHeight;
-    r.setScissorTest(true);
-    // Lots of panes: work out shadows once per frame (around the middle of the field,
-    // with a wider shadow area) instead of once per pane, which keeps 16 views smooth.
-    const many = this.panes.length > 4;
-    r.shadowMap.autoUpdate = !many;
-    const sc = this.sun.shadow.camera, ext = many ? 70 : 38;
+  // split screen: one viewport per pane, each with its own camera. target is the render target to
+  // draw into (Bogan-o Party's bloom buffer), or null for the screen.
+  renderPanes(target = null) {
+    const r = this.renderer;
+    // a render target's viewport is in its own pixels; the screen's is in CSS pixels
+    const size = target ? { x: target.width, y: target.height } : r.getSize(new THREE.Vector2());
+    const W = size.x, H = size.y;
+    const setRect = (x, y, w, h, on) => {
+      if (target) { target.viewport.set(x, y, w, h); target.scissor.set(x, y, w, h); target.scissorTest = on; r.setRenderTarget(target); }
+      else { r.setViewport(x, y, w, h); r.setScissor(x, y, w, h); r.setScissorTest(on); }
+    };
+    // Work out shadows once per frame, not once per pane: centred on the middle of the field and
+    // just wide enough to cover it (the shadow map render was half the cost of 4 panes).
+    r.shadowMap.autoUpdate = false;
+    const c = new THREE.Vector3(); let n = 0, spread = 0;
+    for (const vis of this.marbles.values()) { c.add(vis.mesh.position); n++; }
+    if (n) c.divideScalar(n);
+    for (const vis of this.marbles.values()) spread = Math.max(spread, Math.hypot(vis.mesh.position.x - c.x, vis.mesh.position.z - c.z));
+    const sc = this.sun.shadow.camera, ext = Math.min(80, Math.max(38, Math.ceil((spread + 14) / 8) * 8));
     if (sc.right !== ext) { sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.updateProjectionMatrix(); }
-    if (many) {
-      const c = new THREE.Vector3(); let n = 0;
-      for (const vis of this.marbles.values()) { c.add(vis.mesh.position); n++; }
-      if (n) { c.divideScalar(n); this.updateShadowFocus(c); }
-      r.shadowMap.needsUpdate = true;
-    }
+    this.updateShadowFocus(c);
+    r.shadowMap.needsUpdate = true;
     for (const p of this.panes) {
-      const x = p.rect.x * W, y = (1 - p.rect.y - p.rect.h) * H, w = p.rect.w * W, h = p.rect.h * H;
-      r.setViewport(x, y, w, h); r.setScissor(x, y, w, h);
-      if (this.shakeT > 0) p.camera.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3, 0));
-      if (!many) this.updateShadowFocus(p.focus);
+      const x = Math.round(p.rect.x * W), y = Math.round((1 - p.rect.y - p.rect.h) * H);
+      const w = Math.round((p.rect.x + p.rect.w) * W) - x, h = Math.round((1 - p.rect.y) * H) - y;
+      setRect(x, y, w, h, true);
       const vis = p.followId && this.marbles.get(p.followId);
       this.marker.visible = !!vis && this.panes.length > 1;
       if (vis) {
         const bob = Math.sin(performance.now() / 180) * 0.08;
         this.marker.position.copy(vis.mesh.position).add(new THREE.Vector3(0, (vis.hat ? 1.35 : 0.95) + bob, 0));
         this.marker.material.color.set(p.color || '#ffffff');
-        this.marker.scale.setScalar(this.panes.length > 9 ? 2 : this.panes.length > 4 ? 1.5 : 1);
+        this.marker.scale.setScalar(this.panes.length > 4 ? 1.5 : 1);
       }
       // name tags sized for this pane's camera
       for (const vis of this.marbles.values()) {
@@ -430,8 +435,7 @@ export class World {
       }
       r.render(this.scene, p.camera);
     }
-    r.setScissorTest(false);
-    r.setViewport(0, 0, W, H);
+    setRect(0, 0, W, H, false);
     this.marker.visible = false;
   }
 

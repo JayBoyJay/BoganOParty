@@ -4,6 +4,8 @@
 // random theme. BOOST three times per race; roll through a vape to grab a power, then USE it.
 // The race itself (track generator, physics, scenery, camera director) lives in ./marble/, ported
 // from MarbleDrinks with the World drawing into the minigame's scene instead of its own canvas.
+// Split screen like MarbleDrinks: once the race starts every player (bots too) gets a pane chasing
+// their own marble, tiled to fit up to 8 (the last row stretches, so no pane is wasted), with the scoreboard in a strip down the right.
 import { generateTrack, THEME_KEYS } from './marble/track.js';
 import { RaceSim, BOOSTS_PER_RACE } from './marble/sim.js';
 import { World } from './marble/render.js';
@@ -50,8 +52,50 @@ export default {
       heads.set(p.id, holder);
     }
     const director = new Director(world);
-    director.style = 'broadcast';
+    director.style = 'players';
+    director.withBots = true;
+    director.noSpare = true;
     director.setMode('grid');
+
+    // pane frames and name tags, drawn over the canvas but under the minigame's own HUD
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;';
+    document.body.insertBefore(overlay, document.getElementById('minigame'));
+    const tags = new Map(); // pane id -> its frame element
+    let sideT = 0;
+    const side = document.createElement('div');
+    side.style.cssText = 'position:absolute;top:0;right:0;bottom:0;background:linear-gradient(180deg,#1b2440,#0d1222);display:none;';
+    overlay.appendChild(side);
+    const drawOverlay = (dt) => {
+      // the standings strip is as wide as the scoreboard the runner puts top right
+      if ((sideT -= dt) <= 0) {
+        sideT = 0.5;
+        const board = document.querySelector('.mg-board');
+        const bw = board?.getBoundingClientRect().width || 0;
+        director.sidebarW = bw ? Math.ceil(bw + 2 * (innerWidth - board.getBoundingClientRect().right)) : 0;
+      }
+      const panes = world.panes || [];
+      side.style.display = panes.length ? '' : 'none';
+      side.style.width = director.sidebar + 'px';
+      const seen = new Set();
+      for (const p of panes) {
+        seen.add(p.id);
+        let el = tags.get(p.id);
+        if (!el) {
+          el = document.createElement('div');
+          el.style.cssText = 'position:absolute;box-sizing:border-box;border:3px solid;';
+          el.innerHTML = '<span style="position:absolute;left:0.5rem;bottom:0.5rem;padding:0.2rem 0.7rem;border-radius:0.5rem;background:rgba(10,10,20,0.75);color:#fff;font-weight:900;font-size:clamp(0.8rem,1.6vw,1.4rem);white-space:nowrap;"></span>';
+          overlay.appendChild(el); tags.set(p.id, el);
+        }
+        const r = p.rect;
+        el.style.left = r.x * 100 + '%'; el.style.top = r.y * 100 + '%'; el.style.width = r.w * 100 + '%'; el.style.height = r.h * 100 + '%';
+        el.style.borderColor = p.color;
+        const text = p.label.replace(/\s*🍺$/, ''); // MarbleDrinks' "drink up, last place" mug; the drinks layer handles that here
+        if (el.firstChild.textContent !== text) el.firstChild.textContent = text;
+        el.firstChild.style.borderLeft = `0.35rem solid ${p.color}`;
+      }
+      for (const [id, el] of tags) el.style.display = seen.has(id) ? '' : 'none';
+    };
 
     let started = false, winAt = null, t0 = 0, now = 0;
     const SOUND = { boost: 'teleport', bumper: 'bonk', tramp: 'boing', jump: 'boing', pickup: 'item', power: 'event', portal: 'teleport' };
@@ -79,8 +123,15 @@ export default {
         world.syncPickups(started ? sim.pickups : null, started ? sim.t : 0, t0, dt, true);
         if (started) world.syncTempZones(sim.tempZones);
         director.update(dt, sim);
+        if (started && !running) world.panes = null; // time's up: hand back to one camera for the results
+        drawOverlay(dt);
         now = t;
       },
+      draw(r, target) {
+        if (world.panes?.length) world.renderPanes(target);
+        else { r.shadowMap.autoUpdate = true; r.render(scene, world.camera); }
+      },
+      dispose() { overlay.remove(); renderer.shadowMap.autoUpdate = true; },
       input(p, m) {
         if (m.b === 'boost') { if (sim.boost(p.id)) sfx.play('teleport'); }
         else if (m.b === 'power') sim.usePower(p.id);

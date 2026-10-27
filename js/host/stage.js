@@ -1,5 +1,6 @@
 // One WebGL renderer for the whole game. The board and each minigame are "views":
-// { scene, camera, update(dt) }, and the stage draws whichever one is showing.
+// { scene, camera, update(dt) }, and the stage draws whichever one is showing. A view can also have
+// draw(renderer, target) to do its own drawing into target (null = the screen), e.g. split screen.
 import * as THREE from 'three';
 import { EffectComposer } from '../../vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from '../../vendor/postprocessing/RenderPass.js';
@@ -28,7 +29,7 @@ export class Stage {
     this.fancy = !qp.has('low');
     if (this.fancy) {
       this.composer = new EffectComposer(this.renderer, new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 }));
-      this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
+      this.renderPass = new ViewPass(new THREE.Scene(), new THREE.PerspectiveCamera());
       // only things brighter than white bloom (neon, lamps, the item's glow), so sunlit walls stay crisp
       this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.28, 0.4, 2.2);
       this.composer.addPass(this.renderPass);
@@ -47,7 +48,8 @@ export class Stage {
       if (!this.view) return;
       this.view.update?.(dt);
       this.renderer.info.reset();
-      if (this.composer) { this.renderPass.scene = this.view.scene; this.renderPass.camera = this.view.camera; this.composer.render(dt); }
+      if (this.composer) { this.renderPass.view = this.view; this.renderPass.scene = this.view.scene; this.renderPass.camera = this.view.camera; this.composer.render(dt); }
+      else if (this.view.draw) { this.renderer.setRenderTarget(null); this.renderer.clear(); this.view.draw(this.renderer, null); }
       else this.renderer.render(this.view.scene, this.view.camera);
       this.adapt(raw);
     };
@@ -122,6 +124,17 @@ export class Stage {
     collect(scene, mine);
     for (const r of extra) if (r) mine.add(r);
     for (const r of mine) if (!keep.has(r)) r.dispose();
+  }
+}
+
+// the composer's first pass: the view's scene through its camera, or the view's own draw()
+class ViewPass extends RenderPass {
+  render(renderer, writeBuffer, readBuffer) {
+    if (!this.view?.draw) return super.render(renderer, writeBuffer, readBuffer);
+    const target = this.renderToScreen ? null : readBuffer;
+    renderer.setRenderTarget(target);
+    renderer.clear();
+    this.view.draw(renderer, target);
   }
 }
 
