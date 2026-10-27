@@ -67,6 +67,7 @@ export class MinigameRunner {
     const full = def.duration + Math.max(0, players.length - 4) * (def.perPlayer || 0);
     const dur = this.speed < 1 ? Math.min(8, full) : full; // fast mode is for automated tests
     const scene = new THREE.Scene();
+    const padOf = new Map(); // player id -> their live pad, once the controls are up
     const extras = []; // GPU things the game made outside its scene (render targets...), freed at the end
     const mg = {
       THREE, players, rng: this.rng, sfx: this.sfx, kit: makeKit(scene), scene, renderer: this.stage.renderer,
@@ -74,6 +75,7 @@ export class MinigameRunner {
       timeLeft: () => left, duration: dur,
       track: (r) => { extras.push(r); return r; },
       env: (build, blur) => roomEnv(this.stage.renderer, scene, build, blur),
+      padSend: (p, m) => padOf.get(p.id)?.send(m),
     };
     const inst = def.create(mg);
     inst.scene = inst.scene || scene;
@@ -90,6 +92,7 @@ export class MinigameRunner {
 
     // ----- controls + countdown -----
     const pads = players.map((p) => this.hub.live(p, { title: def.name, body: def.padText || '', ...def.pad }, (m) => { if (running) inst.input(p, m); }));
+    pads.forEach((h, i) => padOf.set(players[i].id, h));
     for (const n of ['3', '2', '1']) { big.textContent = n; this.sfx.play('beep'); await sleep(800 * this.speed); }
     big.textContent = 'GO!'; this.sfx.play('go');
     running = true;
