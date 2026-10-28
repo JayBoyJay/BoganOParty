@@ -1,13 +1,16 @@
 // Toy Cars: Hot Wheels-style orange track laid right through the house: round the coffee table in the
 // lounge, through the kitchen under the table and chairs, past the dog's bowl in the dining room and
-// back. Three laps. Cars drive themselves flat out; tilt your phone like a steering wheel to steer.
+// back. Three laps. Cars drive themselves flat out; push the phone's stick left and right to steer.
 // Each car has the player's doll head poking out of the driver's seat.
 // Drive through a ? box to grab a power-up, used straight away: TURBO (a burst of speed), SNAIL (everyone
 // ahead of you crawls for a couple of seconds) or LEGO (a brick dropped behind you: hit it and you spin out).
 // Whoever's further back is more likely to get the good stuff.
 // Physics runs in track coordinates (s along the centre line, u across it) like Marble Mayhem: the
 // track turns under you, so you have to steer through the bends or scrape the rail and lose speed.
+// Split screen: every player (bots too) gets a pane chasing their own car, tiled to fit up to 8, with
+// the scoreboard in a strip down the right. When time's up it cuts back to the one high camera.
 import { mergeGeometries } from '../../../vendor/BufferGeometryUtils.js';
+import { paneRects, drawPanes, paneOverlay } from '../../host/panes.js';
 
 const LAPS = 3;
 const HW = 4.6; // half width of the track
@@ -27,10 +30,10 @@ export default {
   id: 'toy-cars',
   name: 'Toy Cars',
   blurb: 'Orange track through the whole house. Three laps. Mind the rails.',
-  howTo: 'Your car drives itself flat out. Hold your phone like a steering wheel and tilt to steer. Scrape the rails and you slow down. Drive through the ? boxes for power-ups: TURBO speeds you up, SNAIL slows everyone ahead of you, LEGO drops a brick behind you that spins out whoever hits it. First to finish three laps wins.',
-  padText: 'Tilt to steer!',
+  howTo: 'Your car drives itself flat out. Push the stick left and right to steer. Scrape the rails and you slow down. Drive through the ? boxes for power-ups: TURBO speeds you up, SNAIL slows everyone ahead of you, LEGO drops a brick behind you that spins out whoever hits it. First to finish three laps wins.',
+  padText: 'Stick left and right to steer!',
   duration: 80,
-  pad: { kind: 'tilt' },
+  pad: { kind: 'stick', buttons: [] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng } = mg;
@@ -252,13 +255,18 @@ export default {
     const camera = new THREE.PerspectiveCamera(42, 16 / 9, 1, 600);
     const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
     let camInit = false;
+    // one chase cam per car, kept on the track behind it (so it follows through the doorways, never into a wall)
+    for (const c of cars) c.cam = { cam: new THREE.PerspectiveCamera(62, 16 / 9, 0.3, 170), pos: new THREE.Vector3(), look: new THREE.Vector3(), init: false };
+    const overlay = paneOverlay();
+    let panes = [], raced = false;
 
     return {
       camera,
       update(dt, t, running) {
         now = t;
+        if (running) raced = true;
         for (const c of cars) {
-          // steering: phone tilt, or the CPU aiming a little way down the track
+          // steering: the phone's stick, or the CPU aiming a little way down the track
           if (c.bot && running) {
             const ahead = c.s + c.bot.look, target = Math.sin(t * 0.7 + c.bot.wob) * HW * 0.35 + c.bot.err;
             const dyaw = (() => { let d = yawS(ahead) - yawS(c.s); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; })();
@@ -341,8 +349,38 @@ export default {
         const kc = 1 - Math.exp(-dt * 2.2);
         camPos.lerp(want, kc); camLook.lerp(focus, kc * 1.5);
         camera.position.copy(camPos); camera.lookAt(camLook);
+        // split screen until time's up, then back to the camera above for the results
+        const kp = 1 - Math.exp(-dt * 7);
+        if (raced && !running) panes = [];
+        else {
+          const side = overlay.sidebar(dt), rects = paneRects(cars.length, side);
+          panes = cars.map((c, i) => {
+            const s = ((c.s % L) + L) % L, pc = c.cam;
+            posAt(s - 4.8, c.u * 0.7, tmp); tmp.y = 2.5;
+            const look = posAt(s + 4.5, c.u * 0.8); look.y = 0.9;
+            if (!pc.init) { pc.pos.copy(tmp); pc.look.copy(look); pc.init = true; } else { pc.pos.lerp(tmp, kp); pc.look.lerp(look, Math.min(1, kp * 1.4)); }
+            pc.cam.position.copy(pc.pos); pc.cam.lookAt(pc.look);
+            const label = c.finished ? `${c.p.name}: ${['1st', '2nd', '3rd'][c.place - 1] || c.place + 'th'}!` : `${c.p.name}: lap ${Math.min(LAPS, Math.max(1, Math.floor(c.s / L) + 1))}/${LAPS}`;
+            return { id: c.p.id, camera: pc.cam, rect: rects[i], label, color: c.p.color, car: c };
+          });
+          overlay.show(panes, side);
+        }
+        if (!panes.length) overlay.show([], 0);
       },
-      input(p, m) { const c = cars.find((x) => x.p === p); if (c && m.b === 'tilt' && Number.isFinite(m.v)) c.want = Math.max(-1, Math.min(1, m.v / 35)); },
+      draw(r, target) {
+        if (!panes.length) { r.render(scene, camera); return; }
+        // each pane hides its own driver's flag, which would sit right in front of the camera, and sizes
+        // the others by distance so a car just ahead doesn't fill the pane with its name
+        drawPanes(r, target, scene, panes, (p) => {
+          for (const c of cars) {
+            c.tag.visible = c !== p.car;
+            const h = Math.min(0.65, 0.05 * c.tag.position.distanceTo(p.camera.position)); c.tag.scale.set(h * 4, h, 1);
+          }
+        });
+        for (const c of cars) { c.tag.visible = true; c.tag.scale.set(2.6, 0.65, 1); }
+      },
+      dispose() { overlay.remove(); },
+      input(p, m) { const c = cars.find((x) => x.p === p); if (c && m.b === 'stick' && Number.isFinite(m.x)) c.want = Math.max(-1, Math.min(1, m.x)); },
       // live position: finishers by place, the rest by distance; also shows laps
       scores() {
         const st = [...cars].sort((a, b) => (a.finished && b.finished ? a.place - b.place : a.finished ? -1 : b.finished ? 1 : b.s - a.s));
