@@ -5,6 +5,9 @@
 // power-ups: dynamite, a diamond bit that cuts rock, a turbo, and a rockfall that drops a boulder
 // under everyone else. Gas pockets go off in your face. First to the lump of lead wins; the rest
 // place by how deep they got.
+// Split screen: every digger (bots too) gets their own pane following them down, laid out in even
+// rows (4 is 2 x 2, 7 is 3 + 2 + 2) with the scoreboard in a strip down the right. When someone
+// strikes lead, or time's up, it goes back to one camera.
 import { addSky } from '../../host/sky.js';
 import { RoundedBoxGeometry } from '../../../vendor/RoundedBoxGeometry.js';
 
@@ -311,6 +314,78 @@ export default {
     const camY = { v: 0 };
     const dist = (W / 2 + 2) / Math.tan(Math.atan(Math.tan(THREE.MathUtils.degToRad(18)) * 16 / 9));
 
+    // ----- split screen: a camera per digger -----
+    const split = n >= 2;
+    const PANE_H = 15; // metres of ground a pane shows top to bottom
+    const paneDist = PANE_H / 2 / Math.tan(THREE.MathUtils.degToRad(18));
+    for (const d of diggers) { d.cam = new THREE.PerspectiveCamera(36, 1, 0.5, 200); d.camX = d.x; d.camY = 0; }
+    // a bobbing arrow over whoever the pane belongs to, so you can find yourself among the neighbours
+    const marker = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.6, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    marker.rotation.x = Math.PI; marker.visible = false; scene.add(marker);
+    // rows of panes with no empty cells, the players spread evenly over the rows, picking the row count
+    // whose panes come closest to a slightly-wide shape (digging is mostly down, so not too letterboxed)
+    const evenRows = (k, AW, AH) => {
+      let best = null;
+      for (let rows = 1; rows <= k; rows++) {
+        const counts = Array.from({ length: rows }, (_, r) => Math.floor(k / rows) + (r < k % rows ? 1 : 0));
+        const score = counts.reduce((a, c) => a + c * Math.abs(Math.log((AW / c) / (AH / rows) / 1.2)), 0) / k;
+        if (!best || score < best.score) best = { counts, score };
+      }
+      return best.counts;
+    };
+    let panes = null, sidebarW = 0, sideT = 0, started = false;
+    const layout = () => {
+      const Wpx = innerWidth, Hpx = innerHeight, AW = Wpx - sidebarW, rows = evenRows(n, AW, Hpx);
+      const out = []; let i = 0;
+      rows.forEach((count, row) => { for (let k = 0; k < count; k++, i++) out.push({ d: diggers[i], rect: { x: (k * AW / count) / Wpx, y: row / rows.length, w: AW / count / Wpx, h: 1 / rows.length } }); });
+      return out;
+    };
+    const aimPane = (pn, dt) => {
+      const { d, rect } = pn, cam = d.cam, aspect = (rect.w * innerWidth) / (rect.h * innerHeight);
+      const visW = PANE_H * aspect, half = W / 2 + 3;
+      // keep the digger a bit above the middle so you can see what's coming; don't show past the edges
+      const tx = visW / 2 >= half ? 0 : Math.max(-half + visW / 2, Math.min(half - visW / 2, d.x));
+      const ty = Math.max(-ROWS * CS + PANE_H * 0.42, Math.min(1.5, d.y - PANE_H * 0.12));
+      const k = Math.min(1, dt * (d.falling ? 8 : 4));
+      d.camX += (tx - d.camX) * k; d.camY += (ty - d.camY) * k;
+      if (cam.aspect !== aspect) { cam.aspect = aspect; cam.updateProjectionMatrix(); }
+      cam.position.set(d.camX + (Math.random() - 0.5) * shake * 0.6, d.camY + 1 + (Math.random() - 0.5) * shake * 0.6, paneDist);
+      cam.lookAt(d.camX, d.camY, 0);
+    };
+    // pane frames and name tags, over the canvas but under the minigame's own HUD
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;';
+    document.body.insertBefore(overlay, document.getElementById('minigame'));
+    const side = document.createElement('div');
+    side.style.cssText = 'position:absolute;top:0;right:0;bottom:0;background:linear-gradient(180deg,#3a1c10,#1a0c06);display:none;';
+    overlay.appendChild(side);
+    const frames = diggers.map((d) => {
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;box-sizing:border-box;border:3px solid ${d.p.color};display:none;`;
+      el.innerHTML = `<span style="position:absolute;left:0.5rem;bottom:0.5rem;padding:0.2rem 0.7rem;border-radius:0.5rem;background:rgba(10,10,20,0.75);color:#fff;font-weight:900;font-size:clamp(0.8rem,1.6vw,1.4rem);white-space:nowrap;border-left:0.35rem solid ${d.p.color};"></span>`;
+      overlay.appendChild(el);
+      return el;
+    });
+    const drawOverlay = (dt) => {
+      // the strip on the right is as wide as the scoreboard the runner puts top right
+      if ((sideT -= dt) <= 0) {
+        sideT = 0.5;
+        const board = document.querySelector('.mg-board'), br = board?.getBoundingClientRect();
+        sidebarW = br?.width ? Math.ceil(br.width + 2 * (innerWidth - br.right)) : 0;
+      }
+      side.style.display = panes ? '' : 'none';
+      side.style.width = sidebarW + 'px';
+      diggers.forEach((d, i) => {
+        const el = frames[i], pn = panes?.[i];
+        el.style.display = pn ? '' : 'none';
+        if (!pn) return;
+        const r = pn.rect;
+        el.style.left = r.x * 100 + '%'; el.style.top = r.y * 100 + '%'; el.style.width = r.w * 100 + '%'; el.style.height = r.h * 100 + '%';
+        const text = `${d.p.name} · ${Math.round(d.depth * CS)}m${d.power ? ' ' + POWERS[d.power].emoji : ''}`;
+        if (el.firstChild.textContent !== text) el.firstChild.textContent = text;
+      });
+    };
+
     return {
       camera,
       update(dt, t, running) {
@@ -376,18 +451,44 @@ export default {
           if (working && rng() < dt * 8) spray(d.x, d.y, 1);
         }
         // camera: follow the pack down, keeping the deepest digger on screen
-        const ys = diggers.map((d) => d.y), lo = Math.min(...ys), hi = Math.max(...ys);
+        // (once someone's struck lead it's all about them)
+        const ys = winner ? [winner.y] : diggers.map((d) => d.y), lo = Math.min(...ys), hi = Math.max(...ys);
         const visH = 2 * dist * Math.tan(THREE.MathUtils.degToRad(18));
         const want = Math.max(lo + visH * 0.32, Math.min((lo + hi) / 2, hi - visH * 0.25));
         camY.v += (Math.max(-ROWS * CS + visH * 0.42, Math.min(1.5, want)) - camY.v) * Math.min(1, dt * 2.5);
         camera.position.set((Math.random() - 0.5) * shake, camY.v + 1.5 + (Math.random() - 0.5) * shake, dist);
         camera.lookAt(0, camY.v, 0);
+        if (running) started = true;
+        panes = split && !winner && !(started && !running) ? layout() : null; // time's up: one camera for the results
+        if (panes) for (const pn of panes) aimPane(pn, dt);
+        drawOverlay(dt);
         shake = Math.max(0, shake - dt * 2);
         for (let i = chips.length - 1; i >= 0; i--) { const c = chips[i]; c.t += dt; c.vy -= 14 * dt; c.m.position.x += c.vx * dt; c.m.position.y += c.vy * dt; c.m.rotation.x += dt * 9; if (c.t > 0.8) { scene.remove(c.m); chips.splice(i, 1); } }
         for (let i = booms.length - 1; i >= 0; i--) { const b = booms[i]; b.t += dt; b.m.scale.setScalar(b.size * (0.5 + b.t * 6)); b.m.material.opacity = Math.max(0, 0.9 - b.t * 2); if (b.t > 0.6) { scene.remove(b.m); booms.splice(i, 1); } }
         for (let i = pops.length - 1; i >= 0; i--) { const q = pops[i]; q.life += dt; q.sp.position.y += dt * 1.2; q.sp.material.opacity = Math.min(1, 2.6 - q.life * 1.5); if (q.life > 1.8) { scene.remove(q.sp); pops.splice(i, 1); } }
         for (const e of extras.values()) if (e.children[0]?.material === opalM) e.rotation.y += dt * 2;
       },
+      draw(r, target) {
+        if (!panes) { r.shadowMap.autoUpdate = true; r.render(scene, camera); return; }
+        // a render target's viewport is in its own pixels; the screen's is in CSS pixels
+        const size = target ? { x: target.width, y: target.height } : r.getSize(new THREE.Vector2());
+        const setRect = (x, y, w, h, on) => {
+          if (target) { target.viewport.set(x, y, w, h); target.scissor.set(x, y, w, h); target.scissorTest = on; r.setRenderTarget(target); }
+          else { r.setViewport(x, y, w, h); r.setScissor(x, y, w, h); r.setScissorTest(on); }
+        };
+        // shadows once a frame, not once per pane
+        r.shadowMap.autoUpdate = false; r.shadowMap.needsUpdate = true;
+        for (const { d, rect } of panes) {
+          const x = Math.round(rect.x * size.x), y = Math.round((1 - rect.y - rect.h) * size.y);
+          setRect(x, y, Math.round((rect.x + rect.w) * size.x) - x, Math.round((1 - rect.y) * size.y) - y, true);
+          marker.visible = true; marker.material.color.set(d.p.color);
+          marker.position.set(d.x, d.y + 2.1 + Math.sin(tAll * 5) * 0.12, 0.6);
+          r.render(scene, d.cam);
+        }
+        marker.visible = false;
+        setRect(0, 0, size.x, size.y, false);
+      },
+      dispose() { overlay.remove(); renderer.shadowMap.autoUpdate = true; },
       input(p, m) {
         const d = diggers.find((x) => x.p === p);
         if (!d || m.b !== 'stick') return;
