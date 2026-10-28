@@ -67,7 +67,12 @@ export class Hub {
     const id = ++this.seq;
     this.pads.set(id, { player: p, onInput });
     this.send(p, { t: 'pad', id, ...pad });
-    return { id, close: () => { this.pads.delete(id); if (!p.bot && this.screens.get(p.id)?.id === id) this.idle(p, ''); } };
+    return {
+      id,
+      close: () => { this.pads.delete(id); if (!p.bot && this.screens.get(p.id)?.id === id) this.idle(p, ''); },
+      // extra live info for this pad (e.g. Joe Master's kick-out bar): not remembered, so senders resync it themselves
+      send: (m) => { if (this.pads.has(id)) this.send(p, { ...m, t: 'padx', id }, false); },
+    };
   }
 
   idle(p, title = '', body = '') { this.send(p, { t: 'idle', title, body }); }

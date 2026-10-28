@@ -48,6 +48,7 @@ function onMsg(m) {
     case 'lobby': lobby = m; screen = null; stats = null; renderLobby(); break;
     case 'stats': stats = m; renderBar(); break;
     case 'prompt': case 'pad': case 'idle': screen = m; renderScreen(); if (m.t !== 'idle') buzz(25); break;
+    case 'padx': if (screen?.t === 'pad' && screen.id === m.id && 'pin' in m) pinBar(m); break;
   }
 }
 
@@ -280,6 +281,43 @@ function renderStick(s, el) {
   const keep = setInterval(() => push(true), 200);
   tiltStop = () => clearInterval(keep);
 }
+
+// Joe Master's kick-out bar: covers the pad while you're pinned. The TV sends the bar; the phone runs its
+// own copy and judges its own taps, so lag can't cost you: { b: 'pin', hit }
+let PB = null;
+function pinBar(m) {
+  let ov = $('pinbar');
+  if (!m.pin) { PB = null; ov?.remove(); return; }
+  const now = performance.now();
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'pinbar'; ov.className = 'pinbar';
+    ov.innerHTML = `<div class="t">YOU'RE BEING PINNED!</div><div class="ptrack"><div class="pzone"></div><div class="pmark"></div></div><div class="pips"></div><div class="dim">TAP ANYWHERE WHEN THE MARKER IS IN THE GREEN</div>`;
+    $('screen').appendChild(ov);
+    buzz([60, 40, 60]);
+    const mark = ov.querySelector('.pmark');
+    const loop = () => {
+      if (!PB || !ov.isConnected) { PB = null; return; }
+      const t = performance.now(); mark.style.left = pinPos(t) * 100 + '%'; ov.classList.toggle('locked', t < PB.lockUntil);
+      requestAnimationFrame(loop);
+    };
+    ov.onpointerdown = (e) => {
+      e.preventDefault(); if (!PB) return;
+      const t = performance.now(); if (t < PB.lockUntil) return;
+      const hit = Math.abs(pinPos(t) - PB.c) <= PB.w / 2;
+      send({ t: 'in', id: PB.id, b: 'pin', hit });
+      PB.lockUntil = t + (hit ? 200 : 450);
+      ov.classList.remove('hit', 'miss'); void ov.offsetWidth; ov.classList.add(hit ? 'hit' : 'miss');
+      setTimeout(() => ov.classList.remove('hit', 'miss'), 300);
+      buzz(hit ? 40 : 140);
+    };
+    PB = { lockUntil: 0 };
+    requestAnimationFrame(loop);
+  }
+  PB = { ...m, t0: now, lockUntil: Math.max(PB ? PB.lockUntil : 0, now + (m.lock || 0) * 1000) };
+  const zone = ov.querySelector('.pzone'); zone.style.left = (m.c - m.w / 2) * 100 + '%'; zone.style.width = m.w * 100 + '%';
+  ov.querySelector('.pips').innerHTML = Array.from({ length: m.need }, (_, i) => `<i class="${i < m.hits ? 'on' : ''}"></i>`).join('');
+}
+function pinPos(now) { const x = ((PB.ph + (now - PB.t0) / 1000 * PB.sp) % 2 + 2) % 2; return x < 1 ? x : 2 - x; }
 
 // a tall slider you drag up and down with your thumb. Sends where it is, 0 (bottom) to 1 (top): { b: 'slide', v }
 function renderSlider(s, el) {
