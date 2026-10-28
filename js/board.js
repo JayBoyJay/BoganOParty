@@ -100,6 +100,15 @@ export function leaderOf(players) {
   return [...players].sort((a, b) => (b.items - a.items) || (b.coins - a.coins))[0] || null;
 }
 
+// Next round's turn order from a minigame's placings (best first, ties share a group). Tied players
+// and anyone missing from the placings keep their old order relative to each other.
+export function turnOrderFrom(players, placings) {
+  const place = new Map();
+  placings.forEach((group, i) => { for (const p of group) place.set(p, i); });
+  const last = placings.length;
+  return players.map((p, i) => ({ p, i })).sort((a, b) => ((place.get(a.p) ?? last) - (place.get(b.p) ?? last)) || (a.i - b.i)).map((x) => x.p);
+}
+
 // ---------- item spawn rule ----------
 // The item goes on the space furthest from every player (the space whose nearest player has the most
 // steps to walk). If the players are all spread out (every pair at least `spreadGap` spaces apart),

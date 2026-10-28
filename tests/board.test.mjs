@@ -1,7 +1,7 @@
 // node --test tests/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBoard, chooseItemSpace, isSpreadOut, stepsTo, mulberry32 } from '../js/board.js';
+import { buildBoard, chooseItemSpace, isSpreadOut, stepsTo, mulberry32, turnOrderFrom } from '../js/board.js';
 import { MAPS } from '../js/content/maps/index.js';
 
 const ring = buildBoard({ loop: { points: [[0, 20], [-20, 0], [0, -20], [20, 0]], count: 20, pattern: 'B' } });
@@ -58,4 +58,11 @@ test('item never lands on a player, the start, or a shop', () => {
       assert.ok(['blue', 'red', 'event'].includes(b.nodes[space].type));
     }
   }
+});
+
+test('minigame placings set the next turn order, ties and no-shows keep their old order', () => {
+  const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map((id) => ({ id }));
+  assert.deepEqual(turnOrderFrom([a, b, c, d], [[c], [a], [d], [b]]), [c, a, d, b]);
+  assert.deepEqual(turnOrderFrom([a, b, c, d], [[d, b], [a, c]]), [b, d, a, c]);
+  assert.deepEqual(turnOrderFrom([a, b, c, d, e], [[e], [c]]), [e, c, a, b, d]);
 });

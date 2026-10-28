@@ -3,7 +3,7 @@
 // Power-ups and minigames get this Game object as their `game` and use the helpers in the
 // "toolkit for content" section below (ask, pickPlayer, aim, banner, coins, dropCoins, ...). That
 // keeps content files small and means new ideas rarely need engine changes.
-import { chooseItemSpace, leaderOf, spacesWithin, spacesApart, SPACE } from '../board.js';
+import { chooseItemSpace, leaderOf, turnOrderFrom, spacesWithin, spacesApart, SPACE } from '../board.js';
 import { POWERUPS, POWERUP_BY_ID } from '../content/powerups/index.js';
 import { EFFECTS } from '../content/powerups/effects.js';
 import { Drinks } from './drinks.js';
@@ -64,8 +64,9 @@ export class Game {
       if (this.over) break;
       await this.endOfRound();
       if (this.over) break;
-      await this.minigame();
+      const placings = await this.minigame();
       if (this.settings.maxRounds && this.round >= this.settings.maxRounds) this.finish(null);
+      if (!this.over && placings) await this.reorder(placings);
     }
     return this.result;
   }
@@ -97,6 +98,15 @@ export class Game {
     const top = placings[0] || [];
     if (top.length) await this.banner(`${top.map((p) => p.name).join(' & ')} won the minigame`, `+${RULES.minigameCoins[0]} coins${this.drinkOn ? ' and a drink to give out' : ''}`, { ms: 1800 });
     if (this.drinkOn && top.length) await this.drinks.winnersPick(top);
+    return placings;
+  }
+
+  // the minigame winner goes first next round, then 2nd place, and so on
+  async reorder(placings) {
+    const order = turnOrderFrom(this.players, placings);
+    this.players.splice(0, this.players.length, ...order); // same array: the hub and board view share it
+    this.refresh();
+    await this.hud.turnOrder(this.players, this.speed);
   }
 
   finish(winner) {

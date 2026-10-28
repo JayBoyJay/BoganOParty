@@ -122,6 +122,19 @@ export class Hud {
     o.classList.add('hidden');
   }
 
+  // next round's turn order, set by the last minigame
+  async turnOrder(players, speed = 1) {
+    const o = this.$('hudOverlay');
+    o.classList.remove('hidden');
+    o.innerHTML = `<div class="ov-card turn-order"><h2>Next round's turn order</h2>
+      <div class="pod">${players.map((p, i) => `<div class="pp ${i === 0 ? 'win' : ''}" style="--pc:${p.color}">
+        <img src="${this.faceFor(p, i === 0 ? 'happy' : 'neutral')}" alt="">
+        <div class="nm">${i + 1}. ${esc(p.name)}</div></div>`).join('')}</div>
+      <div class="cap">Minigame winner goes first</div></div>`;
+    await sleep(3200 * speed);
+    o.classList.add('hidden');
+  }
+
   // game over: winners happy, losers sad
   // line(p) is the stat under each face; the board shows items and coins, minigames-only shows points
   podium(result, item, line = (p) => `${item.emoji} ${p.items} · 🪙 ${p.coins}`, extra = '') {
