@@ -65,10 +65,10 @@ export default {
   id: 'chads-japanese-adventure',
   name: "Chad's Japanese Adventure",
   blurb: 'Chad is running late through Kyoto. Jump the cats, duck under the torii gates.',
-  howTo: 'Tap JUMP to hop over the cats and DUCK to squash under the low torii gates. Every one you clear scores. Hit one and you go flying and drop back. There\'s a fog rolling along behind the pack, and it creeps closer as you go: fall back into it and you\'re out. Still running at the end? +5.',
+  howTo: 'Press JUMP to hop over the cats and DUCK to squash under the low torii gates. Every one you clear scores. Hit one and you go flying and drop back. There\'s a fog rolling along behind the pack, and it creeps closer as you go: fall back into it and you\'re out. Still running at the end? +5.',
   padText: 'Jump the cats, duck the gates!',
   duration: 55,
-  pad: { kind: 'buttons', buttons: [{ id: 'jump', label: '⬆️ JUMP', tone: 'go', wide: true }, { id: 'duck', label: '⬇️ DUCK', wide: true }] },
+  pad: { kind: 'buttons', buttons: [{ id: 'duck', label: '⬇️ DUCK', tall: true }, { id: 'jump', label: '⬆️ JUMP', tone: 'go', tall: true }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer } = mg;

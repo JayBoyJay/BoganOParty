@@ -1,5 +1,5 @@
 // Plane Instructor: the instructor holds their arms out like a plane and banks left and right.
-// Tilt your phone to match. Every moment you're within the instructor's bounds scores points.
+// Push your stick left and right to match. Every moment you're within the instructor's bounds scores points.
 // Get past the halfway mark and your doll takes off and flies on the spot. One minute.
 const MATCH = 0.2; // radians either side of the instructor that still counts (~11°)
 const RATE = 10; // points per second while matched
@@ -9,10 +9,10 @@ export default {
   id: 'plane-instructor',
   name: 'Plane Instructor',
   blurb: 'Arms out, copy the instructor. Stay in line and you might just take off.',
-  howTo: 'Hold your phone upright like a steering wheel and tilt it left and right to bank your arms like the instructor.',
-  padText: 'Tilt to bank. Match the instructor!',
+  howTo: 'Push your stick left and right to bank your arms like the instructor. The further you push, the harder you bank.',
+  padText: 'Stick left and right to bank. Match the instructor!',
   duration: 60,
-  pad: { kind: 'tilt' },
+  pad: { kind: 'stick', buttons: [] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng } = mg;
@@ -92,7 +92,7 @@ export default {
         }
       },
       input(p, m) {
-        if (m.b === 'tilt' && Number.isFinite(m.v)) state.get(p.id).want = Math.max(-MAX_TILT, Math.min(MAX_TILT, m.v * Math.PI / 180));
+        if (m.b === 'stick' && Number.isFinite(m.x)) state.get(p.id).want = Math.max(-1, Math.min(1, m.x)) * MAX_TILT;
       },
       scores() { return Object.fromEntries(players.map((p) => [p.id, state.get(p.id).score])); },
     };
