@@ -178,6 +178,8 @@ function renderScreen() {
   clearInterval(timerT);
   if (tiltStop) { tiltStop(); tiltStop = null; }
   const s = screen, el = $('screen');
+  // live pads take the whole screen (no scrolling), so they fit a phone held sideways
+  $('vGame').classList.toggle('pad', s.t === 'pad' && s.kind !== 'touchpad');
   if (s.t === 'idle') {
     el.innerHTML = `<div class="idle"><div class="big">📺</div><h2>${esc(s.title || 'Watch the TV')}</h2><div class="dim">${esc(s.body || '')}</div></div>
       ${stats ? `<div class="label">Pull a face on the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>` : ''}`;
@@ -202,19 +204,54 @@ function renderScreen() {
     if (s.kind === 'stick') return renderStick(s, el);
     if (s.kind === 'slider') return renderSlider(s, el);
     if (s.kind === 'touchpad') return renderTouchpad(s, el);
-    el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : '<div style="height:12px"></div>'}
-      <div class="opts">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.wide ? 'full' : ''}" style="${b.small ? 'min-height:54px;font-size:15px;' : ''}${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;min-height:${b.tall ? '30vh' : '76px'};font-size:26px` : ''}">${esc(b.label)}</button>`).join('')}</div>`;
-    // pads fire on touch-down, not on release: in action games every millisecond counts
-    for (const b of el.querySelectorAll('[data-b]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'in', id: s.id, b: b.dataset.b }); buzz(12); };
-    // hold buttons also say when they're let go
-    s.buttons.forEach((def, i) => {
-      if (!def.hold) return;
-      const b = el.querySelectorAll('[data-b]')[i];
-      b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('dn'); send({ t: 'in', id: s.id, b: def.id, down: true }); buzz(12); };
-      b.onpointerup = b.onpointercancel = () => { b.classList.remove('dn'); send({ t: 'in', id: s.id, b: def.id, down: false }); };
-    });
-    if (s.timer) startTimer(s.timer);
+    renderButtons(s, el);
   }
+}
+
+// Wide buttons get a row to themselves; runs of the others share rows of up to 4, evened out.
+// A pad can also place buttons itself with { row: n }.
+function padRows(buttons) {
+  if (buttons.some((b) => Number.isInteger(b.row))) {
+    const rows = [];
+    for (const b of buttons) (rows[b.row || 0] ||= []).push(b);
+    return rows.filter(Boolean);
+  }
+  const rows = [];
+  let run = [];
+  const flush = () => {
+    const per = Math.ceil(run.length / Math.ceil(run.length / 4));
+    for (let i = 0; i < run.length; i += per) rows.push(run.slice(i, i + per));
+    run = [];
+  };
+  for (const b of buttons) { if (b.wide) { if (run.length) flush(); rows.push([b]); } else run.push(b); }
+  if (run.length) flush();
+  return rows;
+}
+
+// buttons in rows that stretch to fill the screen, so the same pad fits a phone held sideways or upright
+function renderButtons(s, el) {
+  const rows = padRows(s.buttons || []);
+  const btn = (b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.small ? 'small' : ''}" style="${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;` : ''}">${esc(b.label)}</button>`;
+  el.innerHTML = `<div class="btnpad"><div class="padhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${s.sideways ? SIDEWAYS : ''}</div>
+    ${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : ''}
+    ${s.lanes
+    // a note highway like the one on the TV: each lane is a button, with its coloured pad down at the bottom
+    ? `<div class="lanes">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="lane" style="--lc:${b.color || 'var(--pc)'}"><i>${esc(b.label)}</i></button>`).join('')}</div>`
+    : `<div class="prows">${rows.map((r) => `<div class="prow" style="flex:${r.some((b) => b.tall) ? 2 : r.every((b) => b.small) ? 0.7 : 1}">${r.map(btn).join('')}</div>`).join('')}</div>`}</div>`;
+  const defs = new Map((s.buttons || []).map((b) => [String(b.id), b]));
+  for (const b of el.querySelectorAll('[data-b]')) {
+    const def = defs.get(b.dataset.b);
+    // pads fire on touch-down, not on release: in action games every millisecond counts
+    b.onpointerdown = (e) => {
+      e.preventDefault();
+      if (def?.hold) { b.setPointerCapture(e.pointerId); b.classList.add('dn'); send({ t: 'in', id: s.id, b: def.id, down: true }); }
+      else send({ t: 'in', id: s.id, b: b.dataset.b });
+      buzz(12);
+    };
+    // hold buttons also say when they're let go
+    if (def?.hold) b.onpointerup = b.onpointercancel = () => { b.classList.remove('dn'); send({ t: 'in', id: s.id, b: def.id, down: false }); };
+  }
+  if (s.timer) startTimer(s.timer);
 }
 
 function startTimer(secs) {
@@ -241,9 +278,10 @@ async function askMotion() {
 // a thumbstick on the left and held buttons on the right (fighting games). Sends the stick as x/y in
 // -1..1 (y up) and the buttons as a bitmask of the ones held down: { b: 'stick', x, y, h }
 function renderStick(s, el) {
-  el.innerHTML = `<div class="stickpad"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
+  const nb = s.buttons?.length || 0;
+  el.innerHTML = `<div class="stickpad ${nb ? '' : 'nobtns'}"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
     <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
-    <div class="stickbtns">${s.buttons.map((b) => `<button data-bit="${b.bit}" class="${b.tone === 'go' ? 'go' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
+    <div class="stickbtns n${Math.min(nb, 4)}">${(s.buttons || []).map((b) => `<button data-bit="${b.bit}" class="${b.tone === 'go' ? 'go' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
   let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
   const push = (force) => {
     const now = Date.now(), key = `${sx.toFixed(2)},${sy.toFixed(2)},${held}`;
@@ -283,8 +321,9 @@ function renderStick(s, el) {
 
 // a tall slider you drag up and down with your thumb. Sends where it is, 0 (bottom) to 1 (top): { b: 'slide', v }
 function renderSlider(s, el) {
-  el.innerHTML = `<div class="sliderpad"><h1>${esc(s.title)}</h1><div class="dim">${esc(s.body || '')}</div>
-    <div class="vtrack" id="vtrack"><div class="vfill"></div><div class="vthumb">${esc(s.thumb || '')}</div></div><div class="dim">${esc(s.hint || 'Drag up and down')}</div></div>`;
+  el.innerHTML = `<div class="sliderpad"><div class="slidehead"><h1>${esc(s.title)}</h1><div class="dim">${esc(s.body || '')}</div>
+    <div class="dim hint">${esc(s.hint || 'Drag up and down')}</div>${s.sideways ? SIDEWAYS : ''}</div>
+    <div class="vtrack" id="vtrack"><div class="vfill"></div><div class="vthumb">${esc(s.thumb || '')}</div></div></div>`;
   const tr = $('vtrack'), th = tr.querySelector('.vthumb'), fill = tr.querySelector('.vfill');
   let v = Number.isFinite(s.start) ? s.start : 1, lastSent = 0;
   const draw = () => { th.style.bottom = `calc(${v * 100}% - ${v * 64}px)`; fill.style.height = `${v * 100}%`; };
@@ -301,7 +340,7 @@ function renderSlider(s, el) {
 
 // how far the page is rotated from the phone's upright position, in degrees (0, 90, 180, 270)
 function screenAngle() {
-  const a = screen.orientation?.angle ?? window.orientation ?? 0;
+  const a = window.screen.orientation?.angle ?? window.orientation ?? 0;
   return ((Number(a) || 0) + 360) % 360;
 }
 // shown on portrait phones for pads that play better sideways (hidden by CSS in landscape)

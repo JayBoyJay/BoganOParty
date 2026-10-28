@@ -26,7 +26,7 @@ export default {
   howTo: 'Coloured notes slide down the mat. Tap the same colour on your phone right as each one crosses the line. Every 5 in a row raises your multiplier, up to x6. A miss or a wrong colour drops you back to x1.',
   padText: 'Tap the colour as it hits the line!',
   duration: 60,
-  pad: { kind: 'buttons', buttons: LANES.map((l) => ({ id: l.id, label: l.label, color: l.color, tall: true })) },
+  pad: { kind: 'buttons', lanes: true, buttons: LANES.map((l) => ({ id: l.id, label: l.label, color: l.color })) },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;

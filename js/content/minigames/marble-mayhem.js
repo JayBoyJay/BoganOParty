@@ -19,7 +19,7 @@ export default {
   howTo: `Your marble rolls itself. Tap BOOST for a burst of speed (${BOOSTS_PER_RACE} per race). Roll through a vape to pick up a power, then tap USE POWER to fire it.`,
   padText: 'Boost at the right moment!',
   duration: 90,
-  pad: { kind: 'buttons', buttons: [{ id: 'boost', label: '🚀 BOOST', tone: 'go', wide: true }, { id: 'power', label: '⚡ USE POWER', wide: true }] },
+  pad: { kind: 'buttons', buttons: [{ id: 'power', label: '⚡ USE POWER', tall: true }, { id: 'boost', label: '🚀 BOOST', tone: 'go', tall: true }] },
 
   create(mg) {
     const { THREE, scene, players, rng, renderer, sfx } = mg;

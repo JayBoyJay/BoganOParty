@@ -1,5 +1,5 @@
 // The Great Biscuit Heist: Myles is passed out on the couch after a big one, and the Scotch Fingers
-// are right in front of him. Push the slider up to creep in (higher is faster), nick a biscuit, then sneak it all the way back to
+// are right in front of him. Push the stick up to creep in (further is faster), nick a biscuit, then sneak it all the way back to
 // the front door for a point. Then go again. When he snorts and stirs, stop: if he rolls over and sees
 // anyone moving, OI! Back to the door you go, and any biscuit you were carrying stays behind.
 // Red light, green light, but it's a bloke on a mustard couch.
@@ -10,7 +10,7 @@ const LANE = 1.5; // metres per lane
 const DOLL = 0.68; // player doll scale (Myles is 0.95, so he's a big unit)
 const START_Z = 4.5, GRAB_Z = -5.4; // the front door line, and where the biscuit plate is
 const FRONT_Z = START_Z + 2.5, BACK_Z = -14, LEN = FRONT_Z - BACK_Z, MID_Z = (FRONT_Z + BACK_Z) / 2;
-const MAXV = 2.0; // metres a second with the slider right up
+const MAXV = 2.0; // metres a second with the stick right up
 const STILL = 0.12; // slower than this and Myles won't notice you
 const GRACE = 0.3; // after he looks, a moment to stop dead
 const SEAT_Y = 0.85, COUCH_Z = -9.2;
@@ -55,10 +55,10 @@ export default {
   id: 'great-biscuit-heist',
   name: 'The Great Biscuit Heist',
   blurb: "Myles is asleep on the couch, guarding the Scotch Fingers. Nick one and get it back to the door.",
-  howTo: "Slide up to sneak: the higher, the faster. Get to the plate, grab a Scotch Finger, and sneak it back to the front door for a point, then go again. When Myles snorts and stirs, drag it right down and STOP. If he rolls over and sees you move, you're sent back to the door and lose the biscuit.",
-  padText: 'Slide up to sneak. Drop it when he stirs!',
+  howTo: "Push your stick up to sneak: the further, the faster. Get to the plate, grab a Scotch Finger, and sneak it back to the front door for a point, then go again. When Myles snorts and stirs, let go of the stick and STOP. If he rolls over and sees you move, you're sent back to the door and lose the biscuit.",
+  padText: 'Stick up to sneak. Let go when he stirs!',
   duration: 75,
-  pad: { kind: 'slider', thumb: '🤫', start: 0, hint: 'Up = sneak faster. Down = freeze' },
+  pad: { kind: 'stick', buttons: [] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer } = mg;
@@ -409,7 +409,7 @@ export default {
             const greedy = state === 'stir' && stT < s.bot.react + s.bot.greedy;
             s.want = !alarmed || (greedy && state === 'stir') ? s.bot.pace : 0;
           }
-          // ease towards the slider's speed (a slowish start, a quick stop), in for a biscuit, then back out
+          // ease towards the stick's speed (a slowish start, a quick stop), in for a biscuit, then back out
           if (s.back <= 0 && running) {
             const target = s.want * MAXV * (s.has ? 0.85 : 1);
             s.v += (target - s.v) * Math.min(1, dt * (target > s.v ? 5 : 12));
@@ -460,7 +460,7 @@ export default {
         camera.position.set(1.6 + Math.sin(t * 0.2) * 0.3, 5.0 + W * 0.1, COUCH_Z - 4.6 - W * 0.15);
         camera.lookAt(0, 0.6, -1);
       },
-      input(p, m) { const s = sneakers.find((x) => x.p === p); if (s && m.b === 'slide') s.want = Math.max(0, Math.min(1, Number(m.v) || 0)); },
+      input(p, m) { const s = sneakers.find((x) => x.p === p); if (s && m.b === 'stick') s.want = Math.max(0, Math.min(1, Number(m.y) || 0)); },
       // a point per biscuit got home; how far along this trip only breaks ties (never enough to round up)
       scores() { return Object.fromEntries(sneakers.map((s) => { const trip = (START_Z - s.z) / (START_Z - GRAB_Z); return [s.p.id, s.points + 0.24 * (s.has ? 1 + (1 - trip) : trip) / 2]; })); },
     };
