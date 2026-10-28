@@ -1,7 +1,8 @@
 // Runs one minigame: title card, phones get their controls, countdown, play, results.
 //
 // A minigame file exports { id, name, blurb, howTo, duration, pad, create(mg) }. create() builds its
-// own three.js scene and returns { scene, camera, update(dt, t), input(player, msg), scores() }.
+// own three.js scene and returns { scene, camera, update(dt, t), input(player, msg), scores() }, plus
+// optionally draw(renderer, target) to draw the frame itself (split screen; see stage.js).
 // mg gives it: players, makeDoll(player, opts), rng, THREE, kit (see kit.js), sfx, timeLeft(), renderer
 // (for addSky in sky.js).
 // untimed: true hides the clock (duration is then just a safety net) and shows inst.status() instead.
@@ -80,6 +81,7 @@ export class MinigameRunner {
     let left = dur, t = 0, t0 = 0, running = false;
     const view = {
       scene: inst.scene, camera: inst.camera,
+      draw: inst.draw && ((r, target) => inst.draw(r, target)),
       // the clock runs on real time, so a slow TV doesn't make the game drag on
       update: (dt) => { if (running) { t += dt; left = Math.max(0, dur - (performance.now() - t0) / 1000); } inst.update(dt, t, running); },
     };

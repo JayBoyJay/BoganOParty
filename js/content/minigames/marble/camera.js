@@ -28,6 +28,17 @@ function bestGrid(n, W, H) {
   }
   return best;
 }
+// noSpare layout: rows of panes with no empty cells, the players spread evenly over the rows
+// (7 is 3 + 2 + 2, 5 is 3 + 2), picking the row count whose panes are closest to a TV shape
+function evenRows(n, W, H) {
+  let best = null;
+  for (let rows = 1; rows <= n; rows++) {
+    const counts = Array.from({ length: rows }, (_, r) => Math.floor(n / rows) + (r < n % rows ? 1 : 0));
+    const score = counts.reduce((a, c) => a + c * Math.abs(Math.log((W / c) / (H / rows) / 1.45)), 0) / n;
+    if (!best || score < best.score) best = { counts, score };
+  }
+  return best.counts;
+}
 const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 
 const LAYOUTS = {
@@ -56,6 +67,9 @@ export class Director {
     this.panes = null;
     this.sidebar = 0;
     this.playerCams = new Map();
+    this.withBots = false; // 'players' style: bots get a pane too (Bogan-o Party, where a bot fills a seat)
+    this.sidebarW = 0; // keep this many pixels on the right for the standings even with few panes
+    this.noSpare = false; // stretch the last row's panes across it instead of filling gaps with leader cams
   }
 
   P(s, u, h) { worldPos(this.world.track, s, u, h, this.tmp); return v(this.tmp); }
@@ -88,7 +102,7 @@ export class Director {
       pos = c.clone().add(new THREE.Vector3(Math.cos(a) * 11, 6.5, Math.sin(a) * 11));
       look = c;
       this.caption = '';
-    } else if (this.style === 'players' && sim && sim.marbles.filter((m) => !m.bot).length >= 2) {
+    } else if (this.style === 'players' && sim && sim.marbles.filter((m) => this.withBots || !m.bot).length >= 2) {
       this.updatePlayerPanes(dt, sim);
       return;
     } else if ((this.style === 'all' || this.style === 'players') && sim) {
@@ -244,21 +258,27 @@ export class Director {
   // ---------------- one pane per player ----------------
   updatePlayerPanes(dt, sim) {
     const W = window.innerWidth, H = window.innerHeight;
-    const humans = sim.marbles.filter((m) => !m.bot);
+    const humans = sim.marbles.filter((m) => this.withBots || !m.bot);
     const n = humans.length;
     // with more than 4 players, standings move to a sidebar so they don't cover anyone's pane
-    this.sidebar = n > 4 ? Math.round(Math.min(300, Math.max(220, W * 0.17))) : 0;
+    this.sidebar = this.sidebarW || (n > 4 ? Math.round(Math.min(300, Math.max(220, W * 0.17))) : 0);
     const AW = W - this.sidebar, AH = H;
     const { cols, rows } = bestGrid(n, AW, AH);
     const cw = AW / cols, ch = AH / rows;
     const st = sim.standings();
     const place = new Map(st.map((m, i) => [m.id, i + 1]));
-    const racingHumans = st.filter((m) => !m.bot && !m.finished);
+    const racingHumans = st.filter((m) => (this.withBots || !m.bot) && !m.finished);
     const lastHuman = racingHumans.length > 1 ? racingHumans[racingHumans.length - 1] : null;
     const k = 1 - Math.exp(-dt * 9);
     const cut = this.paneCut;
     const panes = [];
-    const cell = (i) => ({ x: ((i % cols) * cw) / W, y: (Math.floor(i / cols) * ch) / H, w: cw / W, h: ch / H });
+    const even = this.noSpare && evenRows(n, AW, AH);
+    const cell = (i) => {
+      if (!even) return { x: ((i % cols) * cw) / W, y: (Math.floor(i / cols) * ch) / H, w: cw / W, h: ch / H };
+      let row = 0; while (i >= even[row]) i -= even[row++];
+      const rw = AW / even[row], rh = AH / even.length;
+      return { x: (i * rw) / W, y: (row * rh) / H, w: rw / W, h: rh / H };
+    };
     const follow = (key, m, i, label, color) => {
       let pc = this.playerCams.get(key);
       if (!pc) { pc = { cam: new THREE.PerspectiveCamera(58, 1, 0.1, 900), pos: new THREE.Vector3(), look: new THREE.Vector3(), s: m.s }; this.playerCams.set(key, pc); }
@@ -272,7 +292,7 @@ export class Director {
       if (ground != null && pos.y < ground + 1.8) pos.y = ground + 1.8;
       if (cut) { pc.pos.copy(pos); pc.look.copy(look); } else { pc.pos.lerp(pos, k); pc.look.lerp(look, Math.min(1, k * 1.5)); }
       const r = cell(i);
-      pc.cam.aspect = cw / ch; pc.cam.updateProjectionMatrix();
+      pc.cam.aspect = (r.w * W) / (r.h * H); pc.cam.updateProjectionMatrix();
       pc.cam.position.copy(pc.pos); pc.cam.lookAt(pc.look);
       panes.push({ camera: pc.cam, rect: r, label, color, focus: pc.look, id: key, followId: m.id });
     };
@@ -283,7 +303,7 @@ export class Director {
     });
     // spare cells in the grid watch the leader
     const leader = st.find((m) => !m.finished) || st[0];
-    for (let i = n; i < cols * rows; i++) follow('spare' + i, leader, i, `🔥 Leader: ${leader.name}`, '#ffd23f');
+    if (!this.noSpare) for (let i = n; i < cols * rows; i++) follow('spare' + i, leader, i, `🔥 Leader: ${leader.name}`, '#ffd23f');
     this.paneCut = false;
     this.paneCam = true;
     this.panes = panes;
