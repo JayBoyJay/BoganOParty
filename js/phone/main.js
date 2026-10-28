@@ -167,7 +167,6 @@ function renderBar() {
   if (!stats) { $('bar').classList.add('hidden'); return; }
   $('bar').classList.remove('hidden');
   $('bar').innerHTML = `<span class="nm">${esc(lobby?.you?.name || '')}</span><span>${stats.item.emoji} ${stats.items}/${stats.target}</span><span>🪙 ${stats.coins}</span>
-    <span class="hp"><i style="width:${Math.round(stats.hp / stats.maxHp * 100)}%"></i></span>
     <div class="pus">${stats.powerups.length ? stats.powerups.map((p) => `${p.emoji} ${esc(p.name)}`).join(' · ') : 'No power-ups'}${stats.effects.map((e) => ` · 🍬 ${esc(e.name)} (${e.rounds})`).join('')}</div>`;
 }
 

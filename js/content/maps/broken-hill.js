@@ -307,7 +307,7 @@ export default {
     { text: 'Bought a round at the Palace. Shout!', coins: -6, mood: 'sad' },
     { text: 'Dust storm! Lost your bearings.', coins: -2, mood: 'angry' },
     { text: 'Struck silver in the backyard!', coins: 8, mood: 'happy' },
-    { text: 'Ran over a roo. Bullbar held up.', hp: -15, mood: 'sad' },
+    { text: 'Ran over a roo. Bullbar held up.', coins: -4, mood: 'sad' },
     { text: 'Two-up win at the RSL!', coins: 6, mood: 'happy' },
   ],
 };

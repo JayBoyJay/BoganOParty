@@ -1,6 +1,6 @@
 // Sugar Bomb: a bag of sugar with a 15 second fuse. Roll it along the board (or straight at a
 // player) with your phone, or pop it early. Everyone within 2 spaces gets a Sugar Rush:
-// +2 on their dice for 3 rounds, but it costs them 10% of their base health each round.
+// +2 on their dice for 3 rounds, but the sugar crash makes them drop 2 coins each round.
 import { spacesWithin } from '../../board.js';
 
 const RADIUS = 2;
@@ -25,7 +25,7 @@ export default {
     const hit = game.playersOn(spacesWithin(game.board, space, RADIUS));
     if (!hit.length) { await game.banner('Missed!', 'Nobody got a sugar hit', { ms: 1400, small: true }); return; }
     for (const o of hit) { game.addEffect(o, 'sugar', 3); game.setMood(o, o === p ? 'sad' : 'angry'); }
-    await game.banner('SUGAR RUSH!', `${hit.map((o) => o.name).join(', ')}: +2 dice, −10% HP a round, for 3 rounds`, { ms: 2400, style: 'sugar' });
+    await game.banner('SUGAR RUSH!', `${hit.map((o) => o.name).join(', ')}: +2 dice, −2 coins a round, for 3 rounds`, { ms: 2400, style: 'sugar' });
   },
 };
 
