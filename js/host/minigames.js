@@ -93,7 +93,7 @@ export class MinigameRunner {
     const big = root.querySelector('#mgBig');
 
     // ----- controls + countdown -----
-    const pads = players.map((p) => this.hub.live(p, { title: def.name, body: def.padText || '', ...def.pad }, (m) => { if (running) inst.input(p, m); }));
+    const pads = players.map((p) => this.hub.live(p, { title: def.name, body: def.padText || '', sideways: true, ...def.pad }, (m) => { if (running) inst.input(p, m); }));
     pads.forEach((h, i) => padOf.set(players[i].id, h));
     for (const n of ['3', '2', '1']) { big.textContent = n; this.sfx.play('beep'); await sleep(800 * this.speed); }
     big.textContent = 'GO!'; this.sfx.play('go');

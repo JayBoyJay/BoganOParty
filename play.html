@@ -56,19 +56,46 @@
   .idle { text-align: center; padding: 30px 10px; }
   .idle .big { font-size: 60px; }
   .tiltbox { text-align: center; }
-  .sliderpad { text-align: center; display: grid; gap: 8px; }
-  .vtrack { position: relative; height: 62vh; width: 150px; margin: 6px auto; border-radius: 36px; background: #2c160b; border: 3px solid var(--line); touch-action: none; overflow: hidden; }
+  /* live pads: the game view becomes a full screen frame, and the pad stretches to fill it */
+  #vGame.pad { position: fixed; inset: 0; display: flex; flex-direction: column; padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  #vGame.pad .bar { position: static; margin-bottom: 8px; }
+  #vGame.pad #screen { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+  #vGame.pad #screen > * { flex: 1; min-height: 0; }
+  .padhead { font-size: 15px; margin-bottom: 8px; }
+  .padhead b { font-size: 18px; font-style: italic; text-transform: uppercase; margin-right: 4px; }
+  .btnpad { display: flex; flex-direction: column; }
+  .btnpad .timer { margin: 0 0 8px; }
+  .prows { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .prow { display: flex; gap: 10px; min-height: 48px; }
+  .prow button { flex: 1 1 0; min-width: 0; padding: 8px; font-size: clamp(16px, 4.2vmin + 6px, 30px); display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 18px; touch-action: none; }
+  .prow button.small { font-size: 15px; }
+  .prow button.dn { transform: scale(0.94); filter: brightness(1.3); }
+  .lanes { flex: 1; display: flex; gap: 0; min-height: 0; border-radius: 18px; overflow: hidden; background: #1c1c20; border: 2px solid #4a4a4e; position: relative; }
+  .lanes .lane { flex: 1 1 0; min-width: 0; border: 0; border-right: 1px solid #4a4a4e; border-radius: 0; padding: 0 6px 10px; display: flex; align-items: flex-end; justify-content: center; touch-action: none;
+    background: linear-gradient(0deg, color-mix(in srgb, var(--lc) 30%, transparent), transparent 70%); }
+  .lanes .lane:last-child { border-right: 0; }
+  .lanes .lane i { font-style: normal; border: 4px solid rgba(255,255,255,0.85); width: 100%; max-width: 170px; height: 128px; border-radius: 22px; background: var(--lc); color: #1a0d06; display: grid; place-items: center; font-size: clamp(14px, 3vmin + 6px, 22px); box-shadow: 0 5px 0 rgba(0,0,0,0.45); }
+  .lanes .lane:active { transform: none; }
+  .lanes .lane:active i { transform: translateY(4px) scale(0.96); box-shadow: 0 1px 0 rgba(0,0,0,0.45); filter: brightness(1.2); }
+  @media (orientation: landscape) and (max-height: 500px) { .lanes .lane i { height: 46%; } }
+  .sliderpad { text-align: center; display: flex; flex-direction: column; gap: 8px; }
+  .sliderpad h1 { margin: 0; }
+  .vtrack { position: relative; flex: 1; min-height: 200px; width: 150px; margin: 6px auto; border-radius: 36px; background: #2c160b; border: 3px solid var(--line); touch-action: none; overflow: hidden; }
   .vtrack .vfill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(0deg, #3e7a2a, #6fbf3f); opacity: 0.55; pointer-events: none; }
   .vtrack .vthumb { position: absolute; left: 8px; right: 8px; height: 64px; border-radius: 28px; background: var(--pc); display: grid; place-items: center; font-size: 30px; box-shadow: 0 4px 0 rgba(0,0,0,.4); pointer-events: none; }
-  .stickpad { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom)); gap: 10px; }
+  .stickpad { display: grid; grid-template-columns: 1.15fr 1fr; grid-template-rows: auto 1fr; gap: 10px; }
+  .stickpad.nobtns { grid-template-columns: 1fr; } .stickpad.nobtns .stickbtns { display: none; }
   .stickhead { grid-column: 1 / -1; font-size: 15px; }
+  .stickhead b { font-size: 18px; font-style: italic; text-transform: uppercase; margin-right: 4px; }
   .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); touch-action: none; overflow: hidden; }
   .stickzone .ghost { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim); font-weight: 800; letter-spacing: 0.1em; font-size: 13px; }
   .stickzone .base, .stickzone .knob { display: none; position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
   .stickzone .base { width: 130px; height: 130px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); }
   .stickzone .knob { width: 62px; height: 62px; background: var(--pc); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
-  .stickbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; touch-action: none; }
-  .stickbtns button { font-size: 18px; min-height: 70px; touch-action: none; }
+  .stickbtns { display: grid; grid-template-columns: 1fr; grid-auto-rows: 1fr; gap: 10px; touch-action: none; }
+  .stickbtns.n3, .stickbtns.n4 { grid-template-columns: 1fr 1fr; }
+  .stickbtns.n3 button:first-child { grid-column: 1 / -1; }
+  .stickbtns button { font-size: clamp(16px, 3.6vmin + 6px, 26px); min-height: 56px; touch-action: none; border-radius: 22px; }
   .pinbar { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 0 6vw; background: #0a0006ee; touch-action: none; text-align: center; }
   .pinbar .t { font: italic 900 clamp(26px, 7vmin, 46px) Impact, sans-serif; letter-spacing: 2px; color: #fff; text-shadow: 0 3px 0 #000; }
   .pinbar .ptrack { position: relative; width: 100%; height: clamp(54px, 14vmin, 90px); background: linear-gradient(#3a0a0a, #200404); border: 3px solid #000; border-radius: 8px; box-shadow: 0 0 0 2px #666; }
@@ -80,13 +107,16 @@
   .pinbar.miss .ptrack { box-shadow: 0 0 0 5px #ff3b3b; }
   .pinbar.locked .pmark { opacity: .35; }
   .stickbtns button.dn, .opts button.dn { transform: scale(0.94); filter: brightness(1.3); }
-  @media (orientation: portrait) { .stickpad { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; } .stickbtns { min-height: 40vh; } }
+  @media (orientation: portrait) { .stickpad { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; } .stickbtns { min-height: 34vh; } }
   .wing { width: 260px; height: 260px; margin: 10px auto; border-radius: 50%; background: radial-gradient(circle, #3c1f10, #2c160b); border: 3px solid var(--line); display: grid; place-items: center; position: relative; }
   .wing .plane { width: 220px; height: 14px; background: var(--pc); border-radius: 7px; position: relative; transition: transform 60ms linear; }
   .wing .plane::after { content: ''; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; border-radius: 50%; background: var(--pc); transform: translate(-50%, -50%); }
   input[type=range] { width: 100%; }
   .sideways { display: inline-block; margin-top: 6px; padding: 4px 10px; border-radius: 999px; background: rgba(255,210,63,0.16); color: var(--gold); font-size: 13px; font-weight: 800; }
   @media (orientation: landscape) { .sideways { display: none; }
+    #vGame.pad .bar { display: none; }
+    .sliderpad { display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr; gap: 0 18px; align-items: center; text-align: left; }
+    .sliderpad .vtrack { height: 100%; min-height: 0; margin: 0; width: 140px; }
     .tiltbox { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; gap: 0 18px; align-items: center; text-align: left; }
     .tilthead { grid-column: 1 / -1; } .tilthead h1 { font-size: 20px; margin: 0 0 2px; }
     .tiltbox .wing { width: min(52vh, 240px); height: min(52vh, 240px); margin: 6px; }

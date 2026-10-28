@@ -6,6 +6,8 @@ import { addSky } from '../../host/sky.js';
 
 const COLS = 8, ROWS = 8, CELL = 0.34;
 const FALL0 = 0.9, FALL1 = 0.45; // seconds per row, at the start and at the end
+const REPEAT0 = 0.28, REPEAT = 0.11; // holding the stick over: first auto-shuffle, then every this often
+const BTN = { SPIN: 1, DROP: 2 };
 const ITEMS = [
   { id: 'stubby', label: 'STUBBY', col: 0x7a4a1e, cells: [[0, 0]], w: 3 },
   { id: 'ice', label: 'ICE', col: 0xbfe6ff, cells: [[0, 0], [1, 0]], w: 3 },
@@ -28,13 +30,10 @@ export default {
   id: 'esky-tetris',
   name: 'Esky Tetris',
   blurb: 'Same gear for everyone, one esky each. Pack the most in and still get the lid shut.',
-  howTo: 'Everyone gets the same stuff in the same order. Use the arrows to move it, SPIN to turn it, DROP to drop it straight down. Nothing comes back out. If anything sticks up past the rim, the lid will not shut and you are done. Most things packed wins.',
-  padText: 'Move, SPIN, DROP',
+  howTo: 'Everyone gets the same stuff in the same order. Push the stick left and right to move it (hold it over to keep going), SPIN to turn it, DROP to drop it straight down. Nothing comes back out. If anything sticks up past the rim, the lid will not shut and you are done. Most things packed wins.',
+  padText: 'Stick to move, SPIN, DROP',
   duration: 75,
-  pad: { kind: 'buttons', buttons: [
-    { id: 'left', label: '◀', color: '#9ad8ff', tall: true }, { id: 'right', label: '▶', color: '#9ad8ff', tall: true },
-    { id: 'spin', label: '🔄 SPIN', color: '#ffd23f' }, { id: 'drop', label: '⬇ DROP', color: '#5cff9d' },
-  ] },
+  pad: { kind: 'stick', buttons: [{ bit: BTN.SPIN, label: '🔄 SPIN', tone: 'go' }, { bit: BTN.DROP, label: '⬇ DROP' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -114,7 +113,7 @@ export default {
       const plateT = new THREE.CanvasTexture(plateC); plateT.colorSpace = THREE.SRGBColorSpace;
       const plate = new THREE.Mesh(new THREE.PlaneGeometry(EW * 0.8, EW * 0.8 * 96 / 512), new THREE.MeshBasicMaterial({ map: plateT })); plate.position.set(EW / 2, -T - 0.3, CELL * 1.32); g.add(plate);
       const ghost = new THREE.Group(); g.add(ghost);
-      return { p, g, ox, oy, lid, ghost, grid: Array.from({ length: ROWS + 4 }, () => new Array(COLS).fill(0)), next: 0, cur: null, items: 0, done: false, fallT: 0, lidT: 0,
+      return { p, g, ox, oy, lid, ghost, grid: Array.from({ length: ROWS + 4 }, () => new Array(COLS).fill(0)), next: 0, cur: null, items: 0, done: false, fallT: 0, lidT: 0, dir: 0, repT: 0, held: 0,
         bot: p.bot ? { plan: null, stepT: 0, speed: 0.13 + rng() * 0.12, slip: 0.1 + rng() * 0.2 } : null };
     });
 
@@ -213,6 +212,8 @@ export default {
               if (!P.cur) continue;
             }
           }
+          // the stick held over keeps shuffling the piece along
+          if (P.dir) { P.repT -= dt; if (P.repT <= 0) { P.repT = REPEAT; move(P, P.dir); if (!P.cur) continue; } }
           P.fallT += dt;
           if (P.fallT >= fall) {
             P.fallT = 0;
@@ -225,8 +226,16 @@ export default {
         for (const q of pops) { q.life += dt; q.sp.material.opacity = Math.min(1, q.life * 4); }
       },
       input(p, m) {
-        const P = packers.find((x) => x.p === p); if (!P || P.done || !P.cur) return;
-        if (m.b === 'left') move(P, -1); else if (m.b === 'right') move(P, 1); else if (m.b === 'spin') spin(P); else if (m.b === 'drop') drop(P);
+        const P = packers.find((x) => x.p === p); if (!P || m.b !== 'stick') return;
+        const x = Number(m.x) || 0, held = Number(m.h) || 0, newly = held & ~P.held;
+        // a push past halfway moves once straight away, then repeats while it's held there
+        const dir = x > 0.5 ? 1 : x < -0.5 ? -1 : 0;
+        const changed = dir !== P.dir;
+        P.dir = dir; P.held = held;
+        if (P.done || !P.cur) return;
+        if (changed && dir) { P.repT = REPEAT0; move(P, dir); }
+        if (P.cur && (newly & BTN.SPIN)) spin(P);
+        if (P.cur && (newly & BTN.DROP)) drop(P);
       },
       scores() { return Object.fromEntries(packers.map((P) => [P.p.id, P.items])); },
       done: () => finishAt != null && tAll - finishAt > 3,

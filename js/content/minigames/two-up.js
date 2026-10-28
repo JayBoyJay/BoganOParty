@@ -19,10 +19,10 @@ export default {
   duration: 240, // only a safety net: the game ends after the last toss
   untimed: true,
   pad: { kind: 'buttons', buttons: [
-    { id: 'b1', label: 'BET 1', color: '#e8dcc0' }, { id: 'b3', label: 'BET 3', color: '#e8dcc0' },
-    { id: 'b5', label: 'BET 5', color: '#e8dcc0' }, { id: 'ball', label: 'ALL IN', color: '#ffb84a' },
-    { id: 'heads', label: '👑 HEADS', color: '#ffd23f', tall: true }, { id: 'tails', label: '🦘 TAILS', color: '#9ad8ff', tall: true },
-    { id: 'odds', label: '🔀 ODDS', color: '#c8a8ff', wide: true },
+    { id: 'b1', label: 'BET 1', color: '#e8dcc0', row: 0 }, { id: 'b3', label: 'BET 3', color: '#e8dcc0', row: 0 },
+    { id: 'b5', label: 'BET 5', color: '#e8dcc0', row: 0 }, { id: 'ball', label: 'ALL IN', color: '#ffb84a', row: 0 },
+    { id: 'heads', label: '👑 HEADS', color: '#ffd23f', tall: true, row: 1 }, { id: 'odds', label: '🔀 ODDS', color: '#c8a8ff', tall: true, row: 1 },
+    { id: 'tails', label: '🦘 TAILS', color: '#9ad8ff', tall: true, row: 1 },
   ] },
 
   create(mg) {

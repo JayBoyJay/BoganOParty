@@ -1,5 +1,5 @@
 // Wheelie Bin Derby: it's bin night on the steepest street in the suburb, so everyone climbs into a
-// wheelie bin and lets go. Tilt your phone to steer, KICK for a shove of speed. Dodge the bins out for
+// wheelie bin and lets go. Steer with the stick, KICK for a shove of speed. Dodge the bins out for
 // collection, the parked cars and the potholes. Hit the plank ramps for air, and go easy over the
 // speed humps. First to the bottom wins. (Yes, you ride it backwards. That's how it's done.)
 import { addSky } from '../../host/sky.js';
@@ -12,15 +12,16 @@ const ACC = 2.5, VTOP = 17, STEER = 5.2, KICK = 2.8, KICK_CD = 3;
 const DRAG = ACC / (VTOP * VTOP);
 const BIN_R = 0.55, DOLL = 0.5;
 const SEG = 16, NSEG = 9;
+const BTN = { KICK: 1 };
 
 export default {
   id: 'wheelie-bin-derby',
   name: 'Wheelie Bin Derby',
   blurb: 'Bin night on the steepest street in town. Ride a wheelie bin to the bottom. First one down wins.',
-  howTo: 'Tilt your phone like a steering wheel to steer your bin. Tap KICK for a burst of speed (every few seconds). Bins out for collection, parked cars and potholes will wipe you out. Plank ramps send you flying, and speed humps bounce you if you hit them fast. First to the bottom of the hill wins.',
-  padText: 'Tilt to steer, KICK for speed',
+  howTo: 'Push your stick left and right to steer your bin. Press KICK for a burst of speed (every few seconds). Bins out for collection, parked cars and potholes will wipe you out. Plank ramps send you flying, and speed humps bounce you if you hit them fast. First to the bottom of the hill wins.',
+  padText: 'Stick to steer, KICK for speed',
   duration: 70,
-  pad: { kind: 'tilt', buttons: [{ id: 'kick', label: '🦶 KICK', tone: 'go', wide: true }] },
+  pad: { kind: 'stick', buttons: [{ bit: BTN.KICK, label: '🦶 KICK', tone: 'go' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -231,8 +232,11 @@ export default {
       },
       input(p, m) {
         const R = riders.find((x) => x.p === p); if (!R) return;
-        if (m.b === 'tilt' && Number.isFinite(m.v)) R.input = Math.max(-1, Math.min(1, m.v / 30));
-        if (m.b === 'kick') kick(R);
+        if (m.b !== 'stick') return;
+        const held = Number(m.h) || 0, newly = held & ~(R.held || 0);
+        R.held = held;
+        if (Number.isFinite(m.x)) R.input = Math.max(-1, Math.min(1, m.x));
+        if (newly & BTN.KICK) kick(R);
       },
       // finishers by place; anyone still rolling by how far down the hill they got
       scores() { return Object.fromEntries(riders.map((R) => [R.p.id, R.done ? 100 - (R.place - 1) * 10 : Math.round(Math.max(0, -R.z) / L * 50)])); },

@@ -14,15 +14,16 @@ const LEASH = 19; // the magpie never sits further back than this behind the lea
 const SEG = 14, NSEG = 10; // scenery repeats every SEG metres, NSEG of them
 const PUSH_R = 1.9, SWORD_R = 2.7, PUSH_K = 6.5, SWORD_K = 12, PUSH_CD = 1.0, SWORD_HITS = 3;
 const CAR_V = 3; // oncoming cars, m/s
+const BTN = { PUSH: 1 };
 
 export default {
   id: 'ripstick-rider',
   name: 'Ripstick Rider',
   blurb: 'Wiggle down the street on a ripstick. Dodge the cracks, the pets and the traffic. Last one riding wins.',
-  howTo: 'Hold your phone like a steering wheel and keep swaying it side to side to ride: faster sway, faster board. Lean more one way to drift that way. Tap PUSH to shove whoever is next to you. Grab a foam sword for a massive shove. Hit anything and you are out.',
-  padText: 'Keep swaying! PUSH to shove',
+  howTo: 'Keep wiggling your stick left and right to sway and ride: faster sway, faster board. Lean more one way to drift that way. Press PUSH to shove whoever is next to you. Grab a foam sword for a massive shove. Hit anything and you are out.',
+  padText: 'Wiggle the stick to sway! PUSH to shove',
   duration: 90,
-  pad: { kind: 'tilt', buttons: [{ id: 'push', label: '👐 PUSH', tone: 'go', wide: true }] },
+  pad: { kind: 'stick', buttons: [{ bit: BTN.PUSH, label: '👐 PUSH', tone: 'go' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -442,8 +443,11 @@ export default {
       input(p, m) {
         const r = riders.find((x) => x.p === p);
         if (!r || r.out) return;
-        if (m.b === 'tilt' && Number.isFinite(m.v)) r.want = Math.max(-1, Math.min(1, m.v / 40));
-        else if (m.b === 'push') shove(r);
+        if (m.b !== 'stick') return;
+        const held = Number(m.h) || 0, newly = held & ~(r.held || 0);
+        r.held = held;
+        if (Number.isFinite(m.x)) r.want = Math.max(-1, Math.min(1, m.x));
+        if (newly & BTN.PUSH) shove(r);
       },
       // out: the order they came off (1 = first). Still riding: everyone ties on 100
       scores() { return Object.fromEntries(riders.map((r) => [r.p.id, r.out ? r.outAt : 100])); },
