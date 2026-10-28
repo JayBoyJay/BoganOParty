@@ -39,7 +39,6 @@ export class Hud {
         <div class="info">
           <div class="nm">${esc(p.name)}${p.bot ? ' <span class="cpu">CPU</span>' : ''}</div>
           <div class="row"><span>${item.emoji} <b>${p.items}</b></span><span>🪙 <b>${p.coins}</b></span>${p.drinks !== undefined ? `<span>🍺 <b>${p.drinks}</b></span>` : ''}</div>
-          <div class="hpbar"><i style="width:${Math.round(p.hp / p.maxHp * 100)}%"></i></div>
           <div class="pus">${p.powerups.map(() => '<span class="pu">◆</span>').join('')}${p.effects.map((e) => `<span class="fx">🍬${e.rounds}</span>`).join('')}</div>
         </div>`;
     });

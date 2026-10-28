@@ -401,6 +401,17 @@ export class BoardView {
       orb.position.y = 0.8; g.add(orb);
       for (const [w, h] of [[0.14, 0.8], [0.5, 0.14]]) { const c = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.14), k.mat(0xffd23f, { metalness: 0.9, roughness: 0.25 })); c.position.y = 1.65; g.add(c); }
       g.position.y = 2;
+    } else if (kind === 'coins') {
+      // a scatter of dropped gold coins
+      const gold = k.mat(0xffc93c, { metalness: 0.9, roughness: 0.3 });
+      for (let i = 0; i < 7; i++) {
+        const c = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.08, 18), gold);
+        const a = i * 2.4, r = i ? 0.55 + (i % 3) * 0.15 : 0;
+        c.position.set(Math.cos(a) * r, 0.05 + (i % 2) * 0.06, Math.sin(a) * r);
+        c.rotation.set((i % 3) * 0.25, 0, (i % 2) * 0.3);
+        c.castShadow = true;
+        g.add(c);
+      }
     }
     g.position.copy(this.pos(space)).setY(kind === 'grenade' ? 2 : 0.3);
     this.scene.add(g);
@@ -411,9 +422,9 @@ export class BoardView {
         const from = g.position.clone(), to = this.pos(s).setY(g.position.y);
         this.tweens.add(0.25, (kk) => { g.position.lerpVectors(from, to, kk); g.rotation.z = kk * Math.PI * 2; });
       },
-      setText: (t) => {
+      setText: (t, fg = '#ff3b3b') => {
         if (label) this.stage.drop(label);
-        label = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture(t, { w: 128, h: 128, bg: null, fg: '#ff3b3b', font: '900 100px system-ui' }), depthTest: false }));
+        label = new THREE.Sprite(new THREE.SpriteMaterial({ map: textTexture(t, { w: 128, h: 128, bg: null, fg, font: '900 100px system-ui' }), depthTest: false }));
         label.scale.set(1.5, 1.5, 1); label.position.y = 3; label.renderOrder = 12;
         g.add(label);
       },

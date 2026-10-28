@@ -293,9 +293,9 @@ export default {
   events: [
     { text: 'FruChocs on the house!', coins: 4, mood: 'happy' },
     { text: 'Parking fine on North Tce.', coins: -5, mood: 'angry' },
-    { text: 'Pie floater at the Pie Cart. Worth it.', hp: 10, mood: 'happy' },
+    { text: 'Pie floater at the Pie Cart. Worth it.', coins: -2, mood: 'happy' },
     { text: 'Crows lost again.', coins: -3, mood: 'sad' },
     { text: 'Won the meat tray at the local!', coins: 7, mood: 'happy' },
-    { text: 'Magpie swooped you on the Torrens.', hp: -15, mood: 'angry' },
+    { text: 'Magpie swooped you on the Torrens. Dropped your change.', coins: -4, mood: 'angry' },
   ],
 };

@@ -1,7 +1,7 @@
-// The board game itself: rounds, turns, dice, moving, spaces, the item, the shop and knock-outs.
+// The board game itself: rounds, turns, dice, moving, spaces, the item, the shop and hits.
 //
 // Power-ups and minigames get this Game object as their `game` and use the helpers in the
-// "toolkit for content" section below (ask, pickPlayer, aim, banner, coins, damage, ...). That
+// "toolkit for content" section below (ask, pickPlayer, aim, banner, coins, dropCoins, ...). That
 // keeps content files small and means new ideas rarely need engine changes.
 import { chooseItemSpace, leaderOf, spacesWithin, spacesApart, SPACE } from '../board.js';
 import { POWERUPS, POWERUP_BY_ID } from '../content/powerups/index.js';
@@ -10,7 +10,6 @@ import { Drinks } from './drinks.js';
 
 export const RULES = {
   startCoins: 10,
-  maxHp: 100,
   diceSides: 10,
   maxPowerups: 3,
   blueCoins: 3,
@@ -27,12 +26,13 @@ export class Game {
     Object.assign(this, { map, board, players, settings, hub, view, hud, sfx, runMinigame, rng, onEnd });
     this.round = 0;
     this.itemSpace = null;
+    this.piles = new Map(); // space -> { n, prop }: coins knocked loose by power-ups, waiting to be picked up
     this.turn = null;
     this.rolled = new Set();
     this.over = false;
     this.speed = settings.fast ? 0.25 : 1; // fast mode for automated tests
     for (const p of players) Object.assign(p, {
-      coins: RULES.startCoins, items: 0, hp: RULES.maxHp, maxHp: RULES.maxHp,
+      coins: RULES.startCoins, items: 0,
       space: board.start, powerups: [...(settings.give || [])], effects: [], mood: 'neutral', // give: test hook
     });
     // drinks: minigame winners hand out drinks, drink power-ups in the shop; King Cup: loser drinks the cup
@@ -189,6 +189,7 @@ export class Game {
       await this.view.hop(p, to, this.speed);
       p.space = to;
       this.sfx.play('step');
+      if (this.piles.has(to)) this.pickUpPile(p, to);
       if (to === this.itemSpace) await this.offerItem(p);
       else if (this.board.nodes[to].type === 'shop' && left > 1) await this.shop(p, true);
     }
@@ -231,10 +232,8 @@ export class Game {
     if (!list.length) return;
     const e = list[Math.floor(this.rng() * list.length)];
     this.sfx.play('event');
-    await this.banner('❗ ' + e.text, [e.coins ? `${e.coins > 0 ? '+' : ''}${e.coins} coins` : '', e.hp ? `${e.hp > 0 ? '+' : ''}${e.hp} HP` : ''].filter(Boolean).join(' · '), { ms: 2000, small: true });
+    await this.banner('❗ ' + e.text, e.coins ? `${e.coins > 0 ? '+' : ''}${e.coins} coins` : '', { ms: 2000, small: true });
     if (e.coins) this.coins(p, e.coins, 'event');
-    if (e.hp > 0) this.heal(p, e.hp);
-    if (e.hp < 0) await this.damage(p, -e.hp, e.text);
     if (e.mood) this.setMood(p, e.mood);
   }
 
@@ -430,30 +429,30 @@ export class Game {
     return real;
   }
 
-  heal(p, n) { p.hp = Math.min(p.maxHp, p.hp + n); this.view.floatText(p, `+${n} HP`, '#5cff9d'); this.refresh(); }
-
-  async damage(p, n, why = '', attacker = null) {
-    n = Math.round(n);
-    if (n <= 0) return;
-    p.hp = Math.max(0, p.hp - n);
-    this.view.floatText(p, `−${n} HP`, '#ff5a5a');
+  // A hit from a power-up, Mario Party style: no health, you drop coins. They stay on your space
+  // as a pile, and anyone who's behind (not the leader) can grab them by walking over it.
+  async dropCoins(p, n, why = '') {
+    n = Math.min(Math.round(n), p.coins);
     this.view.flinch(p);
-    this.setMood(p, attacker ? 'angry' : 'sad');
-    this.refresh();
-    if (p.hp <= 0) await this.knockOut(p, attacker);
+    this.setMood(p, 'sad');
+    if (n <= 0) { this.view.floatText(p, 'Skint!', '#ff6b6b'); return 0; }
+    const lost = -this.coins(p, -n, why);
+    const pile = this.piles.get(p.space) || { n: 0, prop: this.view.prop('coins', p.space) };
+    pile.n += lost;
+    pile.prop.setText(String(pile.n), '#ffd23f');
+    this.piles.set(p.space, pile);
+    await this.wait(300);
+    return lost;
   }
 
-  // At 0 HP: drop half your coins, go back to the start, full health.
-  async knockOut(p, attacker) {
-    const lost = Math.floor(p.coins / 2);
-    p.coins -= lost;
-    p.hp = p.maxHp;
-    p.effects = [];
-    this.setMood(p, 'sad', 5000);
-    this.sfx.play('ko');
-    await this.banner(`💀 ${p.name} got KO'd!`, `Dropped ${lost} coins and limps back to the start`, { ms: 2200, style: 'bad' });
-    if (attacker && lost) this.coins(attacker, Math.floor(lost / 2), 'ko');
-    await this.teleport(p, this.board.start);
+  pickUpPile(p, space) {
+    const pile = this.piles.get(space);
+    if (this.leader() === p) { this.view.floatText(p, 'Leaders can\'t pick up', '#ffffff'); return; }
+    this.piles.delete(space);
+    pile.prop.remove();
+    this.coins(p, pile.n, 'pickup');
+    this.setMood(p, 'happy');
+    this.toast(`🪙 ${p.name} picked up ${pile.n} dropped coins`);
   }
 
   async teleport(p, space) {
@@ -494,7 +493,7 @@ export class Game {
   refresh() {
     this.hud.renderPlayers(this.players, this.turn?.player, this.item);
     for (const p of this.players) this.hub.stats(p, {
-      coins: p.coins, items: p.items, target: this.target, hp: p.hp, maxHp: p.maxHp,
+      coins: p.coins, items: p.items, target: this.target,
       item: { name: this.item.name, emoji: this.item.emoji },
       powerups: p.powerups.map((id) => ({ id, name: POWERUP_BY_ID[id]?.name, emoji: POWERUP_BY_ID[id]?.emoji })),
       effects: p.effects.map((e) => ({ name: EFFECTS[e.id]?.name || e.id, rounds: e.rounds })),

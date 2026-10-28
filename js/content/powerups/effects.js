@@ -3,10 +3,10 @@
 export const EFFECTS = {
   sugar: {
     name: 'Sugar Rush', emoji: '🍬', diceBonus: 2,
-    // 10% of base health each round, for as long as it lasts
+    // the crash: drop 2 coins each round, for as long as it lasts
     async onRoundEnd(game, p) {
-      game.toast(`🍬 ${p.name}'s sugar crash: −${Math.round(p.maxHp * 0.1)} HP`);
-      await game.damage(p, p.maxHp * 0.1, 'Sugar crash');
+      game.toast(`🍬 ${p.name}'s sugar crash: dropped some coins`);
+      await game.dropCoins(p, 2, 'Sugar crash');
     },
   },
 };

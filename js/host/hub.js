@@ -4,7 +4,7 @@
 //   TV → phone  { t: 'prompt', id, title, body, options, kind, layout, timer }   pick one, sent back as answer
 //               { t: 'pad', id, kind, title, body, buttons, timer }               live controls, every tap sent
 //               { t: 'idle', title }                                               nothing to do right now
-//               { t: 'stats', ... }                                                coins, items, HP, power-ups
+//               { t: 'stats', ... }                                                coins, items, power-ups
 //   phone → TV  { t: 'answer', id, v }   { t: 'in', id, b, ...extra }   { t: 'emote', mood }
 //
 // CPU players answer prompts here too, so game code never needs to care who is a bot.

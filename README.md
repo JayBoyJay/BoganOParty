@@ -24,17 +24,17 @@ Open **http://localhost:3000** on the TV and scan the QR with phones on the same
 
 Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to pull that face on the TV (not during minigames).
 
-**Health.** Everyone has 100 HP. Hit 0 and you're KO'd: drop half your coins and go back to the start at full health.
+**Getting hit.** There's no health. When a power-up hits you, you drop coins, Mario Party style. They stay on that space as a pile, and anyone who isn't leading can grab the lot by walking over it (the leader just walks past).
 
 ### Power-ups (bought in the shop, used before rolling, max 3)
 
 | Power-up | Price | What it does |
 |---|---|---|
 | 🪙 Coin Flip | 5 | Pick someone who hasn't rolled. They call heads or tails and flip on their phone. Right: they steal your turn. Wrong: you roll two dice. Picking someone who already rolled wastes it. |
-| 🍬 Sugar Bomb | 8 | A bag of sugar with a 15 s fuse. Roll it along the board or straight at a player, or pop it early. Everyone within 2 spaces gets **Sugar Rush!**: +2 on their dice and −10% HP each round for 3 rounds. |
+| 🍬 Sugar Bomb | 8 | A bag of sugar with a 15 s fuse. Roll it along the board or straight at a player, or pop it early. Everyone within 2 spaces gets **Sugar Rush!**: +2 on their dice but they drop 2 coins each round for 3 rounds. |
 | ✨ Teleport | 10 | Rock paper scissors, best of 3, on both phones. The winner decides whether you swap places. |
 | 🌀 Vacuum | 12 | Point it down any road out of your space. Everyone in the cone loses 1–8 coins to you, with a 1 in 4 chance you also take one of their power-ups. |
-| ✝️ Holy Hand Grenade | 15 | Lob it up to 8 spaces. One, two… three! 50/35/20 damage by distance, and a knock-back for anyone close. It can hit you too. |
+| ✝️ Holy Hand Grenade | 15 | Lob it up to 8 spaces. One, two… three! Knocks 10/6/3 coins loose by distance, and a knock-back for anyone close. It can hit you too. |
 | 🍺 Drink Voucher | 15 | Drinking on only. Pick anyone: they drink. |
 | 🍻 Group Drink Discount | 30 | Drinking on only. Everyone drinks, you included. |
 | 🔄 Reverse Card | 8 | Drinking on only. Just hold it: the next time someone sends you a drink you can bounce it straight back (and if they've got one too, they can bounce it again). |
