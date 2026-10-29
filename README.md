@@ -1,1 +1,105 @@
-# BoganOParty
+# Bogan-o Party
+
+A party board game in the style of Mario Party and Pummel Party, set in real Aussie towns. The board plays on the TV or laptop in the browser (three.js). Everyone joins by scanning a QR code, and their phone becomes their remote. Players are inflatable blow-up dolls wearing their own face.
+
+It uses the same phone connection as Marble Mayhem and Joe Master Universe: it runs on GitHub Pages for free (phones connect peer-to-peer), or from your own computer on your Wi-Fi with no internet.
+
+## Play it
+
+**Online (GitHub Pages):** live at **https://jayboyjay.github.io/BoganOParty/** (served from the `first-playable` branch: **Settings → Pages → Deploy from a branch → `first-playable` / root**). Open the site on the TV and scan the QR. Anyone can also open `…/play.html` and type the 4-letter game code.
+
+**Offline (your Wi-Fi):** needs [Node.js](https://nodejs.org) 18+, nothing to install.
+- Windows: double-click `start.bat`
+- Anywhere: `npm start`
+
+Open **http://localhost:3000** on the TV and scan the QR with phones on the same Wi-Fi. Phone tilt controls need a secure link: the server makes one with `openssl` if it's installed (port 3443, phones tap through a one-time warning), otherwise use the online version for tilt games.
+
+## How a game works
+
+1. **Lobby.** Phones join, type a name, pick a doll (Bloke, Sheila, Smooth or Both), dress it up (headgear: Akubra, cork hat, trucker, bucket hat, surf cap, beanie, baggy green, hard hat or Ned Kelly's helmet; outfits: nude, smugglers, singlet and stubbies, footy guernsey, hi-vis, flanno and trackies, cricket whites, bikini or lifesaver) and take up to four selfies: neutral, happy, sad and angry. Missing moods fall back to the neutral photo, then to a cartoon face. On the TV, pick the map, how many items win (default 5), an optional round limit, and CPU players.
+2. **Turns.** Each player can use one power-up, then rolls (d10). At a fork the phone asks which way. Blue spaces give 3 coins, red take 3, green are map events, yellow are shops.
+3. **The item.** Each map has its own item (Broken Hill: a Lump of Lead; Adelaide: a Crazy Horse ticket). Walk past it with 20 coins to buy it. Each time it's bought it moves to the space **furthest from every player**, unless the players are all spread out, in which case it goes **furthest from the leader**.
+4. **Minigame** after every round, picked on the **wheel**. The wheel holds up to 8 games nobody has played yet on this TV; when fewer than 8 are fresh, the ones played longest ago come back (marked ↺). One random player is put on the wheel: hold BRAKE on their phone to stop it sooner, or BLOW (twice) to nudge it on as it creeps to a stop. Help your mates or cheat. Coins for 1st/2nd/3rd/4th: 10/6/3/1.
+5. **First to the target wins.** The podium shows the winner's happy face and everyone else's sad one.
+
+Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to pull that face on the TV (not during minigames).
+
+**Getting hit.** There's no health. When a power-up hits you, you drop coins, Mario Party style. They stay on that space as a pile, and anyone who isn't leading can grab the lot by walking over it (the leader just walks past).
+
+### Power-ups (bought in the shop, used before rolling, max 3)
+
+| Power-up | Price | What it does |
+|---|---|---|
+| 🪙 Coin Flip | 5 | Pick someone who hasn't rolled. They call heads or tails and flip on their phone. Right: they steal your turn. Wrong: you roll two dice. Picking someone who already rolled wastes it. |
+| 🍬 Sugar Bomb | 8 | A bag of sugar with a 15 s fuse. Roll it along the board or straight at a player, or pop it early. Everyone within 2 spaces gets **Sugar Rush!**: +2 on their dice but they drop 2 coins each round for 3 rounds. |
+| ✨ Teleport | 10 | Rock paper scissors, best of 3, on both phones. The winner decides whether you swap places. |
+| 🌀 Vacuum | 12 | Point it down any road out of your space. Everyone in the cone loses 1–8 coins to you, with a 1 in 4 chance you also take one of their power-ups. |
+| ✝️ Holy Hand Grenade | 15 | Lob it up to 8 spaces. One, two… three! Knocks 10/6/3 coins loose by distance, and a knock-back for anyone close. It can hit you too. |
+| 🍺 Drink Voucher | 15 | Drinking on only. Pick anyone: they drink. |
+| 🍻 Group Drink Discount | 30 | Drinking on only. Everyone drinks, you included. |
+| 🔄 Reverse Card | 8 | Drinking on only. Just hold it: the next time someone sends you a drink you can bounce it straight back (and if they've got one too, they can bounce it again). |
+
+### Drinking and King Cup
+
+Two lobby switches. **Drinking** (on by default) puts the three drink power-ups in the shop and lets every minigame winner hand out a drink from their phone, in both modes. Drinks pop up on the TV, buzz the drinker's phone, and are tallied (had and given out) on the player cards and the podium. **King Cup (oopsie)** starts the game with everyone tipping some of their drink into one big real cup; whoever finishes last drinks it. Test hooks: `&drinks=0|1`, `&kingcup=0|1`.
+
+Phones: games played with the stick or tilt suggest turning the phone sideways (the stick pad splits into two-hand layout, and tilt steering works either way up). Zombies vs Plants uses a sideways touchpad where the phone screen maps to the TV.
+
+### Minigames
+
+| Minigame | Controls |
+|---|---|
+| ✈️ Plane Instructor | Hold the phone like a steering wheel and tilt to bank your arms like the instructor. Score while you're in line. Past halfway, your doll takes off. One minute. (Slider fallback if a phone has no tilt.) |
+| ⛩️ Chad's Japanese Adventure | Running through the torii tunnels in Kyoto. JUMP the cats, DUCK under the low gates. Every one cleared scores; hit one and you go flying and drop back. A fog bank follows the pack and creeps closer: fall into it and you're out. Survivors +5. 55 seconds. |
+| 🍪 The Great Biscuit Heist | Myles is asleep on the couch with the Scotch Fingers in front of him. Slide up to sneak (higher is faster), grab one and sneak it back to the front door for a point, then go again. When he snorts and stirs, drop the slider and freeze: if he rolls over and sees you move, OI! Back to the door, biscuit lost. |
+| 🍔 Burger Boys | Order tickets on the rail. Tap the ingredients in order, bottom bun up. One wrong tap and the burger hits the floor. Bigger burgers score more. |
+| 🔮 Marble Mayhem | The MarbleDrinks race on a fresh short track. You're a glass marble with your doll's head inside. BOOST three times; roll through a vape for a power, then USE POWER. |
+| 🤼 Joe Master Universe | The Joe Master wrestling game: everyone in the ring as NAME MASTER. Thumbstick to move, STRIKE, GRAB (grab again to slam, grab a downed Master to pin), RUN, BLOCK. Mash to escape. Last one standing. With under 4 players, the Original JOE MASTER joins as a CPU. |
+| 🏎️ Toy Cars | Orange track through a giant house. Your car drives flat out; tilt to steer. Three laps. Drive through ? boxes for power-ups: TURBO, SNAIL (slows everyone ahead) or LEGO (a brick behind you that spins out whoever hits it); the further back you are, the better your luck. |
+| 🛹 Ripstick Rider | Down a suburban street on ripsticks. Keep swaying your phone side to side to ride (lean more one way to drift that way). Cracks, potholes, pets and oncoming cars knock you off; fall behind and the magpie swoops you. PUSH shoves whoever's next to you; a foam sword pickup shoves much harder. Last one riding wins, survivors tie at 1:30. |
+| 🐑 Alan's Farm | Twenty sheep and a pen each on the edge of the paddock. Thumbstick to run; sheep move away from you, so herd them in. YELL (every 10 s) scatters sheep near you; HAY (picked up off the ground) makes nearby sheep follow you for 5 s. Most sheep in your pen at the end wins. |
+| 🏋️ The (Back) Yard | Backyard gym, Guitar Hero style: the same coloured notes come down the mat for everyone. Tap the matching colour as each one crosses the line to do a rep. Every 5 in a row raises your multiplier (up to x6); a miss resets it. |
+| ✂️ Just a Trim | A hedge each and a pole trimmer. You walk along by yourself; slide your thumb up and down the phone to set the blade height. Trim the top into the shape on the sign (Opera House, Uluru, a roo...). Closest match wins. |
+| ✈️ Dubai High Flyer | Stunt planes round the Burj Khalifa. Stick to turn, climb and dive; hold FIRE. Gold rings are a point and 10% health; shooting someone down takes one of their points. ? crates give a power-up (balloon mines, flak strike on the leader, boost, tow rope, autopilot, shield; better odds when you're behind). Red crosses are health. |
+| ⛏️ Mine Your Own Business | Jackhammer down to the lump of lead. Digs by itself; stick to go sideways, mash HAMMER to dig faster. Rock stops you, dinosaur bones slow you, holes and caves are free drops. Opals give dynamite, a diamond bit, turbo or a rockfall under everyone else; gas pockets blow you back up. First to the lead wins, the rest place by depth. |
+| 🍺 Perfect Pour | One schooner, one pour. Slide up to open the tap, back down to shut it, and that's your go. Wide open is all froth, too gentle is flat. Judged after it settles: beer to the rim with a finger of head scores 100. |
+| ❤️ Like My Post | Everyone scrolls the same Bogangram feed on the TV. Some photos have a player's face pasted on (their photo, or their doll face). LIKE a post with a mate in it for +1; liking a stranger or your own face is −1; SKIP is free. 20 scrolls each. |
+| 🐧 Distro Wars | Mr Lee's Linux LAN party. Everyone starts on their own distro (Arch, Ubuntu, Debian, Fedora...). Stick to move, THROW install USBs, ROLL to dodge. Three hits from one distro and you're reinstalled onto it. Crates: sudo (triple throw) and iptables (shield). Last distro standing wins; 10 a convert, 40 for being on the biggest distro, 15 for never switching. |
+| 🤠 Draw! | Knockout quick-draw duels on a western main street. Two at a time; when the ref blows the whistle, first to hit DRAW! wins and goes through. Draw before the whistle and the other one goes through (the ref sneezes to catch you out). Odd one out gets a bye. 25 a duel won, champion +40. |
+| 🩴 Thong Throw | Five thongs each at a wheelie bin down the backyard. Stick aims (left/right) and sets power (up/down); the ring shows the no-wind landing spot, so allow for the windsock. In the bin 3, off the bin 1. Bluey the kelpie snatches low thongs. |
+| 🌭 Sausage Sizzle | Four snags each on a shared hotplate and a line of customers. Each one's docket says how they want it (just done, golden, well done, cremated) with the colour to aim for. Tap 1-4 to flip; SERVE hands over your closest snag. Spot on 3 (+1 if quick), near enough 1; keep them waiting and they walk off (−1). Flare-ups cook fast, charcoal −1, a magpie nicks snags, and the last 25 s are the lunch rush at double points. |
+| 🧊 Esky Tetris | Same gear in the same order for everyone (stubbies, ice, snags, melon, slab, goon, pav, prawns). Move, SPIN, DROP. Anything over the rim and the lid won't shut: you're done. Most items packed wins. |
+| 🗑️ Wheelie Bin Derby | Bin night race down a steep street, riding wheelie bins backwards. Tilt to steer, KICK for speed. Bins, parked cars and potholes wipe you out; plank ramps give air; speed humps bounce you. First to the bottom wins. |
+| 🪙 Two-Up | Anzac Day in the pub beer garden. Each toss, pick a bet size and call HEADS, TAILS or ODDS before the spinner throws the pennies. Heads or tails pays 2 to 1, odds pays even. Five tosses, no clock, most chips wins. Go broke and the bar shouts you 2 chips. |
+| 🧴 Sunscreen Slap | Trev's asleep face down at the beach. Tiny players run around on his back holding RUB to spread their colour of sunscreen; SLAP drops a big dollop and knocks people flying. Cover burning patches for a bonus. Most of his back wins. |
+| 🏉 Footy Kick-to-Kick | Coach Robbo boots it high into the pack: run under it and time your JUMP to take the mark. Then line up for goal with the stick and stop the power meter, allowing for the wind. Goal 6, behind 1, mark 1. Seven kicks. |
+| 🛒 Bottle-O Run | Trolley dash round the bottle shop for the four things on your list (shown on the TV), then hit the checkout. Watch out for slow shoppers, the wet floor and the can pyramid. First through wins. |
+| 🛻 Ute Muster | Drive your ute across a bumpy paddock with a hay bale, esky, bar fridge and swag loose on the back. Floor it and they slide off; hit the humps fast and they fly off. 15 points per item delivered plus a bonus for finishing first. |
+| 🎣 Fishing Off the Jetty | Everyone fishing off the end of the jetty, using the stick like a rod and reel: pull back and flick up to cast (quicker flick = further out = bigger fish, and more junk), flick up to strike when the float goes under, then wind the stick round in circles to reel it in, easing off when the fish runs or the line snaps. No tapping. Stingrays nick your bait. Heaviest catch wins. |
+| 🧟 Zombies vs Plants | A spud-gun shooting gallery in the veggie patch at dusk. Hold the phone sideways: its screen is a map of the TV, so touch where a blow-up zombie is and the spud lands right there. Zombies pop up behind the tomato bed (1), the hedge (2) and the back fence (3). A miss jams your gun for 1 s; your mates pop up too, and shooting one jams it for 5 s. 1:30. |
+| 🏉 Football Boy | Backyard Bomberman. Drop an overpumped footy, get out of its line, and it bursts in a cross that smashes eskies and sets off other footies. Eskies hide gear: more footies, bigger bursts, faster thongs, and a boot to kick footies along. The yard closes in near the end. Seconds survived + 20 a knockout + 40 for the last one standing. |
+| ✋ Hand Tennis | King of the court on the school asphalt. One bounce in your square, then HIT it into theirs, aiming with the stick. Out, own square or a double bounce loses the point. Winner stays on with the crown, the loser joins the back of the line. A point a point. |
+
+## Adding content
+
+Everything is plain JavaScript modules with no build step. Each kind of content is one file plus one line in a list.
+
+- **Map:** copy `js/content/maps/broken-hill.js`, change the id, name, item, colours, board layout, landmarks and events, and add it to `js/content/maps/index.js`. The board is a loop of control points plus branches that leave and rejoin the loop; spaces are spread along them automatically. A landmark can name a real model with `glb: 'assets/models/thing.glb'` and it's loaded instead of the built-in placeholder.
+- **Power-up:** copy `js/content/powerups/coin-flip.js`, write its `use(game, player)`, and add it to `js/content/powerups/index.js`. The game object gives you `ask`, `pickPlayer`, `aim` (move a target around the board), `aimDirection`, `banner`, `coins`, `damage`, `addEffect`, `knockBack`, `teleport` and `view` effects. Lasting effects (like Sugar Rush) live in `effects.js`.
+- **Minigame:** copy `js/content/minigames/plane-instructor.js` to `<id>.js` and add `[id, name]` to `js/content/minigames/index.js` (the file is only downloaded when the game is picked). It builds its own scene, takes phone input (`pad` decides the controls: `tilt` (optionally with buttons under it), `buttons` (optionally coloured), `stick` for a thumbstick plus held buttons, `slider` for a tall up-and-down slider, or `touchpad` for a sideways screen that maps onto the TV) and returns scores. The runner handles the title card, ready-up, countdown, timer and results, and frees everything in the scene afterwards (pass anything you make outside the scene, like a render target, to `mg.track()`). For indoor reflections use `mg.env((env) => { ...add a box room and bright panels... })`.
+
+## Project layout
+
+```
+index.html, js/host/      TV screen: lobby, board, HUD, game engine, minigame runner
+play.html, js/phone/      phone remote (shows whatever the TV sends, sends taps back)
+js/board.js               board graph, distances, item spawn rule (no three.js, unit tested)
+js/net.js, js/qr.js       phone connections and QR (from Marble Mayhem)
+js/content/               maps, power-ups, minigames
+server/                   optional local Wi-Fi server (from Marble Mayhem)
+tests/                    node --test (npm test)
+```
+
+## Testing
+
+`npm test` runs the board and item-placement tests. For a quick look without phones, open `/?bots=4&autostart` to watch CPU players play. Add `&fast` to speed things up, `&items=1` for a short game, `&nominigames` to skip minigames, or `&minigame=plane-instructor` to always play one (ids: plane-instructor, chads-japanese-adventure, great-biscuit-heist, burger-boys, marble-mayhem, joe-master, toy-cars, ripstick-rider, alans-farm, back-yard, just-a-trim, dubai-high-flyer, mine-your-own-business, perfect-pour, like-my-post, distro-wars, draw, thong-throw, sausage-sizzle, esky-tetris, wheelie-bin-derby, two-up, sunscreen-slap, footy-kick-to-kick, bottle-o-run, ute-muster, fishing-off-the-jetty, zombies-vs-plants, football-boy, hand-tennis), or `&give=sugar-bomb,vacuum` to hand everyone power-ups at the start.
