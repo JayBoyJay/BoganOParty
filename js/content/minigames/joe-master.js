@@ -32,7 +32,7 @@ export default {
   id: 'joe-master',
   name: 'Joe Master Universe',
   blurb: 'Every Joe Master in the multiverse, one ring. Pin everyone else.',
-  howTo: 'Drag the stick to move. STRIKE to punch (keep tapping for a combo), GRAB to grab and grab again to slam. Grab someone on the mat to pin them. Mash any button to escape or get up. Pinned? A bar pops up on your phone: tap when the marker is in the green, twice to kick out. The more hurt you are, the smaller the green.',
+  howTo: 'Drag the stick to move. STRIKE to punch (keep tapping for a combo), GRAB to grab and grab again to slam. Grab someone on the mat to pin them. Mash any button to escape or get up. Pinned? A bar pops up on your phone: tap once when the marker is in the green to kick out. The more hurt you are, the smaller the green.',
   padText: 'Last Master standing',
   duration: 75,
   pad: { kind: 'stick', buttons: [
@@ -90,7 +90,7 @@ export default {
         pinEl.style.setProperty('--sc', e.p?.color || '#c8a2ff');
         pinWho.textContent = e.name;
         pinZone.style.left = (B.c - B.w / 2) * 100 + '%'; pinZone.style.width = B.w * 100 + '%';
-        pinPips.innerHTML = Array.from({ length: B.need }, (_, i) => `<i class="${i < B.hits ? 'on' : ''}"></i>`).join('');
+        pinPips.innerHTML = Array.from({ length: B.need > 1 ? B.need : 0 }, (_, i) => `<i class="${i < B.hits ? 'on' : ''}"></i>`).join('');
       }
       pinMark.style.left = pinBarPos(B) * 100 + '%';
       pinEl.classList.toggle('hit', B.flash > 0 && B.good);

@@ -352,7 +352,7 @@ function pinBar(m) {
   }
   PB = { ...m, t0: now, lockUntil: Math.max(PB ? PB.lockUntil : 0, now + (m.lock || 0) * 1000) };
   const zone = ov.querySelector('.pzone'); zone.style.left = (m.c - m.w / 2) * 100 + '%'; zone.style.width = m.w * 100 + '%';
-  ov.querySelector('.pips').innerHTML = Array.from({ length: m.need }, (_, i) => `<i class="${i < m.hits ? 'on' : ''}"></i>`).join('');
+  ov.querySelector('.pips').innerHTML = Array.from({ length: m.need > 1 ? m.need : 0 }, (_, i) => `<i class="${i < m.hits ? 'on' : ''}"></i>`).join('');
 }
 function pinPos(now) { const x = ((PB.ph + (now - PB.t0) / 1000 * PB.sp) % 2 + 2) % 2; return x < 1 ? x : 2 - x; }
 
