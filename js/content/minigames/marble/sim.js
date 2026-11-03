@@ -12,6 +12,7 @@ const ROLL_MU = 0.012;   // rolling resistance
 const DRAG = 0.0054;     // air drag (sets top speed)
 const MAX_V = 22;
 const STEP = 1 / 120;
+const HARD_HIT = 6;      // impact speed (m/s) above which posts start to bounce marbles back
 
 export const BOOSTS_PER_RACE = 3;
 export const BOOST_COOLDOWN = 3;
@@ -267,18 +268,12 @@ export class RaceSim {
         const gv = Math.cos(this.t * g.speed + g.phase) * amp * g.speed;
         collideBox(m, g.s, gu, g.d / 2, g.w / 2, gv);
       }
-      // pinball bumpers: springy, they kick you away
+      // pinball bumpers: solid round posts. No spring of their own: a marble
+      // only bounces back off one if it hits it hard (see collideCircle)
       if (m.h < 0.8 && m.ghostT <= 0) for (const b of this.bumpers) {
         if (Math.abs(m.s - b.s) > 1.2) continue;
-        const ds = m.s - b.s, du = m.u - b.u, d = Math.hypot(ds, du), rad = b.r + R;
-        if (d >= rad || d < 1e-6) continue;
-        const nx = ds / d, ny = du / d;
-        m.s = b.s + nx * rad; m.u = b.u + ny * rad;
-        const vn = m.vs * nx + m.vu * ny;
-        if (vn < 0) { m.vs -= 2.2 * vn * nx; m.vu -= 2.2 * vn * ny; }
-        m.vs += nx * 2.5; m.vu += ny * 4.5; // the kick
-        b.hitT = this.t;
-        this.events.push({ type: 'bumper', id: m.id });
+        const vn = collideCircle(m, b.s, b.u, b.r + R, 0, 0.5);
+        if (vn > 1.5) { b.hitT = this.t; this.events.push({ type: 'bumper', id: m.id }); }
       }
       // windmills: a spinning bar across the channel
       if (m.h < 0.7 && m.ghostT <= 0) for (const w of this.windmills) {
@@ -396,20 +391,23 @@ export class RaceSim {
 
 function frameHw(tr, s) { const i = Math.max(0, Math.min(tr.samples.length - 1, Math.round(s / DS))); return tr.samples[i].hw; }
 
-function collideCircle(m, cs, cu, rad, vs0, e) {
+// A marble hitting a round post (peg or bumper). Plain physics, no added push:
+// a soft touch just glances off and keeps rolling, and only a hard hit
+// bounces back, by up to maxE of the impact speed. Returns the impact speed.
+function collideCircle(m, cs, cu, rad, vs0, maxE) {
   const ds = m.s - cs, du = m.u - cu;
   const d2 = ds * ds + du * du;
-  if (d2 >= rad * rad || d2 < 1e-9) return;
+  if (d2 >= rad * rad || d2 < 1e-9) return 0;
   const d = Math.sqrt(d2), nx = ds / d, ny = du / d;
   m.s = cs + nx * rad; m.u = cu + ny * rad;
   const vn = (m.vs - vs0) * nx + m.vu * ny;
-  if (vn < 0) {
-    m.vs -= (1 + e) * vn * nx; m.vu -= (1 + e) * vn * ny;
-    // pegs deflect more than they stop: turn part of the impact into a sideways kick
-    const side = Math.abs(ny) > 0.05 ? Math.sign(ny) : (Math.random() < 0.5 ? -1 : 1);
-    m.vu += side * -vn * 0.55;
-    if (m.vs < 1) m.vs = 1;
-  }
+  if (vn >= 0) return 0;
+  const e = Math.max(0, Math.min(maxE, (-vn - HARD_HIT) * 0.08));
+  m.vs -= (1 + e) * vn * nx; m.vu -= (1 + e) * vn * ny;
+  // a dead-centre hit would stop the marble on the post: real marbles are
+  // never perfectly centred, so it rolls off to one side instead of backwards
+  if (Math.abs(ny) < 0.15) m.vu += (ny !== 0 ? Math.sign(ny) : (Math.random() < 0.5 ? -1 : 1)) * Math.min(1.2, -vn * 0.25);
+  return -vn;
 }
 
 function collideBox(m, bs, bu, hs, hu, bv) {

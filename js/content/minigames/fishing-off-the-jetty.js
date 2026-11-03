@@ -1,14 +1,15 @@
-// Fishing Off the Jetty: everyone lines up at the end of the jetty with a rod. The phone is a stick,
-// used like the rod and reel: pull it back and flick it up to cast (the quicker the flick, the further
-// out, and further out is bigger fish and more junk). When your float goes under it's a BITE: flick up
-// (or start winding) to strike, then wind the stick round in circles to reel it in. Winding tightens the
-// line, and when the fish makes a run it tightens on its own, so ease off or it snaps. No tapping
-// anywhere (phones zoom on quick taps). Stingrays just nick your bait. Heaviest total catch wins.
+// Fishing Off the Jetty: everyone lines up at the end of the jetty with a rod. The phone is one big
+// button. Hold it and a power bar swings up and down; let go to cast (more power goes further out, and
+// further out is bigger fish and more junk). When your float goes under it's a BITE: press straight away
+// to strike, then hold to reel it in. Reeling tightens the line, and when the fish makes a run it
+// tightens on its own, so let go when the bar goes red or it snaps. One press per bite, no mashing
+// (phones zoom on quick taps). Stingrays just nick your bait. Heaviest total catch wins.
 import { addSky } from '../../host/sky.js';
 
 const DOLL = 0.62;
 const CAST_MIN = 3, CAST_MAX = 8.5; // how far out the float lands
-const WAIT = [2.2, 5.5], BITE_T = 1.3, PER_TURN = 1.25, RIG_T = 1.1; // metres of line per turn of the stick
+const WAIT = [2.2, 5.5], BITE_T = 1.3, RIG_T = 1.1;
+const SWING = 0.65; // seconds for the cast power bar to go bottom to top
 const SPECIES = [
   { id: 'thong', name: 'AN OLD THONG', kg: [0.2, 0.2], near: 2, far: 1.5, color: 0x2a6ad8, junk: true },
   { id: 'weed', name: 'SEAWEED', kg: [0.1, 0.1], near: 2, far: 1, color: 0x3a6a2a, junk: true },
@@ -24,10 +25,10 @@ export default {
   id: 'fishing-off-the-jetty',
   name: 'Fishing Off the Jetty',
   blurb: 'Cast, wait for a bite, and reel it in without snapping the line. Heaviest catch wins.',
-  howTo: "Your stick is the rod and reel. Pull it back and flick it up to cast: a quicker flick goes further, and further out means bigger fish (and more junk). When your float goes under it's a bite: flick up straight away to strike, then wind the stick round in circles to reel it in. Winding tightens the line, and when the fish makes a run it tightens on its own, so slow down when the bar goes red or the line snaps. Stingrays just nick your bait. Heaviest total catch wins.",
-  padText: 'Pull back and flick up to cast. Circle to reel',
+  howTo: "One button does it all. Hold it and the power bar swings up and down: let go to cast. More power goes further out, and further out means bigger fish (and more junk). When your float goes under it's a bite: press straight away to strike, then keep holding to reel it in. Reeling tightens the line, and when the fish makes a run it tightens on its own, so let go when the bar goes red or the line snaps. Stingrays just nick your bait. Heaviest total catch wins.",
+  padText: 'Hold, let go to cast. Press on a bite. Hold to reel',
   duration: 75,
-  pad: { kind: 'stick', buttons: [] },
+  pad: { kind: 'buttons', buttons: [{ id: 'reel', label: '🎣 HOLD', color: '#5cc8ff', tall: true, hold: true }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -114,10 +115,12 @@ export default {
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
       const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); card.scale.set(2.6 * CARD, 1.38 * CARD, 1); card.renderOrder = 900;
       card.position.set(x, DECK + 3.3, 0.4); scene.add(card);
-      return { p, k, x, doll, rod, float, line, lg, c, t, card, kg: 0, best: null, state: 'ready', T: 0, power: 0, pdir: 1, dist: 0, fx: x, fz: 0, fish: null, tension: 0, surge: 0, nextSurge: 0, held: null, heldT: 0, caught: [], biteSpin: 0, clickT: 0, lowAt: null, prevY: null, prevA: null,
+      return { p, k, x, doll, rod, float, line, lg, c, t, card, kg: 0, best: null, state: 'ready', T: 0, power: 0, pdir: 1, dist: 0, fx: x, fz: 0, fish: null, tension: 0, surge: 0, nextSurge: 0, held: null, heldT: 0, caught: [], clickT: 0, down: false, needUp: false,
         bot: p.bot ? { react: 0.25 + rng() * 0.45, spin: 8 + rng() * 6, care: 0.5 + rng() * 0.45, nextT: 0.5 + rng() * 1.5 } : null };
     });
-    const STATE_TXT = { ready: 'PULL BACK...', centre: 'LET GO OF THE STICK', wind: 'FLICK UP!', flying: '...', wait: 'WAITING', bite: 'BITE! FLICK UP!', fight: 'WIND IT IN', rig: 'NEW BAIT' };
+    const STATE_TXT = { ready: 'HOLD TO CAST', up: 'LET GO OF THE BUTTON', flying: '...', wait: 'WAITING', bite: 'BITE! PRESS!', fight: 'HOLD TO REEL', rig: 'NEW BAIT' };
+    // the cast power bar swings bottom to top and back while the button is held
+    const swing = (T) => { const u = (T / SWING) % 2; return u < 1 ? u : 2 - u; };
     const drawCard = (F) => {
       const g = F.c.getContext('2d'); g.clearRect(0, 0, 320, 170);
       g.fillStyle = 'rgba(10,26,42,0.82)'; g.beginPath(); g.roundRect(4, 4, 312, 162, 20); g.fill(); g.lineWidth = 6; g.strokeStyle = F.p.color; g.stroke();
@@ -125,13 +128,18 @@ export default {
       g.fillStyle = '#ffffff'; g.font = '800 30px system-ui'; g.fillText(F.p.name, 160, 32, 290);
       g.fillStyle = '#ffd23f'; g.font = '900 44px system-ui'; g.fillText(`${F.kg.toFixed(1)} kg`, 160, 76);
       // the bar: casting power, or line tension when fighting
-      if (F.state === 'fight') {
+      if (F.state === 'charge') {
+        const v = swing(F.T);
+        g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(22, 112, 276, 22);
+        g.fillStyle = `hsl(${40 + v * 80},100%,55%)`; g.fillRect(22, 112, 276 * v, 22);
+        g.fillStyle = '#ffffff'; g.font = '800 20px system-ui'; g.fillText('LET GO TO CAST', 160, 152);
+      } else if (F.state === 'fight') {
         const v = Math.min(1, F.tension);
         g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(22, 112, 276, 22);
         g.fillStyle = v > 0.8 ? '#ff3a2a' : v > 0.55 ? '#ffb800' : '#5cff9d'; g.fillRect(22, 112, 276 * v, 22);
         if (F.state === 'fight') { g.fillStyle = '#ff3a2a'; g.fillRect(22 + 276 * 0.999 - 4, 108, 4, 30); }
-        g.fillStyle = '#ffffff'; g.font = '800 20px system-ui'; g.fillText(F.surge > 0 ? 'IT\'S RUNNING! EASE OFF' : 'CIRCLE TO WIND IT IN', 160, 152);
-      } else { g.fillStyle = F.state === 'bite' ? '#ff5a3a' : '#c8d8e8'; g.font = '900 30px system-ui'; g.fillText((F.state === 'ready' && F.needCentre ? STATE_TXT.centre : STATE_TXT[F.state]) || '', 160, 130, 290); }
+        g.fillStyle = '#ffffff'; g.font = '800 20px system-ui'; g.fillText(F.surge > 0 ? 'IT\'S RUNNING! LET GO' : 'HOLD TO REEL IT IN', 160, 152);
+      } else { g.fillStyle = F.state === 'bite' ? '#ff5a3a' : '#c8d8e8'; g.font = '900 30px system-ui'; g.fillText((F.state === 'ready' && F.needUp ? STATE_TXT.up : STATE_TXT[F.state]) || '', 160, 130, 290); }
       F.t.needsUpdate = true;
     };
     fishers.forEach(drawCard);
@@ -145,13 +153,12 @@ export default {
       F.state = 'fight'; F.tension = 0.3; F.surge = 0; F.nextSurge = 0.8 + rng() * 1.5; sfx.play('boing');
       pop(F.x, DECK + 4.2, 0.4, 'HOOKED!', '#ffd23f', 0.6, 0.5);
     };
-    // winding: `rad` is how far round the stick went
-    const wind = (F, rad) => {
-      if (F.state === 'bite') { F.biteSpin += rad; if (F.biteSpin > Math.PI * 0.6) strike(F); return; }
+    // reeling for `dt` seconds: brings the fish in and tightens the line; heavy fish come slower and pull harder
+    const reel = (F, dt) => {
       if (F.state !== 'fight') return;
-      const turns = rad / (Math.PI * 2);
-      F.dist = Math.max(0, F.dist - turns * PER_TURN); F.tension += turns * (0.2 + F.fish.kg * 0.025);
-      F.clickT -= rad; if (F.clickT <= 0) { F.clickT = Math.PI; sfx.play('tick'); }
+      const kg = F.fish.kg;
+      F.dist = Math.max(0, F.dist - dt * 2.4 / (1 + kg * 0.05)); F.tension += dt * (0.45 + kg * 0.06);
+      F.clickT -= dt; if (F.clickT <= 0) { F.clickT = 0.25; sfx.play('tick'); }
     };
     const snap = (F, text, color = '#ff7a5a') => { F.state = 'rig'; F.T = RIG_T; F.fish = null; F.float.visible = false; pop(F.x, DECK + 4.2, 0.4, text, color, 0.6, 0.8); };
     const land = (F) => {
@@ -177,16 +184,18 @@ export default {
           // ----- bots -----
           if (F.bot && running) {
             const B = F.bot; B.nextT -= dt;
-            if (F.state === 'ready' && B.nextT <= 0) cast(F, 0.3 + rng() * 0.7);
+            if (F.state === 'ready' && B.nextT <= 0) { F.state = 'charge'; F.T = 0; F.botAim = 0.3 + rng() * 0.7; }
+            else if (F.state === 'charge' && F.T >= F.botAim * SWING) cast(F, F.botAim);
             else if (F.state === 'bite' && F.T > B.react + (rng() - 0.5) * 0.1) strike(F);
             else if (F.state === 'fight') {
               const safe = F.surge > 0 ? 0.35 * (1 - B.care) : 0.62 + (1 - B.care) * 0.3;
-              if (F.tension < safe) wind(F, B.spin * dt);
+              if (F.tension < safe) reel(F, dt);
             }
             if (F.state !== 'ready') B.nextT = 0.4 + rng() * 1;
           }
           // ----- states -----
           if (running) F.T += F.state === 'rig' ? -dt : dt;
+          if (F.state === 'fight' && F.down && running) reel(F, dt);
           if (F.state === 'flying') {
             const f = Math.min(1, F.T / 0.75);
             F.float.position.set(F.x + (F.fx - F.x) * f, DECK + 3 + Math.sin(f * Math.PI) * 3 - f * (DECK + 3), 0.7 + (F.fz - 0.7) * f);
@@ -196,7 +205,7 @@ export default {
             if (running && F.T >= F.biteAt) {
               const far = Math.min(1, (F.dist - CAST_MIN) / (CAST_MAX - CAST_MIN)), S = pick(far);
               if (S.thief) { snap(F, 'STINGRAY NICKED YOUR BAIT', '#c8d8e8'); sfx.play('lose'); }
-              else { F.fish = { S, kg: S.kg[0] + rng() * (S.kg[1] - S.kg[0]) }; F.state = 'bite'; F.T = 0; F.biteSpin = 0; sfx.play('squeak'); }
+              else { F.fish = { S, kg: S.kg[0] + rng() * (S.kg[1] - S.kg[0]) }; F.state = 'bite'; F.T = 0; sfx.play('squeak'); }
             }
           } else if (F.state === 'bite') {
             F.float.position.set(F.fx, -0.15 - Math.abs(Math.sin(tAll * 18)) * 0.12, F.fz);
@@ -220,10 +229,10 @@ export default {
               F.float.position.set(xx, -0.05 + Math.sin(tAll * 9) * 0.05, zz);
               if (F.dist <= 0.05) land(F);
             }
-          } else if (F.state === 'rig') { if (F.T <= 0) { F.state = 'ready'; F.T = 0; F.needCentre = !F.bot; } }
+          } else if (F.state === 'rig') { if (F.T <= 0) { F.state = 'ready'; F.T = 0; F.needUp = F.down; } }
           // ----- the rod and line -----
           const bend = F.state === 'fight' ? Math.min(1, F.tension) * 0.7 + (F.surge > 0 ? 0.2 : 0) : F.state === 'bite' ? 0.25 : 0;
-          const lift = F.state === 'wind' ? -0.9 : F.state === 'flying' ? 0.9 : 0.75;
+          const lift = F.state === 'charge' ? 0.75 - 1.65 * swing(F.T) : F.state === 'flying' ? 0.9 : 0.75;
           F.rod.rotation.set(lift + bend * 0.5, 0, (F.fx - F.x) * -0.04);
           const tip = new THREE.Vector3(0, 3.2, 0).applyEuler(F.rod.rotation).add(F.rod.position);
           const a = F.lg.attributes.position;
@@ -243,26 +252,17 @@ export default {
         for (let i = pops.length - 1; i >= 0; i--) { const q = pops[i]; q.life += dt; q.sp.material.opacity = Math.max(0, Math.min(1, q.life * 5, q.stay - q.life + 1)); q.sp.position.y += dt * 0.5; if (q.life > q.stay + 1) { scene.remove(q.sp); pops.splice(i, 1); } }
       },
       input(p, m) {
-        const F = fishers.find((x) => x.p === p); if (!F || m.b !== 'stick') return;
-        const x = Math.max(-1, Math.min(1, Number(m.x) || 0)), y = Math.max(-1, Math.min(1, Number(m.y) || 0));
-        // after a catch, let go of the stick before the next cast, so winding doesn't fling one out
-        if (F.needCentre) { if (Math.hypot(x, y) < 0.35) F.needCentre = false; else { F.prevA = null; return; } }
-        // casting: pull back, then flick up; a quicker flick goes further
-        if (y < -0.6) { F.lowAt = tAll; if (F.state === 'ready') { F.state = 'wind'; sfx.play('tick'); } }
-        if (y > 0.55 && F.lowAt != null) {
-          const quick = tAll - F.lowAt;
-          if (F.state === 'wind') cast(F, Math.max(0.08, Math.min(1, (0.5 - quick) / 0.4)));
-          else if (F.state === 'bite') strike(F);
-          F.lowAt = null;
+        const F = fishers.find((x) => x.p === p); if (!F || m.b !== 'reel') return;
+        const down = !!m.down, was = F.down; F.down = down;
+        if (!down) {
+          F.needUp = false;
+          if (F.state === 'charge') cast(F, Math.max(0.08, swing(F.T)));
+          return;
         }
-        if (F.state === 'bite' && y > 0.55 && F.prevY != null && F.prevY < 0.2) strike(F);
-        F.prevY = y;
-        // reeling: how far round the stick has gone since last time
-        if (Math.hypot(x, y) > 0.45) {
-          const a = Math.atan2(y, x);
-          if (F.prevA != null) { let d = a - F.prevA; d = Math.atan2(Math.sin(d), Math.cos(d)); if (Math.abs(d) < 1.6) wind(F, Math.abs(d)); }
-          F.prevA = a;
-        } else F.prevA = null;
+        if (was) return; // a fresh press only
+        // after a catch, let go before the next cast, so holding to reel doesn't start a cast
+        if (F.state === 'ready' && !F.needUp) { F.state = 'charge'; F.T = 0; sfx.play('tick'); }
+        else if (F.state === 'bite') strike(F);
       },
       scores() { return Object.fromEntries(fishers.map((F) => [F.p.id, F.kg * 10])); },
     };

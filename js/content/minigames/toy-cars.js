@@ -6,7 +6,7 @@
 // ahead of you crawls for a couple of seconds) or LEGO (a brick dropped behind you: hit it and you spin out).
 // Whoever's further back is more likely to get the good stuff.
 // Physics runs in track coordinates (s along the centre line, u across it) like Marble Mayhem: the
-// track turns under you, so you have to steer through the bends or scrape the rail and lose speed.
+// stick points the car across the track and the tyres grip, so steer for the line and stay off the rails.
 // Split screen: every player (bots too) gets a pane chasing their own car, tiled to fit up to 8, with
 // the scoreboard in a strip down the right. When time's up it cuts back to the one high camera.
 import { mergeGeometries } from '../../../vendor/BufferGeometryUtils.js';
@@ -17,7 +17,11 @@ const HW = 4.6; // half width of the track
 const CAR_L = 1.7, CAR_W = 0.95;
 const VMAX = 17, ACC = 9;
 const TURBO = { t: 2.6, k: 1.55 }, SNAIL = { t: 2.4, k: 0.5 }, SPIN_T = 1.1, BOX_BACK = 3; // power-ups
-const TURN = 2.4; // radians a second at full lock
+// steering: the stick points the car. Full lock aims the nose MAX_A off the track's line, and the tyres
+// grip: the car swings round to where the stick says at GRIP a second and straightens up along the track
+// when you let go, so it goes where you point it instead of skating sideways.
+// CORNER: bends still tug you gently toward the outside rail, so you lean on the stick through them.
+const MAX_A = 0.55, GRIP = 9, DEAD = 0.12, CORNER = 0.09;
 const AFTER_WIN = 10;
 
 // the centre line, laid out around a house (x east, z south), metres at 10x toy scale
@@ -268,27 +272,28 @@ export default {
         for (const c of cars) {
           // steering: the phone's stick, or the CPU aiming a little way down the track
           if (c.bot && running) {
-            const ahead = c.s + c.bot.look, target = Math.sin(t * 0.7 + c.bot.wob) * HW * 0.35 + c.bot.err;
-            const dyaw = (() => { let d = yawS(ahead) - yawS(c.s); while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; })();
-            const desiredA = Math.atan2(target - c.u, c.bot.look) * 0.8;
-            c.want = Math.max(-1, Math.min(1, ((desiredA - c.a) * 2.2 + dyaw * 1.4) * c.bot.skill));
+            const target = Math.sin(t * 0.7 + c.bot.wob) * HW * 0.35 + c.bot.err;
+            const desiredA = Math.atan2(target - c.u, c.bot.look) * 1.6;
+            c.want = Math.max(-1, Math.min(1, desiredA / MAX_A * c.bot.skill + Math.sin(t * 1.3 + c.bot.wob) * 0.08));
           }
-          c.steer += (c.want - c.steer) * Math.min(1, dt * 10);
+          // the car's angle off the track's line follows the stick (the tyres hold it), less a gentle tug wide on bends
+          const k = lerpAt(kap, ((c.s % L) + L) % L);
+          if (c.bot && running) c.want = Math.max(-1, Math.min(1, c.want + k * c.v * CORNER / MAX_A));
+          c.steer += (c.want - c.steer) * Math.min(1, dt * 14);
           const go = running && !c.finished ? 1 : c.finished ? 0.35 : 0;
           if (c.boost > 0) c.boost -= dt; if (c.slow > 0) c.slow -= dt; if (c.spinOut > 0) c.spinOut -= dt;
           const top = VMAX * go * (c.boost > 0 ? TURBO.k : 1) * (c.slow > 0 ? SNAIL.k : 1) * (c.spinOut > 0 ? 0.25 : 1);
           c.v += ((go ? top : 0) - c.v) * Math.min(1, dt * ACC / VMAX * (go ? (c.boost > 0 ? 3 : c.v > top ? 3 : 1.2) : 2.5));
           if (c.scrape > 0) c.scrape -= dt;
-          // the track turns under you (curvature), you turn the car (steering)
-          const k = lerpAt(kap, ((c.s % L) + L) % L);
-          c.a += (c.steer * TURN * Math.min(1, c.v / 5) - k * c.v * Math.cos(c.a)) * dt;
-          c.a = Math.max(-1.2, Math.min(1.2, c.a));
+          c.a += ((c.steer * MAX_A - k * c.v * CORNER) * Math.min(1, c.v / 4) - c.a) * Math.min(1, dt * GRIP);
           c.s += c.v * Math.cos(c.a) * dt / Math.max(0.4, 1 - k * c.u);
           c.u += c.v * Math.sin(c.a) * dt;
           const lim = HW - CAR_W * 0.55;
           if (Math.abs(c.u) > lim) {
-            c.u = Math.sign(c.u) * lim; c.a *= -0.25; c.v *= 0.9;
-            if (c.scrape <= 0) { c.scrape = 0.35; if (!c.p.bot) mg.sfx.play('bonk'); }
+            c.u = Math.sign(c.u) * lim; c.a *= -0.25;
+            // a knock when you first hit the rail, then a steady drag while you scrape along it
+            if (c.scrape <= 0) { c.v *= 0.85; if (!c.p.bot) mg.sfx.play('bonk'); } else c.v *= 1 - Math.min(1, dt * 1.5);
+            c.scrape = 0.35;
           }
           if (running && !c.finished && c.s >= LAPS * L) {
             c.finished = true; c.place = ++finishOrder; if (winAt == null) winAt = t;
@@ -356,8 +361,10 @@ export default {
           const side = overlay.sidebar(dt), rects = paneRects(cars.length, side);
           panes = cars.map((c, i) => {
             const s = ((c.s % L) + L) % L, pc = c.cam;
-            posAt(s - 4.8, c.u * 0.7, tmp); tmp.y = 2.5;
-            const look = posAt(s + 4.5, c.u * 0.8); look.y = 0.9;
+            // sit behind the car's nose, not square to the track, so the car points up the screen
+            const sa = Math.sin(c.a), clampU = (u) => Math.max(-HW, Math.min(HW, u));
+            posAt(s - 4.8, clampU(c.u - sa * 4.8), tmp); tmp.y = 2.5;
+            const look = posAt(s + 4.5, clampU(c.u + sa * 4.5)); look.y = 0.9;
             if (!pc.init) { pc.pos.copy(tmp); pc.look.copy(look); pc.init = true; } else { pc.pos.lerp(tmp, kp); pc.look.lerp(look, Math.min(1, kp * 1.4)); }
             pc.cam.position.copy(pc.pos); pc.cam.lookAt(pc.look);
             const label = c.finished ? `${c.p.name}: ${['1st', '2nd', '3rd'][c.place - 1] || c.place + 'th'}!` : `${c.p.name}: lap ${Math.min(LAPS, Math.max(1, Math.floor(c.s / L) + 1))}/${LAPS}`;
@@ -380,7 +387,11 @@ export default {
         for (const c of cars) { c.tag.visible = true; c.tag.scale.set(2.6, 0.65, 1); }
       },
       dispose() { overlay.remove(); },
-      input(p, m) { const c = cars.find((x) => x.p === p); if (c && m.b === 'stick' && Number.isFinite(m.x)) c.want = Math.max(-1, Math.min(1, m.x)); },
+      input(p, m) { const c = cars.find((x) => x.p === p); if (c && m.b === 'stick' && Number.isFinite(m.x)) {
+        // a small dead zone so a resting thumb doesn't wander the car, then the full range past it
+        const x = Math.max(-1, Math.min(1, m.x)), ax = Math.abs(x);
+        c.want = ax < DEAD ? 0 : Math.sign(x) * (ax - DEAD) / (1 - DEAD);
+      } },
       // live position: finishers by place, the rest by distance; also shows laps
       scores() {
         const st = [...cars].sort((a, b) => (a.finished && b.finished ? a.place - b.place : a.finished ? -1 : b.finished ? 1 : b.s - a.s));

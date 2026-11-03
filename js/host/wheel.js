@@ -10,9 +10,9 @@ import { faceDataUrl } from './doll.js';
 export const MG_EMOJI = {
   'plane-instructor': '✈️', 'chads-japanese-adventure': '⛩️', 'great-biscuit-heist': '🍪', 'burger-boys': '🍔', 'marble-mayhem': '🔮',
   'joe-master': '🤼', 'toy-cars': '🏎️', 'ripstick-rider': '🛹', 'alans-farm': '🐑', 'back-yard': '🏋️', 'just-a-trim': '✂️',
-  'dubai-high-flyer': '🛩️', 'mine-your-own-business': '⛏️', 'perfect-pour': '🍺', 'like-my-post': '❤️', 'distro-wars': '🐧', draw: '🤠',
+  'perfect-pour': '🍺', draw: '🤠',
   'thong-throw': '🩴', 'sausage-sizzle': '🌭', 'esky-tetris': '🧊', 'wheelie-bin-derby': '🗑️', 'two-up': '🪙', 'sunscreen-slap': '🧴',
-  'footy-kick-to-kick': '🏉', 'bottle-o-run': '🛒', 'ute-muster': '🛻', 'fishing-off-the-jetty': '🎣', 'zombies-vs-plants': '🧟',
+  'footy-kick-to-kick': '🏉', 'ute-muster': '🛻', 'fishing-off-the-jetty': '🎣', 'zombies-vs-plants': '🧟',
   'football-boy': '💣', 'hand-tennis': '✋',
 };
 

@@ -1,11 +1,16 @@
 // Burger Boys: everyone's on the line at a takeaway. Order tickets come down the rail and you build
 // each burger by tapping the ingredients in order, bottom bun up. Get one wrong and the whole thing
 // ends up on the floor; start that order again. Bigger burgers score more. Same orders for everyone.
+// Every good layer fills your piss bar. Once it's full, your crosshair lights up as it sweeps along the
+// line: hit PISS while it's over someone else's burger and they have to start it again. PISS BURGER!
 const GAP = 3.1; // metres between stations
 const DOLL = 0.8;
 const R = 0.4; // burger radius
 const COUNTER_Y = 1.1;
 const RESET_T = 0.9; // lockout after binning a burger
+const CHARGE_LAYER = 1 / 7, CHARGE_ORDER = 0.15; // piss bar: about one shot per decent burger
+const SWEEP = 2.8; // seconds for a crosshair to cross the whole line
+const PISS_T = 0.5; // the stream's flight time, shooter to burger
 
 // what's in the kitchen: thickness on the stack, colour for the ticket, word, button label
 const ING = {
@@ -25,10 +30,13 @@ export default {
   id: 'burger-boys',
   name: 'Burger Boys',
   blurb: "Tickets on the rail, grill's hot. Stack every burger exactly as ordered.",
-  howTo: 'Each order ticket shows a burger from the bottom bun up. Tap the ingredients in that order. One wrong tap and the burger hits the floor. Bigger burgers score more.',
-  padText: 'Build it bottom up, exactly like the ticket.',
+  howTo: "Each order ticket shows a burger from the bottom bun up. Tap the ingredients in that order. One wrong tap and the burger hits the floor. Bigger burgers score more. Good layers fill your piss bar: when it's full, hit PISS while your crosshair is over someone else's burger and they have to start again.",
+  padText: 'Build it bottom up. Bar full? PISS on a rival burger.',
   duration: 70,
-  pad: { kind: 'buttons', buttons: ['bun', 'patty', 'cheese', 'lettuce', 'tomato', 'beetroot', 'egg', 'pineapple'].map((id) => ({ id, label: ING[id].label })) },
+  pad: { kind: 'buttons', buttons: [
+    ...['bun', 'patty', 'cheese', 'lettuce', 'tomato', 'beetroot', 'egg', 'pineapple'].map((id, i) => ({ id, label: ING[id].label, row: i < 4 ? 0 : 1 })),
+    { id: 'piss', label: '💦 PISS!', color: '#ffe24a', row: 2, off: true }, // lights up on the phone when the bar is full
+  ] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer } = mg;
@@ -185,6 +193,19 @@ export default {
       return { mesh, draw };
     };
 
+    // a crosshair in the player's colour
+    const reticle = (color) => {
+      const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+      g.lineCap = 'round';
+      for (const [w, col] of [[14, '#1a0d08'], [7, color]]) {
+        g.strokeStyle = col; g.lineWidth = w;
+        g.beginPath(); g.arc(64, 64, 40, 0, Math.PI * 2); g.stroke();
+        for (const [ax, ay] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) { g.beginPath(); g.moveTo(64 + ax * 24, 64 + ay * 24); g.lineTo(64 + ax * 58, 64 + ay * 58); g.stroke(); }
+      }
+      g.fillStyle = color; g.beginPath(); g.arc(64, 64, 6, 0, Math.PI * 2); g.fill();
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    };
+
     const stations = players.map((p, i) => {
       const x = stX(i), g = kit.group(x, 0, 0);
       // counter: stainless top on a white cabinet
@@ -200,8 +221,18 @@ export default {
       hat.position.set(0, 0.32, 0); if (!doll.hat) doll.head.add(hat); // the paper hat, unless they brought their own
       const tk = ticket(); tk.mesh.position.set(0, 3.95, -0.3); g.add(tk.mesh);
       const clip = kit.box(0.24, 0.14, 0.05, steel, 0, 4.96, -0.3, g);
+      // the piss bar, on the front of the counter: fills a layer at a time, glows when it's ready
+      const barW = gap - 0.6;
+      kit.box(barW + 0.08, 0.24, 0.03, 0x1a1410, 0, 0.18, 0.87, g);
+      const fillMat = new THREE.MeshStandardMaterial({ color: 0xffd21a, emissive: 0xffc800, emissiveIntensity: 0.25, roughness: 0.4 });
+      const fill = new THREE.Mesh(new THREE.BoxGeometry(barW, 0.16, 0.03), fillMat);
+      fill.geometry.translate(barW / 2, 0, 0); fill.position.set(-barW / 2, 0.3, 0.89); fill.scale.x = 0.001; g.add(fill);
+      // their crosshair: faint while the bar fills, bright and spinning once it's loaded
+      const cross = new THREE.Sprite(new THREE.SpriteMaterial({ map: reticle(p.color), transparent: true, depthTest: false, opacity: 0.3 }));
+      cross.renderOrder = 15; cross.scale.setScalar(0.8); scene.add(cross);
       return { p, x, g, doll, tk, clip, k: 0, done: 0, pieces: [], flying: [], lock: 0, score: 0, served: 0, wobble: 0, reach: 0, ticketDirty: true, flash: 0,
-        bot: p.bot ? { rate: 2.2 + rng() * 1.8, err: 0.02 + rng() * 0.04, cool: 1 } : null };
+        charge: 0, fill, fillMat, cross, ph: (i / n) * 2, aimX: 0, armed: false, pissed: 0,
+        bot: p.bot ? { rate: 2.2 + rng() * 1.8, err: 0.02 + rng() * 0.04, cool: 1, aim: 0.4 + rng() * 0.5 } : null };
     });
     const pops = [];
     const pop = (s, text, color) => {
@@ -212,6 +243,61 @@ export default {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false })); sp.scale.set(2.8, 0.52, 1); sp.renderOrder = 20;
       scene.add(sp); pops.push({ sp, s, life: 0 });
     };
+    // ----- the piss -----
+    const charge = (s, v) => {
+      s.charge = Math.min(1, s.charge + v);
+      if (s.charge >= 1 && !s.armed) { s.armed = true; mg.padSend(s.p, { lit: 'piss', on: 1 }); if (!s.p.bot) mg.sfx.play('beep'); }
+    };
+    const pissMat = new THREE.MeshPhysicalMaterial({ color: 0xe8d040, roughness: 0.15, clearcoat: 1, transmission: 0.2, thickness: 0.2 });
+    const drops = []; // the stream, in flight
+    const dropGeo = new THREE.SphereGeometry(0.035, 6, 4), dropMat = new THREE.MeshStandardMaterial({ color: 0xffe030, emissive: 0x806000, roughness: 0.1, transparent: true, opacity: 0.85 });
+    const under = (s) => stations.find((o) => o !== s && Math.abs(o.x - s.aimX) < gap * 0.38);
+    const fire = (s) => {
+      if (!s.armed) { pop(s, 'BAR NOT FULL', '#bbb'); return; }
+      s.armed = false; s.charge = 0; mg.padSend(s.p, { lit: 'piss', on: 0 });
+      const target = under(s), tx = target ? target.x : s.aimX;
+      // the stream arcs from the shooter's station over to wherever they aimed
+      const from = new THREE.Vector3(s.x, 1.3, -0.4);
+      for (let i = 0; i < 26; i++) {
+        const to = new THREE.Vector3(tx + (rng() - 0.5) * 0.25, COUNTER_Y + 0.3, 0.3 + (rng() - 0.5) * 0.2);
+        const m = new THREE.Mesh(dropGeo, dropMat); m.visible = false; scene.add(m);
+        drops.push({ m, from, to, delay: i * 0.012, life: 0, h: 1.2 + Math.abs(tx - s.x) * 0.15 });
+      }
+      mg.sfx.play('whoosh');
+      if (target) target.pissed = { by: s, t: PISS_T + 0.1 };
+      else pop({ x: tx }, 'MISSED!', '#bbb');
+    };
+    const ruin = (s, by) => {
+      if (!s.pieces.length) { pop(s, 'MISSED!', '#bbb'); return; } // nothing on the board to ruin
+      // soggy: every layer goes yellow, then the lot gets binned
+      for (const q of s.pieces) q.m.traverse((o) => { if (o.isMesh) o.material = pissMat; });
+      const all = s.pieces.splice(0);
+      for (const q of all) s.flying.push({ m: q.m, v: new THREE.Vector3((rng() - 0.5) * 3, 1.5 + rng() * 2, 1 + rng() * 2), w: new THREE.Vector3(rng() * 6, rng() * 6, rng() * 6), life: 0 });
+      s.done = 0; s.lock = RESET_T; s.flash = -1; s.ticketDirty = true;
+      s.doll.flinch(); by.doll.bounce(1);
+      pop(s, 'PISSED ON!', '#ffe24a'); mg.sfx.play('bonk');
+      banner(by, s);
+    };
+
+    // the big "PISS BURGER!" across the screen
+    const bannerC = document.createElement('canvas'); bannerC.width = 1024; bannerC.height = 360;
+    const bannerT = new THREE.CanvasTexture(bannerC); bannerT.colorSpace = THREE.SRGBColorSpace;
+    const bannerS = new THREE.Sprite(new THREE.SpriteMaterial({ map: bannerT, transparent: true, depthTest: false, opacity: 0 }));
+    bannerS.renderOrder = 30; scene.add(bannerS);
+    let bannerLife = 9;
+    const banner = (by, s) => {
+      const g = bannerC.getContext('2d'); g.clearRect(0, 0, 1024, 360);
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+      g.font = 'italic 900 190px system-ui, sans-serif';
+      g.lineWidth = 26; g.strokeStyle = '#2a1a04'; g.strokeText('PISS BURGER!', 512, 140, 990);
+      const gr = g.createLinearGradient(0, 60, 0, 230); gr.addColorStop(0, '#fff6a0'); gr.addColorStop(0.5, '#ffe020'); gr.addColorStop(1, '#d8a000');
+      g.fillStyle = gr; g.fillText('PISS BURGER!', 512, 140, 990);
+      g.font = '900 64px system-ui, sans-serif'; g.lineWidth = 14;
+      const sub = `${by.p.name} 💦 ${s.p.name}`;
+      g.strokeText(sub, 512, 290, 960); g.fillStyle = '#fff'; g.fillText(sub, 512, 290, 960);
+      bannerT.needsUpdate = true; bannerLife = 0;
+    };
+
     const stackTop = (s) => s.pieces.reduce((y, q) => y + q.h, COUNTER_Y + 0.05);
     const place = (s, kind) => {
       if (s.lock > 0) return;
@@ -234,11 +320,12 @@ export default {
       scene.add(m);
       s.pieces.push({ m, h: isTop ? ING.bun.top : ING[kind].h, y, vy: 0, landed: false });
       s.done += 1; s.ticketDirty = true;
+      charge(s, CHARGE_LAYER);
       if (!s.p.bot) mg.sfx.play('step');
       if (s.done === o.stack.length) {
         // order up: score it, slide it down the pass
         const fillings = o.stack.length - 2;
-        s.score += fillings; s.served += 1;
+        s.score += fillings; s.served += 1; charge(s, CHARGE_ORDER);
         const burger = s.pieces.splice(0);
         s.flying.push(...burger.map((q) => ({ m: q.m, q, slide: true, life: 0, delay: 0.6 }))); // the top bun still lands before it goes
         s.done = 0; s.k += 1; s.lock = 0.4; s.flash = 1;
@@ -263,6 +350,22 @@ export default {
               s.bot.cool = (1 / s.bot.rate) * (0.6 + rng() * 0.8) + (s.done === 0 ? 0.5 : 0); // a moment to read each new ticket
             }
           }
+          // the crosshair sweeps the whole line, back and forth
+          if (running) s.ph += dt / SWEEP;
+          const sw = s.ph % 2, u = sw < 1 ? sw : 2 - sw, span = W / 2 - gap * 0.3;
+          s.aimX = -span + u * 2 * span;
+          s.cross.position.set(s.aimX, COUNTER_Y + 0.45 + (stations.indexOf(s) % 3) * 0.1, 0.3);
+          s.cross.material.opacity = s.armed ? 1 : 0.28;
+          s.cross.scale.setScalar(s.armed ? 0.85 + Math.sin(t * 10) * 0.08 : 0.55);
+          s.cross.material.rotation = s.armed ? t * 2 : 0;
+          s.fill.scale.x = Math.max(0.001, s.fill.scale.x + (s.charge - s.fill.scale.x) * Math.min(1, dt * 10));
+          s.fillMat.emissiveIntensity = s.armed ? 0.6 + Math.sin(t * 12) * 0.4 : 0.25;
+          if (s.bot && running && s.armed) {
+            // CPUs wait for a decent-sized burger to drift under the crosshair
+            const o = under(s);
+            if (o && o.done >= 2 && o.done < order(o.k).stack.length - 1 && rng() < dt * 6 * s.bot.aim) fire(s); // not one that's about to go out
+          }
+          if (s.pissed) { s.pissed.t -= dt; if (s.pissed.t <= 0) { const by = s.pissed.by; s.pissed = 0; ruin(s, by); } }
           if (s.lock > 0) s.lock -= dt;
           if (s.ticketDirty) { s.ticketDirty = false; s.tk.draw(order(s.k), s.k, s.done, s.flash < 0 && s.lock > 0, s.p.name); }
           if (s.flash < 0 && s.lock <= 0) { s.flash = 0; s.ticketDirty = true; }
@@ -287,6 +390,22 @@ export default {
           s.doll.group.rotation.x = s.reach * 0.2;
           s.doll.update(dt);
         }
+        for (let i = drops.length - 1; i >= 0; i--) {
+          const d = drops[i]; d.life += dt;
+          const k = (d.life - d.delay) / PISS_T;
+          if (k < 0) continue;
+          if (k >= 1) { scene.remove(d.m); drops.splice(i, 1); continue; }
+          d.m.visible = true; d.m.position.lerpVectors(d.from, d.to, k); d.m.position.y += Math.sin(k * Math.PI) * d.h;
+        }
+        bannerLife += dt;
+        if (bannerLife < 2.2) {
+          // slams in oversized, settles, then wobbles a little
+          const sc = (bannerLife < 0.18 ? 0.4 + bannerLife / 0.18 * 0.75 : 1.15 - Math.min(0.15, (bannerLife - 0.18) * 1.2)) * (1 + Math.sin(bannerLife * 18) * 0.03 * Math.max(0, 1 - bannerLife));
+          const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+          bannerS.position.copy(camera.position).addScaledVector(fwd, 6); bannerS.position.y += 0.6;
+          bannerS.scale.set(5.6 * sc, 5.6 * sc * 360 / 1024, 1);
+          bannerS.material.opacity = 1 - Math.max(0, bannerLife - 1.8) / 0.4;
+        } else bannerS.material.opacity = 0;
         for (const p of sizzle) p.position.y = 1.08 + Math.max(0, Math.sin(t * 9 + p.position.x * 3)) * 0.004;
         for (const s of smoke) { const k = (t * 0.25 + s.userData.p) % 1; s.position.set(-W * 0.18 + (s.userData.p - 0.5) * W * 0.4 + Math.sin(t + s.userData.p * 9) * 0.3, 1.2 + k * 2.6, -3.5); s.scale.setScalar(0.6 + k * 1.6); s.material.opacity = 0.35 * Math.sin(k * Math.PI); }
         for (let i = pops.length - 1; i >= 0; i--) {
@@ -298,7 +417,7 @@ export default {
         camera.position.set(camX + Math.sin(t * 0.25) * 0.4, 3.3, camZ);
         camera.lookAt(camX, 2.9, 0); // a touch right of centre, so the scoreboard doesn't cover the last ticket
       },
-      input(p, m) { const s = stations.find((x) => x.p === p); if (s && ING[m.b]) place(s, m.b); },
+      input(p, m) { const s = stations.find((x) => x.p === p); if (!s) return; if (m.b === 'piss') fire(s); else if (ING[m.b]) place(s, m.b); },
       scores() { return Object.fromEntries(stations.map((s) => [s.p.id, s.score])); },
     };
   },

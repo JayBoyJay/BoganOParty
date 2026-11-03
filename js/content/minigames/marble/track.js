@@ -204,7 +204,7 @@ Object.assign(MODULES, {
     return { pieces };
   } },
   bumpers: { label: 'Pinball Alley', make(r, dir) {
-    // springy round bumpers that kick marbles away, like a pinball table
+    // round pinball-style posts to weave through (they light up when hit hard)
     const b = [];
     for (let s = 6, k = 0; s < 30; s += 4.5, k++) {
       const us = k % 2 ? [-1.1, 1.1] : [0];

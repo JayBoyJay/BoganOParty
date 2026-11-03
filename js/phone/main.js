@@ -48,7 +48,11 @@ function onMsg(m) {
     case 'lobby': lobby = m; screen = null; stats = null; renderLobby(); break;
     case 'stats': stats = m; renderBar(); break;
     case 'prompt': case 'pad': case 'idle': screen = m; renderScreen(); if (m.t !== 'idle') buzz(25); break;
-    case 'padx': if (screen?.t === 'pad' && screen.id === m.id && 'pin' in m) pinBar(m); break;
+    case 'padx':
+      if (screen?.t !== 'pad' || screen.id !== m.id) break;
+      if ('pin' in m) pinBar(m);
+      if ('lit' in m) { const b = document.querySelector(`[data-b="${CSS.escape(m.lit)}"]`); b?.classList.toggle('lit', !!m.on); b?.classList.toggle('off', !m.on); } // e.g. Burger Boys' PISS button once the bar is full
+      break;
   }
 }
 
@@ -200,12 +204,32 @@ function renderScreen() {
     return;
   }
   if (s.t === 'pad') {
-    if (s.kind === 'tilt') return renderTilt(s, el);
-    if (s.kind === 'stick') return renderStick(s, el);
-    if (s.kind === 'slider') return renderSlider(s, el);
-    if (s.kind === 'touchpad') return renderTouchpad(s, el);
-    renderButtons(s, el);
+    if (s.kind === 'tilt') renderTilt(s, el);
+    else if (s.kind === 'stick') renderStick(s, el);
+    else if (s.kind === 'slider') renderSlider(s, el);
+    else if (s.kind === 'touchpad') renderTouchpad(s, el);
+    else if (s.kind === 'gyro') renderGyro(s, el);
+    else renderButtons(s, el);
+    if (s.practice) practiceStrip(s, el);
   }
+}
+
+// Practice round: the controls work for real but nothing counts. A strip on top says so and has the
+// READY button; the controls stay live after you press it, so you can keep mucking about.
+const practiceReady = new Set(); // pad ids this phone has said READY on (kept if the pad is redrawn)
+function practiceStrip(s, el) {
+  const strip = document.createElement('div');
+  strip.className = `pstrip ${s.kind === 'touchpad' ? 'float' : ''}`;
+  const draw = () => {
+    strip.classList.toggle('done', practiceReady.has(s.id));
+    strip.innerHTML = practiceReady.has(s.id)
+      ? '<span><b>✔ Ready!</b> Keep practising till everyone is</span>'
+      : '<span><b>PRACTICE</b> nothing counts</span><button class="go">READY ✔</button>';
+    const b = strip.querySelector('button');
+    if (b) b.onpointerdown = (e) => { e.preventDefault(); practiceReady.add(s.id); send({ t: 'in', id: s.id, b: 'practice-ready' }); buzz([20, 40, 20]); draw(); };
+  };
+  draw();
+  el.prepend(strip);
 }
 
 // Wide buttons get a row to themselves; runs of the others share rows of up to 4, evened out.
@@ -231,7 +255,7 @@ function padRows(buttons) {
 // buttons in rows that stretch to fill the screen, so the same pad fits a phone held sideways or upright
 function renderButtons(s, el) {
   const rows = padRows(s.buttons || []);
-  const btn = (b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.small ? 'small' : ''}" style="${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;` : ''}">${esc(b.label)}</button>`;
+  const btn = (b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.small ? 'small' : ''} ${b.off ? 'off' : ''}" style="${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;` : ''}">${esc(b.label)}</button>`;
   el.innerHTML = `<div class="btnpad"><div class="padhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${s.sideways ? SIDEWAYS : ''}</div>
     ${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : ''}
     ${s.lanes
@@ -427,6 +451,83 @@ function renderTouchpad(s, el) {
   layout();
   addEventListener('resize', layout);
   tiltStop = () => removeEventListener('resize', layout);
+}
+
+// Gyro aiming (Zombies vs Plants): point the phone like a spud gun. Turning it left/right and up/down
+// moves your crosshair on the TV (the gyroscope's turn rate, added up), and the big button fires.
+// The crosshair stops at the TV's edges, so if you drift just swing back past the edge to re-line it up.
+// Without a gyro (or before iPhones say yes) dragging on the little TV moves the crosshair instead.
+// Sends { b: 'aim', x, y } as it moves and { b: 'shot', x, y } on SHOOT, 0..1 from the TV's top left.
+const GYRO_SPAN = 42; // degrees of turn that sweep the crosshair right across the TV
+function renderGyro(s, el) {
+  let flip = store.get('gyroflip') === '1';
+  const label = s.buttons?.[0]?.label || 'SHOOT';
+  el.innerHTML = `<div class="gyropad"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
+    <div class="gyrobox" id="gyrobox"><div class="tpgrid"></div><div class="gyrohint" id="gyrohint">Point your phone at the TV and turn it to aim.<br>Or drag here.</div><div class="tpdot" id="gyrodot" style="display:block"></div></div>
+    <div class="gyrobtns"><button id="gyroshoot" class="go">${esc(label)}</button>
+      <div class="gyrosmall"><button id="gyroperm" class="hidden">Turn on gyro aim</button><button id="gyroctr">⌖ Centre</button><button id="gyroflip">${flip ? '⇆ Flipped' : '⇆ Flip'}</button></div></div></div>`;
+  const box = $('gyrobox'), dot = $('gyrodot'), hint = $('gyrohint');
+  let x = 0.5, y = 0.55, lastSent = 0, lastT = 0, gotGyro = false;
+  const clamp = (v) => Math.max(0, Math.min(1, v));
+  const draw = () => { dot.style.left = x * 100 + '%'; dot.style.top = y * 100 + '%'; };
+  const push = (force) => {
+    const now = Date.now(); if (!force && now - lastSent < 33) return;
+    lastSent = now; sendFast({ t: 'in', id: s.id, b: 'aim', x: +x.toFixed(3), y: +y.toFixed(3) });
+  };
+  const move = (dx, dy) => { x = clamp(x + dx); y = clamp(y + dy); draw(); push(false); };
+  // iPhones report gravity the other way up to Android, so flip it there to get a true "up"
+  const iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const G = iOS ? -1 : 1;
+  const onMotion = (e) => {
+    const r = e.rotationRate, g = e.accelerationIncludingGravity;
+    const now = performance.now(), dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0; lastT = now;
+    if (!r || r.alpha == null || !g || g.x == null || !dt) return;
+    // up in the phone's own axes, so it doesn't matter how the phone is held (or if rotation lock is on)
+    let ux = g.x * G, uy = g.y * G, uz = g.z * G; const gl = Math.hypot(ux, uy, uz); if (gl < 3) return;
+    ux /= gl; uy /= gl; uz /= gl;
+    if (flip) { ux = -ux; uy = -uy; uz = -uz; }
+    // turn rate (deg/s) about the phone's x, y and z axes
+    const wx = r.beta || 0, wy = r.gamma || 0, wz = r.alpha || 0;
+    if (!gotGyro && (wx || wy || wz)) { gotGyro = true; motionOk = true; $('gyroperm').classList.add('hidden'); hint.textContent = 'Turn the phone to aim. Drag to nudge.'; }
+    // sideways axis = up x the screen's normal; if the phone's lying flat fall back to the screen's own right
+    let rx = uy, ry = -ux, rz = 0, rl = Math.hypot(rx, ry);
+    if (rl < 0.35) {
+      const th = screenAngle() * Math.PI / 180, sx = Math.cos(th), sy = -Math.sin(th), d = sx * ux + sy * uy;
+      rx = sx - d * ux; ry = sy - d * uy; rz = -d * uz; rl = Math.hypot(rx, ry, rz);
+    }
+    rx /= rl; ry /= rl; rz /= rl;
+    let yaw = wx * ux + wy * uy + wz * uz, pitch = wx * rx + wy * ry + wz * rz;
+    // ignore the tiny jitter of a phone held still, so the crosshair doesn't creep
+    const dead = (v) => (Math.abs(v) < 1.2 ? 0 : v);
+    yaw = dead(yaw); pitch = dead(pitch);
+    if (yaw || pitch) move(-yaw * dt / GYRO_SPAN, -pitch * dt / (GYRO_SPAN * 9 / 16));
+  };
+  addEventListener('devicemotion', onMotion);
+  if (!motionOk && typeof window.DeviceMotionEvent?.requestPermission === 'function') {
+    $('gyroperm').classList.remove('hidden');
+    $('gyroperm').onclick = async () => { if (await askMotion()) $('gyroperm').classList.add('hidden'); };
+  }
+  // drag on the little TV: works like a laptop trackpad
+  let sid = null, px = 0, py = 0;
+  box.onpointerdown = (e) => { e.preventDefault(); sid = e.pointerId; box.setPointerCapture(sid); px = e.clientX; py = e.clientY; };
+  box.onpointermove = (e) => {
+    if (e.pointerId !== sid) return;
+    const rc = box.getBoundingClientRect();
+    move((e.clientX - px) / rc.width * 1.3, (e.clientY - py) / rc.height * 1.3);
+    px = e.clientX; py = e.clientY;
+  };
+  box.onpointerup = box.onpointercancel = (e) => { if (e.pointerId === sid) sid = null; };
+  const shoot = $('gyroshoot');
+  shoot.onpointerdown = (e) => {
+    e.preventDefault(); shoot.classList.add('dn');
+    send({ t: 'in', id: s.id, b: 'shot', x: +x.toFixed(3), y: +y.toFixed(3) }); buzz(25);
+  };
+  shoot.onpointerup = shoot.onpointercancel = shoot.onpointerleave = () => shoot.classList.remove('dn');
+  $('gyroctr').onclick = () => { x = 0.5; y = 0.55; draw(); push(true); };
+  $('gyroflip').onclick = () => { flip = !flip; store.set('gyroflip', flip ? '1' : '0'); $('gyroflip').textContent = flip ? '⇆ Flipped' : '⇆ Flip'; };
+  draw(); push(true);
+  const keep = setInterval(() => push(true), 250);
+  tiltStop = () => { removeEventListener('devicemotion', onMotion); clearInterval(keep); };
 }
 
 function renderTilt(s, el) {
