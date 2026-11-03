@@ -1,12 +1,14 @@
 // Two-Up: it's Anzac Day out the back of the pub, so everyone's in the ring. Ten chips each. Every
 // toss, pick HEADS, TAILS or ODDS and how much to put on, then the spinner throws two pennies off the
 // kip. Two heads is HEADS, two tails is TAILS, one of each is ODDS. Heads or tails pays 2 to 1, odds
-// pays even money, and if you backed heads or tails and it comes up odds you get your stake back.
+// pays even money. A losing bet is gone: no money back, not even when it comes up odds. Your bet
+// size is yours to change every toss, and until the pennies go up you can swap the size or the call.
 // Five tosses, no clock. Most chips at the end wins.
 import { addSky } from '../../host/sky.js';
 
 const TOSSES = 5, START = 10;
-const BET_T = 5.5, TOSS_T = 3.6, SHOW_T = 2.4;
+const BET_T = 6.5, TOSS_T = 3.6, SHOW_T = 2.4;
+const SETTLE_T = 1.5; // once everyone's called, a moment to change their mind before the toss
 const DOLL = 0.62;
 const SIZES = { b1: 1, b3: 3, b5: 5, ball: Infinity };
 
@@ -14,7 +16,7 @@ export default {
   id: 'two-up',
   name: 'Two-Up',
   blurb: 'Anzac Day in the ring. Back heads, tails or odds with your chips. Five tosses, most chips wins.',
-  howTo: "Each toss, pick how much to bet (1, 3, 5 or ALL IN) and then HEADS, TAILS or ODDS. Two heads is heads, two tails is tails, one of each is odds. Heads or tails pays 2 to 1 (and you get your money back on odds). Odds pays even money. Five tosses. Most chips at the end wins. Go broke and the bar shouts you 2 chips each toss so you can claw back.",
+  howTo: "Each toss, pick how much to bet (1, 3, 5 or ALL IN) and then HEADS, TAILS or ODDS. Two heads is heads, two tails is tails, one of each is odds. Heads or tails pays 2 to 1. Odds pays even money. Lose and your chips are gone, no money back. You can change your bet size every toss, and swap the size or your call right up until the spinner throws. Five tosses. Most chips at the end wins. Go broke and the bar shouts you 2 chips each toss so you can claw back.",
   padText: 'Pick a bet size, then call it',
   duration: 240, // only a safety net: the game ends after the last toss
   untimed: true,
@@ -83,6 +85,8 @@ export default {
       return { p, x, z, doll, c, t, card, stack, chips: START, size: 1, call: null, stake: 0, lastWin: 0, broke: false,
         bot: p.bot ? { style: rng(), when: 0 } : null };
     });
+    let settle = null; // counts down once every punter has called
+    let phase = 'intro', phaseT = 2.2, toss = 0, faces = [true, true], result = null, tAll = 0, finishAt = null;
     const chipGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.035, 18);
     const drawCard = (P) => {
       const g = P.c.getContext('2d'); g.clearRect(0, 0, 320, 200);
@@ -95,7 +99,10 @@ export default {
       const lab = P.broke ? 'BROKE' : !P.call && P.shout ? 'SHOUT' : P.call ? `${P.call.toUpperCase()}` : '...';
       g.fillStyle = P.call === 'heads' ? '#ffd23f' : P.call === 'tails' ? '#9ad8ff' : P.call === 'odds' ? '#c8a8ff' : '#888';
       g.font = '900 40px system-ui'; g.fillText(lab, 222, 56, 180);
+      // the bet: what's on once they've called, or the size they've picked while they make up their mind
+      const pick = Math.min(P.chips, P.size === Infinity ? P.chips : P.size);
       if (P.call) { g.fillStyle = '#fff'; g.font = '800 30px system-ui'; g.fillText(`x${P.stake}`, 222, 106); }
+      else if (phase === 'bet' && !P.broke) { g.fillStyle = '#d8c8a8'; g.font = '800 26px system-ui'; g.fillText(P.size === Infinity ? `ALL IN ${pick}` : `BET ${pick}`, 222, 106, 180); }
       g.setTransform(1, 0, 0, 1, 0, 0);
       P.t.needsUpdate = true;
       // a little stack of chips on the ground beside them
@@ -105,16 +112,19 @@ export default {
     };
     punters.forEach(drawCard);
 
+    // Calling puts the chips on. Until the toss, a new size or a new call takes the bet back off and
+    // puts it on again, so a punter can change their mind as often as they like.
     const call = (P, what) => {
-      if (phase !== 'bet' || P.broke || P.call) return;
-      P.stake = Math.min(P.chips, P.size === Infinity ? P.chips : P.size);
-      if (P.stake <= 0) return;
-      P.call = what; P.chips -= P.stake;
+      if (phase !== 'bet' || P.broke) return;
+      const purse = P.chips + P.stake;
+      const stake = Math.min(purse, P.size === Infinity ? purse : P.size);
+      if (stake <= 0) return;
+      if (P.call === what && P.stake === stake) return;
+      P.chips = purse - stake; P.stake = stake; P.call = what; settle = null;
       drawCard(P); sfx.play('clank');
       P.doll.setArms(0.8, 0.2); P.armT = 0.4;
     };
 
-    let phase = 'intro', phaseT = 2.2, toss = 0, faces = [true, true], result = null, tAll = 0, finishAt = null;
     const banner = (text, color, size = 1.1) => { for (const q of pops.filter((q) => q.big)) { scene.remove(q.sp); pops.splice(pops.indexOf(q), 1); } const s = pop(0, 4.4, -1, text, color, size, 99); pops[pops.length - 1].big = true; return s; };
     banner('COME IN SPINNER!', '#ffd23f');
 
@@ -128,7 +138,7 @@ export default {
         tAll += dt;
         if (running && finishAt == null) {
           phaseT -= dt;
-          if (phase === 'intro' && phaseT <= 0) { phase = 'bet'; phaseT = BET_T; toss++; banner(`TOSS ${toss} OF ${TOSSES}: PLACE YOUR BETS`, '#ffffff', 0.9); for (const P of punters) { P.call = null; P.stake = 0; P.broke = false; if (P.chips <= 0) { P.chips = 2; P.shout = true; } else P.shout = false; drawCard(P); if (P.bot) P.bot.when = 0.8 + rng() * 3.5; } }
+          if (phase === 'intro' && phaseT <= 0) { phase = 'bet'; phaseT = BET_T; toss++; banner(`TOSS ${toss} OF ${TOSSES}: PLACE YOUR BETS`, '#ffffff', 0.9); settle = null; for (const P of punters) { P.call = null; P.stake = 0; P.broke = false; if (P.chips <= 0) { P.chips = 2; P.shout = true; } else P.shout = false; drawCard(P); if (P.bot) P.bot.when = 0.8 + rng() * 3.5; } }
           else if (phase === 'bet') {
             for (const P of punters) if (P.bot && !P.call && !P.broke) {
               P.bot.when -= dt;
@@ -139,7 +149,9 @@ export default {
                 call(P, rng() < 0.45 - s * 0.25 ? 'odds' : rng() < 0.5 ? 'heads' : 'tails');
               }
             }
-            if (phaseT <= 0 || punters.every((P) => P.call || P.broke)) { phase = 'toss'; phaseT = TOSS_T; banner('COME IN SPINNER!', '#ffd23f'); faces = [rng() < 0.5, rng() < 0.5]; sfx.play('whoosh'); }
+            if (settle == null && punters.every((P) => P.call || P.broke)) settle = Math.min(SETTLE_T, phaseT);
+            if (settle != null) settle -= dt;
+            if (phaseT <= 0 || (settle != null && settle <= 0)) { phase = 'toss'; phaseT = TOSS_T; banner('COME IN SPINNER!', '#ffd23f'); faces = [rng() < 0.5, rng() < 0.5]; sfx.play('whoosh'); }
           } else if (phase === 'toss' && phaseT <= 0) {
             result = faces[0] && faces[1] ? 'heads' : !faces[0] && !faces[1] ? 'tails' : 'odds';
             banner(result === 'heads' ? 'HEADS!' : result === 'tails' ? 'TAILS!' : 'ODDS!', result === 'heads' ? '#ffd23f' : result === 'tails' ? '#9ad8ff' : '#c8a8ff', 1.5);
@@ -147,8 +159,7 @@ export default {
             for (const P of punters) {
               if (!P.call) continue;
               let back = 0;
-              if (P.call === result) back = P.call === 'odds' ? P.stake * 2 : P.stake * 3;
-              else if (result === 'odds') back = P.stake; // heads/tails backers get their money back on odds
+              if (P.call === result) back = P.call === 'odds' ? P.stake * 2 : P.stake * 3; // a loser gets nothing back
               P.chips += back;
               const net = back - P.stake;
               if (net) pop(P.x, 1.2, P.z + 1.2, net > 0 ? `+${net}` : `${net}`, net > 0 ? '#5cff9d' : '#ff5a5a', 0.55);
@@ -190,7 +201,11 @@ export default {
       },
       input(p, m) {
         const P = punters.find((x) => x.p === p); if (!P) return;
-        if (m.b in SIZES) { P.size = SIZES[m.b]; sfx.play('tick'); }
+        if (m.b in SIZES) {
+          if (phase !== 'bet' || P.broke) return;
+          P.size = SIZES[m.b]; sfx.play('tick');
+          if (P.call) call(P, P.call); else drawCard(P); // already called: the new size goes straight on
+        }
         else if (m.b === 'heads' || m.b === 'tails' || m.b === 'odds') call(P, m.b);
       },
       scores() { return Object.fromEntries(punters.map((P) => [P.p.id, P.chips + P.stake * (phase === 'bet' || phase === 'toss' ? 1 : 0)])); },
