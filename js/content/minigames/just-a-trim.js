@@ -11,12 +11,128 @@ const PASS = 24; // seconds to walk the length of the hedge
 const RATE = 3.2; // how fast the blade can move up and down, m/s
 const BLADE = 0.12; // blade width
 const DOLL = 0.62;
+const DOTS = 200; // most dots in the line to follow on each hedge
+// ----- the shapes -----
+// Each shape is the top edge of a silhouette, as a height (0 = ground, 1 = the top of the shape's
+// range) for every point u along the hedge (0 = left end, 1 = right end). The hedge is only ever cut
+// from above, so a shape can't have overhangs; it's built by stacking simple pieces and keeping the
+// highest one at each point. `art` draws the bits you can't trim (windows, ribs, an eye) on the sign.
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const ease = (t) => { t = clamp01(t); return t * t * (3 - 2 * t); };
+const box = (u, a, b, h) => (u >= a && u <= b ? h : 0);
+// a rounded-top block: flat at h in the middle, corners of radius r (in u) rounded off
+const slab = (u, a, b, h, r, lo = 0) => {
+  if (u < a || u > b) return 0;
+  const d = Math.min(u - a, b - u);
+  return d >= r ? h : lo + (h - lo) * Math.sqrt(1 - ((r - d) / r) ** 2);
+};
+// the top of a superellipse: p = 2 is a half ellipse, bigger p is boxier
+const dome = (u, c, r, h, lo = 0, p = 2) => { const s = Math.abs(u - c) / r; return s < 1 ? lo + (h - lo) * (1 - s ** p) ** (1 / p) : 0; };
+const spike = (u, c, w, h, lo) => { const s = Math.abs(u - c) / w; return s < 1 ? lo + (h - lo) * (1 - s) : 0; };
+// a smooth line through points [u, h], with no overshoot between them (monotone cubic)
+const curve = (pts) => {
+  const n = pts.length, d = [], m = new Array(n).fill(0);
+  for (let i = 0; i < n - 1; i++) d.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]));
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : 2 / (1 / d[i - 1] + 1 / d[i]);
+  return (u) => {
+    if (u <= pts[0][0]) return pts[0][1];
+    if (u >= pts[n - 1][0]) return pts[n - 1][1];
+    let i = 0; while (u > pts[i + 1][0]) i++;
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], hh = x1 - x0, t = (u - x0) / hh;
+    const t2 = t * t, t3 = t2 * t;
+    return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * hh * m[i] + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * hh * m[i + 1];
+  };
+};
+// one Opera House shell: a hooked front rising to the tip, then a long curved back
+const shell = (u, tip, h, front, back, lo) => {
+  if (u >= tip - front && u <= tip) return lo + (h - lo) * ((u - tip + front) / front) ** 2.2;
+  if (u > tip && u <= tip + back) return lo + (h - lo) * (1 - (u - tip) / back) ** 0.55;
+  return 0;
+};
+const bottle = (u, c, lo) => {
+  const d = Math.abs(u - c);
+  if (d < 0.022) return 0.9 - (d > 0.017 ? 0.03 : 0); // neck, with the lip of the cap
+  if (d < 0.066) return 0.5 + 0.22 * (1 - ease((d - 0.022) / 0.044)); // shoulders
+  return lo;
+};
+
+// a roo mid-hop, facing right: long tail, big round rump, ears up, snout out front
+const kangaroo = curve([[0, 0.04], [0.02, 0.06], [0.1, 0.12], [0.2, 0.22], [0.28, 0.36], [0.34, 0.54], [0.4, 0.66], [0.46, 0.71], [0.52, 0.7],
+  [0.58, 0.63], [0.62, 0.56], [0.65, 0.54], [0.68, 0.6], [0.7, 0.66], [0.722, 0.95], [0.745, 0.69], [0.77, 0.67], [0.81, 0.63], [0.85, 0.58],
+  [0.875, 0.54], [0.882, 0.46], [0.895, 0.43], [0.912, 0.41], [0.92, 0.3], [0.935, 0.08], [1, 0.04]]);
+const ute = curve([[0.44, 0.68], [0.47, 0.72], [0.5, 0.74], [0.6, 0.74], [0.64, 0.71], [0.7, 0.55], [0.73, 0.5], [0.85, 0.48], [0.93, 0.45]]);
+
 const SHAPES = [
-  { name: 'THE OPERA HOUSE', pts: [[0, 0.14], [0.08, 0.16], [0.12, 0.45], [0.24, 0.88], [0.32, 0.4], [0.42, 0.72], [0.5, 0.32], [0.56, 0.2], [0.62, 0.2], [0.68, 0.6], [0.78, 0.82], [0.86, 0.35], [0.92, 0.16], [1, 0.14]] },
-  { name: 'ULURU', pts: [[0, 0.06], [0.08, 0.08], [0.14, 0.42], [0.2, 0.58], [0.35, 0.66], [0.55, 0.69], [0.74, 0.62], [0.84, 0.5], [0.9, 0.1], [1, 0.06]] },
-  { name: 'A KANGAROO', pts: [[0, 0.08], [0.14, 0.12], [0.3, 0.3], [0.38, 0.55], [0.48, 0.7], [0.58, 0.66], [0.66, 0.52], [0.72, 0.6], [0.76, 0.86], [0.79, 0.96], [0.81, 0.78], [0.84, 0.9], [0.86, 0.76], [0.92, 0.66], [1, 0.5]] },
-  { name: 'THE HARBOUR BRIDGE', pts: [[0, 0.8], [0.08, 0.8], [0.09, 0.3], [0.17, 0.55], [0.32, 0.8], [0.5, 0.9], [0.68, 0.8], [0.83, 0.55], [0.91, 0.3], [0.92, 0.8], [1, 0.8]] },
-  { name: 'THE BIG BANANA', pts: [[0, 0.2], [0.15, 0.48], [0.35, 0.66], [0.5, 0.7], [0.65, 0.66], [0.84, 0.5], [0.91, 0.4], [0.95, 0.5], [1, 0.48]] },
+  {
+    name: 'THE OPERA HOUSE',
+    f: (u) => Math.max(box(u, 0, 1, 0.06), box(u, 0.03, 0.97, 0.12),
+      shell(u, 0.08, 0.5, 0.035, 0.13, 0.12), shell(u, 0.17, 0.75, 0.04, 0.16, 0.12), shell(u, 0.28, 0.97, 0.045, 0.18, 0.12),
+      shell(u, 0.55, 0.42, 0.03, 0.11, 0.12), shell(u, 0.63, 0.6, 0.035, 0.13, 0.12), shell(u, 0.72, 0.78, 0.04, 0.15, 0.12),
+      shell(u, 0.895, 0.36, 0.025, 0.06, 0.12)),
+    art(g, X, Y) { // the ribs on each shell
+      g.strokeStyle = 'rgba(230,245,210,0.45)'; g.lineWidth = 3;
+      for (const [tip, h, back] of [[0.08, 0.5, 0.13], [0.17, 0.75, 0.16], [0.28, 0.97, 0.18], [0.55, 0.42, 0.11], [0.63, 0.6, 0.13], [0.72, 0.78, 0.15], [0.895, 0.36, 0.06]]) {
+        for (let k = 1; k <= 3; k++) { g.beginPath(); g.moveTo(X(tip), Y(h)); g.quadraticCurveTo(X(tip + back * 0.3 * k / 3), Y(h * 0.6), X(tip + back * (0.25 + k * 0.22)), Y(0.13)); g.stroke(); }
+      }
+    },
+  },
+  {
+    name: 'ULURU',
+    f: (u) => Math.max(0.05, dome(u - 0.012 * Math.sin(u * 9), 0.5, 0.44, 0.7, 0.05, 2.6) * (1 + 0.12 * (0.5 - u))
+      - 0.035 * Math.exp(-(((u - 0.3) / 0.012) ** 2)) - 0.03 * Math.exp(-(((u - 0.62) / 0.01) ** 2)) - 0.025 * Math.exp(-(((u - 0.45) / 0.008) ** 2))),
+    art(g, X, Y) { // the streaks down the rock
+      g.strokeStyle = 'rgba(20,40,12,0.35)'; g.lineWidth = 3;
+      for (const u of [0.16, 0.22, 0.3, 0.38, 0.45, 0.53, 0.62, 0.7, 0.78, 0.86]) { g.beginPath(); g.moveTo(X(u), Y(0.62)); g.quadraticCurveTo(X(u + 0.01), Y(0.35), X(u - 0.005), Y(0.07)); g.stroke(); }
+    },
+  },
+  {
+    name: 'A KANGAROO',
+    f: kangaroo,
+    art(g, X, Y) { g.fillStyle = '#f4ead2'; g.beginPath(); g.arc(X(0.78), Y(0.6), 6, 0, Math.PI * 2); g.fill(); }, // an eye
+  },
+  {
+    name: 'THE HARBOUR BRIDGE',
+    f: (u) => Math.max(box(u, 0, 1, 0.3), slab(u, 0.04, 0.16, 0.66, 0.006), box(u, 0.06, 0.14, 0.72), slab(u, 0.84, 0.96, 0.66, 0.006), box(u, 0.86, 0.94, 0.72),
+      u > 0.16 && u < 0.84 ? 0.4 + 0.56 * (1 - ((u - 0.5) / 0.4) ** 2) : 0),
+    art(g, X, Y) { // the truss in the arch
+      g.strokeStyle = 'rgba(230,245,210,0.5)'; g.lineWidth = 3;
+      const top = (u) => 0.4 + 0.56 * (1 - ((u - 0.5) / 0.4) ** 2), bot = (u) => 0.3 + 0.48 * (1 - ((u - 0.5) / 0.36) ** 2);
+      g.beginPath(); for (let i = 0; i <= 40; i++) { const u = 0.16 + i / 40 * 0.68; g[i ? 'lineTo' : 'moveTo'](X(u), Y(Math.max(0.3, bot(u)))); } g.stroke();
+      for (let i = 0; i < 16; i++) { const a = 0.18 + i * 0.04, b = a + 0.04; g.beginPath(); g.moveTo(X(a), Y(Math.max(0.3, bot(a)))); g.lineTo(X(b), Y(top(b) - 0.02)); g.moveTo(X(b), Y(Math.max(0.3, bot(b)))); g.lineTo(X(b), Y(top(b) - 0.02)); g.stroke(); }
+      g.fillStyle = 'rgba(20,40,12,0.35)'; for (const c of [0.1, 0.9]) g.fillRect(X(c - 0.025), Y(0.6), X(0.05) - X(0), Y(0.38) - Y(0.6));
+    },
+  },
+  {
+    name: 'THE UTE',
+    f: (u) => Math.max(box(u, 0, 1, 0.04), slab(u, 0.03, 0.44, 0.4, 0.008), slab(u, 0.14, 0.34, 0.56, 0.012, 0.4), box(u, 0.21, 0.27, 0.6), // the tray, with an esky in it
+      u >= 0.44 && u <= 0.93 ? ute(u) : 0, slab(u, 0.925, 0.965, 0.54, 0.006)), // the cab, the bonnet and a roo bar
+    art(g, X, Y) {
+      g.fillStyle = 'rgba(230,245,210,0.55)'; // windows
+      g.beginPath(); g.moveTo(X(0.5), Y(0.7)); g.lineTo(X(0.59), Y(0.7)); g.lineTo(X(0.66), Y(0.55)); g.lineTo(X(0.5), Y(0.55)); g.fill();
+      g.fillRect(X(0.14), Y(0.5), X(0.2) - X(0), 5); // the esky lid
+      g.fillStyle = '#1d2a18'; for (const c of [0.16, 0.8]) { g.beginPath(); g.arc(X(c), Y(0.12), 30, 0, Math.PI * 2); g.fill(); } // wheels
+    },
+  },
+  {
+    name: 'THE BIG PINEAPPLE',
+    f: (u) => Math.max(0.04, dome(u, 0.5, 0.24, 0.6, 0.04, 2.3),
+      spike(u, 0.39, 0.04, 0.72, 0.5), spike(u, 0.445, 0.04, 0.88, 0.55), spike(u, 0.5, 0.045, 1, 0.58), spike(u, 0.555, 0.04, 0.88, 0.55), spike(u, 0.61, 0.04, 0.72, 0.5)),
+    art(g, X, Y) { // the diamond pattern
+      g.save(); g.beginPath(); for (let i = 0; i <= 60; i++) { const u = 0.27 + i / 60 * 0.46; g[i ? 'lineTo' : 'moveTo'](X(u), Y(dome(u, 0.5, 0.24, 0.6, 0.04, 2.3) - 0.02)); } g.lineTo(X(0.73), Y(0.04)); g.lineTo(X(0.27), Y(0.04)); g.clip();
+      g.strokeStyle = 'rgba(240,200,80,0.55)'; g.lineWidth = 3;
+      for (let k = -8; k <= 8; k++) { g.beginPath(); g.moveTo(X(0.5 + k * 0.05), Y(0.04)); g.lineTo(X(0.5 + k * 0.05 + 0.3), Y(0.64)); g.moveTo(X(0.5 + k * 0.05), Y(0.04)); g.lineTo(X(0.5 + k * 0.05 - 0.3), Y(0.64)); g.stroke(); }
+      g.restore();
+    },
+  },
+  {
+    name: 'AN ESKY AND TWO STUBBIES',
+    f: (u) => Math.max(0.04, slab(u, 0.06, 0.4, 0.42, 0.01), slab(u, 0.05, 0.41, 0.48, 0.02, 0.42), slab(u, 0.18, 0.28, 0.55, 0.012, 0.48), bottle(u, 0.6, 0.04), bottle(u, 0.82, 0.04)),
+    art(g, X, Y) {
+      g.fillStyle = 'rgba(230,245,210,0.5)'; g.fillRect(X(0.06), Y(0.43), X(0.4) - X(0.06), 6); // the lid line
+      for (const c of [0.6, 0.82]) g.fillRect(X(c - 0.05), Y(0.38), X(0.1) - X(0), Y(0.2) - Y(0.38)); // the labels
+    },
+  },
 ];
 
 // a hedge's leaves: a canvas of overlapping little privet leaves
@@ -46,11 +162,9 @@ export default {
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
     const shape = SHAPES[(rng() * SHAPES.length) | 0];
-    const target = (u) => {
-      const p = shape.pts;
-      for (let i = 1; i < p.length; i++) if (u <= p[i][0]) { const k = (u - p[i - 1][0]) / (p[i][0] - p[i - 1][0] || 1); return BASE + (p[i - 1][1] + (p[i][1] - p[i - 1][1]) * k) * (TOP - BASE); }
-      return BASE + p[p.length - 1][1] * (TOP - BASE);
-    };
+    // the shape's height in metres at u, from a table so the scoring loop stays cheap
+    const TABLE = 1000, tab = new Float32Array(TABLE + 1).map((_, i) => BASE + clamp01(shape.f(i / TABLE)) * (TOP - BASE));
+    const target = (u) => { const x = clamp01(u) * TABLE, i = Math.min(TABLE - 1, x | 0); return tab[i] + (tab[i + 1] - tab[i]) * (x - i); };
     const { sun } = addSky(scene, renderer, { elevation: 40, azimuth: 30, turbidity: 3, sunIntensity: 3.1, sky: 0xd8e8ff, ground: 0x6a6448, hemi: 0.6, env: 0.6, shadowSize: 24, fog: [0xd6e2ea, 60, 160] });
     sun.target.position.set(0, 0, -2);
 
@@ -71,9 +185,11 @@ export default {
       const g = signC.getContext('2d');
       g.fillStyle = '#f4ead2'; g.fillRect(0, 0, 1024, 420); g.strokeStyle = '#5b1f1a'; g.lineWidth = 16; g.strokeRect(8, 8, 1008, 404);
       g.fillStyle = '#5b1f1a'; g.font = '900 84px Impact, "Arial Black", sans-serif'; g.textAlign = 'center'; g.fillText(`TODAY: ${shape.name}`, 512, 96, 960);
-      g.beginPath(); g.moveTo(112, 380);
-      for (let i = 0; i <= 200; i++) { const u = i / 200; g.lineTo(112 + u * 800, 380 - (target(u) - 0.25) / (HMAX - 0.25) * 260); }
-      g.lineTo(912, 380); g.closePath(); g.fillStyle = '#2f6b26'; g.fill();
+      const X = (u) => 112 + u * 800, Y = (h) => 380 - (BASE + h * (TOP - BASE) - 0.25) / (HMAX - 0.25) * 260;
+      const outline = () => { g.beginPath(); g.moveTo(X(0), 380); for (let i = 0; i <= 400; i++) g.lineTo(X(i / 400), Y(clamp01(shape.f(i / 400)))); g.lineTo(X(1), 380); g.closePath(); };
+      outline(); g.fillStyle = '#2f6b26'; g.fill();
+      if (shape.art) { g.save(); outline(); g.clip(); shape.art(g, X, Y); g.restore(); }
+      outline(); g.strokeStyle = '#173a12'; g.lineWidth = 5; g.lineJoin = 'round'; g.stroke();
     }
     const signT = new THREE.CanvasTexture(signC); signT.colorSpace = THREE.SRGBColorSpace;
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(5.4, 2.2), new THREE.MeshStandardMaterial({ map: signT, roughness: 0.7 }));
@@ -84,7 +200,7 @@ export default {
     const leafM = new THREE.MeshStandardMaterial({ map: leafTex, roughness: 0.9, side: THREE.DoubleSide });
     const cutM = new THREE.MeshStandardMaterial({ map: leafTex, color: 0xc8e0a0, roughness: 0.9 });
     const mulch = kit.surf('redDirt', { unit: 1.5, tint: 0x7a5034 });
-    const dotGeo = new THREE.SphereGeometry(0.045, 8, 6), dotM = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const dotGeo = new THREE.SphereGeometry(0.038, 8, 6), dotM = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
     // a hedge as one mesh: a front face, a back face and a top, with a column of vertices every slice so
     // the top can be cut down column by column
@@ -123,8 +239,19 @@ export default {
       kit.box(HW + 0.6, 0.08, HD + 0.8, mulch, ox, oy, oz).castShadow = false;
       kit.box(HW + 0.7, 0.16, 0.12, kit.surf('planks', { unit: 1.2, tint: 0x7a5a3a }), ox, oy, oz + HD / 2 + 0.42);
       // the dotted line to follow
-      const dots = new THREE.InstancedMesh(dotGeo, dotM, 60);
-      for (let i = 0; i < 60; i++) { const u = (i + 0.5) / 60; dots.setMatrixAt(i, new THREE.Matrix4().makeTranslation(ox - HW / 2 + u * HW, oy + target(u), oz + HD / 2 + 0.12)); }
+      // spaced evenly along the outline, so the steep sides of a shape get dots too
+      const line = [];
+      for (let i = 0; i <= 400; i++) line.push([i / 400 * HW, target(i / 400)]);
+      const along = [0];
+      for (let i = 1; i < line.length; i++) along.push(along[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
+      const nDots = Math.min(DOTS, Math.round(along[along.length - 1] / 0.085)), dots = new THREE.InstancedMesh(dotGeo, dotM, nDots);
+      for (let i = 0, j = 0; i < nDots; i++) {
+        const d = (i + 0.5) / nDots * along[along.length - 1];
+        while (along[j + 1] < d) j++;
+        const k = (d - along[j]) / (along[j + 1] - along[j] || 1);
+        const x = line[j][0] + (line[j + 1][0] - line[j][0]) * k, y = line[j][1] + (line[j + 1][1] - line[j][1]) * k;
+        dots.setMatrixAt(i, new THREE.Matrix4().makeTranslation(ox - HW / 2 + x, oy + y, oz + HD / 2 + 0.12));
+      }
       scene.add(dots);
       return { mesh, geo, h, write: () => { write(); fitCaps(); }, dots };
     };
