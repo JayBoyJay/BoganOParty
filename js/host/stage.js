@@ -37,21 +37,25 @@ export class Stage {
       this.composer.addPass(new OutputPass());
     }
     this.clock = new THREE.Clock();
-    this.perf = { t: 0, n: 0, good: 0, cool: 0, fps: 0 };
+    this.perf = { t: 0, n: 0, good: 0, cool: 0, fps: 0, ceil: 1, ceilUntil: 0 };
     this.adaptive = !qp.has('fixedres');
     if (qp.has('fps')) this.fpsBox = Object.assign(document.body.appendChild(document.createElement('div')), { className: 'fps-box' });
     this.resize();
-    addEventListener('resize', () => this.resize());
+    // Resizing the canvas wipes it, and if no frame is drawn before the browser shows it the TV flashes
+    // black. So window resizes and resolution changes only flag it, and the loop resizes right before drawing.
+    this.needsResize = false;
+    addEventListener('resize', () => { this.needsResize = true; });
     const loop = () => {
       requestAnimationFrame(loop);
       const raw = this.clock.getDelta(), dt = Math.min(0.05, raw);
-      if (!this.view) return;
+      if (!this.view) { if (this.needsResize) this.resize(); return; }
+      this.adapt(raw);
+      if (this.needsResize) this.resize();
       this.view.update?.(dt);
       this.renderer.info.reset();
       if (this.composer) { this.renderPass.view = this.view; this.renderPass.scene = this.view.scene; this.renderPass.camera = this.view.camera; this.composer.render(dt); }
       else if (this.view.draw) { this.renderer.setRenderTarget(null); this.renderer.clear(); this.view.draw(this.renderer, null); }
       else this.renderer.render(this.view.scene, this.view.camera);
-      this.adapt(raw);
     };
     loop();
   }
@@ -59,6 +63,8 @@ export class Stage {
   // Dynamic resolution: average the frame time over 1.5 s; under ~42 fps draw 10% fewer pixels a side,
   // and after 6 s of smooth 60 creep back up. The 1.5 s after a scene change (building it, compiling its
   // shaders) and any gap over a second (a hidden tab) don't count.
+  // A scale that was too slow is a ceiling for the next 30 s, so a TV sitting near the line (the lobby
+  // fly-over swings between busy and quiet views) settles instead of stepping up and down every few seconds.
   adapt(dt) {
     const f = this.perf;
     if (dt > 1) return;
@@ -66,10 +72,15 @@ export class Stage {
     if (f.t < 1.5) return;
     const ms = f.t * 1000 / f.n;
     f.fps = Math.round(f.n / f.t); f.t = 0; f.n = 0;
+    const now = performance.now();
     if (f.cool > 0) f.cool--;
-    else if (this.adaptive && ms > 24 && this.scale > 0.55) { this.scale = Math.max(0.55, this.scale - 0.1); f.good = 0; f.cool = 1; this.resize(); }
-    else if (this.adaptive && ms < 17.5 && this.scale < 1) { if (++f.good >= 4) { this.scale = Math.min(1, this.scale + 0.05); f.good = 0; this.resize(); } }
-    else f.good = 0;
+    else if (this.adaptive && ms > 24 && this.scale > 0.55) {
+      f.ceil = this.scale; f.ceilUntil = now + 30000;
+      this.scale = Math.max(0.55, this.scale - 0.1); f.good = 0; f.cool = 1; this.needsResize = true;
+    } else if (this.adaptive && ms < 17.5 && this.scale < 1) {
+      const top = now < f.ceilUntil ? f.ceil - 0.05 : 1;
+      if (++f.good >= 4 && this.scale < top - 0.001) { this.scale = Math.min(top, this.scale + 0.05); f.good = 0; this.needsResize = true; }
+    } else f.good = 0;
     if (this.fpsBox) {
       const r = this.renderer, px = r.getDrawingBufferSize(new THREE.Vector2()), m = r.info.memory;
       this.fpsBox.textContent = `${f.fps} fps · ${px.x}×${px.y} (${this.scale.toFixed(2)}) · ${r.info.render.calls} draws · ${m.geometries} geo · ${m.textures} tex · ${r.info.programs.length} shaders`;
@@ -84,6 +95,7 @@ export class Stage {
   }
 
   resize() {
+    this.needsResize = false;
     const w = innerWidth, h = innerHeight;
     const pr = this.pixelRatio(w, h);
     this.renderer.setPixelRatio(pr);
