@@ -1,7 +1,7 @@
 // Joe Master Universe: Mr Lee's PS2-style wrestling game as a minigame. Everyone's a "NAME MASTER"
 // from some other universe, in a random outfit, all in the ring at once. Strike, grab, slam, pin.
 // Pinned for a 3-count and you're out; last one standing wins (or the healthiest when time's up).
-// With fewer than four players, the Original JOE MASTER himself comes out as a CPU.
+// Only the party's players are in the ring: no extra CPU Joe Master is added to fill it out.
 // The match engine, rigs, venues and CPU brains are in ./joemaster/, ported from joemasteruniverse.
 import { Arena } from './joemaster/arena.js';
 import { Rig } from './joemaster/rig.js';
@@ -48,7 +48,6 @@ export default {
     // outfits: everyone gets a different universe
     const pool = [...RANDOM_POOL].sort(() => rng() - 0.5);
     const roster = players.map((p, i) => ({ p, costume: COSTUME_BY_ID[pool[i % pool.length]], name: masterName(p.name), kind: p.bot ? 'cpu' : 'pad', char: 'master' }));
-    if (players.length < 4) roster.push({ p: null, costume: JOE, name: JOE.name, kind: 'cpu', char: 'joe' });
 
     const entries = roster.map((r, i) => {
       // players who sent a photo wear their own face; everyone else gets Joe's, as is tradition
