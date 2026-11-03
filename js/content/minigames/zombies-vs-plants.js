@@ -1,7 +1,7 @@
 // Zombies vs Plants: a shooting gallery in a suburban veggie patch at dusk. Blow-up zombie dolls pop
 // up behind the tomato bed, the hedge and the back fence, and everyone shoots at them with a spud gun.
-// The phone is held sideways and works like a map of the TV: touch a spot and the shot lands on that
-// spot on the TV. A miss jams the gun for a second. The players' own dolls pop up too: shoot one of
+// Aim by pointing the phone: its gyro moves your crosshair on the TV, and the big SHOOT button fires
+// (dragging on the phone's little TV also aims, for phones without a gyro). A miss jams the gun for a second. The players' own dolls pop up too: shoot one of
 // your mates and your gun's jammed for five seconds. Further back is harder, and worth more.
 import { addSky } from '../../host/sky.js';
 import { Batch, gumTreeParts } from '../../host/props.js';
@@ -50,10 +50,10 @@ export default {
   id: 'zombies-vs-plants',
   name: 'Zombies vs Plants',
   blurb: "Blow-up zombies are coming through the veggie patch. Spud gun 'em. Don't shoot your mates.",
-  howTo: "Hold your phone sideways: your screen is the TV. Touch the spot where a zombie is and your spud lands right there. Miss and your gun jams for a second. Your mates pop up too: shoot one and you're jammed for 5 seconds. Zombies at the back fence are worth 3, the hedge 2, the tomato bed 1.",
-  padText: 'Your screen is the TV. Touch a zombie to shoot it.',
+  howTo: "Hold your phone sideways and point it like a spud gun: turn it left, right, up and down to move your crosshair, then hit SHOOT. If it drifts, swing past the edge of the screen or press Centre. Miss and your gun jams for a second. Your mates pop up too: shoot one and you're jammed for 5 seconds. Zombies at the back fence are worth 3, the hedge 2, the tomato bed 1.",
+  padText: 'Turn your phone to aim, SHOOT to fire.',
   duration: 90,
-  pad: { kind: 'touchpad' },
+  pad: { kind: 'gyro', buttons: [{ label: 'SHOOT' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, sfx, renderer } = mg;
