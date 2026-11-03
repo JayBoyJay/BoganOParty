@@ -48,7 +48,11 @@ function onMsg(m) {
     case 'lobby': lobby = m; screen = null; stats = null; renderLobby(); break;
     case 'stats': stats = m; renderBar(); break;
     case 'prompt': case 'pad': case 'idle': screen = m; renderScreen(); if (m.t !== 'idle') buzz(25); break;
-    case 'padx': if (screen?.t === 'pad' && screen.id === m.id && 'pin' in m) pinBar(m); break;
+    case 'padx':
+      if (screen?.t !== 'pad' || screen.id !== m.id) break;
+      if ('pin' in m) pinBar(m);
+      if ('lit' in m) { const b = document.querySelector(`[data-b="${CSS.escape(m.lit)}"]`); b?.classList.toggle('lit', !!m.on); b?.classList.toggle('off', !m.on); } // e.g. Burger Boys' PISS button once the bar is full
+      break;
   }
 }
 
@@ -231,7 +235,7 @@ function padRows(buttons) {
 // buttons in rows that stretch to fill the screen, so the same pad fits a phone held sideways or upright
 function renderButtons(s, el) {
   const rows = padRows(s.buttons || []);
-  const btn = (b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.small ? 'small' : ''}" style="${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;` : ''}">${esc(b.label)}</button>`;
+  const btn = (b) => `<button data-b="${esc(b.id)}" class="${b.tone === 'go' ? 'go' : ''} ${b.small ? 'small' : ''} ${b.off ? 'off' : ''}" style="${b.color ? `background:${b.color};border-color:transparent;color:#1a0d06;` : ''}">${esc(b.label)}</button>`;
   el.innerHTML = `<div class="btnpad"><div class="padhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${s.sideways ? SIDEWAYS : ''}</div>
     ${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : ''}
     ${s.lanes
