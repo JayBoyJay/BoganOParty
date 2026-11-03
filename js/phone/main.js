@@ -200,12 +200,31 @@ function renderScreen() {
     return;
   }
   if (s.t === 'pad') {
-    if (s.kind === 'tilt') return renderTilt(s, el);
-    if (s.kind === 'stick') return renderStick(s, el);
-    if (s.kind === 'slider') return renderSlider(s, el);
-    if (s.kind === 'touchpad') return renderTouchpad(s, el);
-    renderButtons(s, el);
+    if (s.kind === 'tilt') renderTilt(s, el);
+    else if (s.kind === 'stick') renderStick(s, el);
+    else if (s.kind === 'slider') renderSlider(s, el);
+    else if (s.kind === 'touchpad') renderTouchpad(s, el);
+    else renderButtons(s, el);
+    if (s.practice) practiceStrip(s, el);
   }
+}
+
+// Practice round: the controls work for real but nothing counts. A strip on top says so and has the
+// READY button; the controls stay live after you press it, so you can keep mucking about.
+const practiceReady = new Set(); // pad ids this phone has said READY on (kept if the pad is redrawn)
+function practiceStrip(s, el) {
+  const strip = document.createElement('div');
+  strip.className = `pstrip ${s.kind === 'touchpad' ? 'float' : ''}`;
+  const draw = () => {
+    strip.classList.toggle('done', practiceReady.has(s.id));
+    strip.innerHTML = practiceReady.has(s.id)
+      ? '<span><b>✔ Ready!</b> Keep practising till everyone is</span>'
+      : '<span><b>PRACTICE</b> nothing counts</span><button class="go">READY ✔</button>';
+    const b = strip.querySelector('button');
+    if (b) b.onpointerdown = (e) => { e.preventDefault(); practiceReady.add(s.id); send({ t: 'in', id: s.id, b: 'practice-ready' }); buzz([20, 40, 20]); draw(); };
+  };
+  draw();
+  el.prepend(strip);
 }
 
 // Wide buttons get a row to themselves; runs of the others share rows of up to 4, evened out.

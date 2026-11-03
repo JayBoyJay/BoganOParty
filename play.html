@@ -61,6 +61,11 @@
   #vGame.pad .bar { position: static; margin-bottom: 8px; }
   #vGame.pad #screen { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
   #vGame.pad #screen > * { flex: 1; min-height: 0; }
+  .pstrip { flex: none !important; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 6px 6px 6px 14px; border-radius: 14px; background: rgba(92,255,157,0.14); border: 2px solid var(--good); font-size: 15px; }
+  .pstrip b { color: var(--good); font-style: italic; margin-right: 4px; }
+  .pstrip button { padding: 8px 18px; font-size: 18px; border-radius: 12px; flex: none; }
+  .pstrip.done { padding: 8px 14px; justify-content: center; }
+  .pstrip.float { position: fixed; z-index: 30; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); margin: 0; background: rgba(20,40,24,0.92); white-space: nowrap; }
   .padhead { font-size: 15px; margin-bottom: 8px; }
   .padhead b { font-size: 18px; font-style: italic; text-transform: uppercase; margin-right: 4px; }
   .btnpad { display: flex; flex-direction: column; }
