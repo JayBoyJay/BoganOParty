@@ -19,7 +19,7 @@ const LIST = [
   ['draw', 'Draw!'],
   ['thong-throw', 'Thong Throw'],
   ['sausage-sizzle', 'Sausage Sizzle'],
-  ['esky-tetris', 'Esky Tetris'],
+  ['esky-tetris', 'Ute Tetris'],
   ['wheelie-bin-derby', 'Wheelie Bin Derby'],
   ['two-up', 'Two-Up'],
   ['sunscreen-slap', 'Sunscreen Slap'],
