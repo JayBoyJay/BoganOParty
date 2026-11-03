@@ -1,7 +1,9 @@
 // Footy Kick-to-Kick: a Sunday arvo down the local oval. Coach Robbo boots the Sherrin high into the
 // pack and everyone fights for the mark: run under it with the stick and hit JUMP at the right moment.
-// Highest leap takes it. If nobody holds it, first one to the loose ball gets it. Whoever has the ball
-// lines up for goal: aim with the stick, then stop the power meter with KICK. Mind the wind.
+// Highest leap takes it. If nobody holds it and it hits the deck, it's a dead ball and Robbo kicks again.
+// Whoever has the ball lines up for goal: aim with the stick, then stop the power meter with KICK. Mind the
+// wind. Everyone else can run into the path of the kick and leap to get a hand to it, which knocks it off
+// line (they have to stay out of the protected ring around the kicker). Once it hits the ground it's dead.
 // Goal is 6, behind is 1, and a clean mark is worth 1 more.
 import { addSky } from '../../host/sky.js';
 
@@ -13,14 +15,15 @@ const DOLL = 0.78, RUN = 5.2;
 const REACH = 1.75, LEAP = 1.25, LEAP_T = 0.62, GRAB = 0.95;
 const KICK_ANG = 0.68, V0 = 8, V1 = 14, AIM = 0.4, G = 9.8;
 const GOAL = 6, BEHIND = 1, MARK = 1;
+const GUARD = 2.4, TOUCH = 0.6; // protected ring around the kicker; how close a hand has to be to touch a kick
 const BTN = { GO: 1 };
 
 export default {
   id: 'footy-kick-to-kick',
   name: 'Footy Kick-to-Kick',
-  blurb: "Sunday arvo at the oval. Fly for the mark, then slot it from where you took it. Goals are 6.",
-  howTo: "Coach Robbo kicks it high into the pack. Run under it with the stick and hit JUMP / KICK just before it gets to you. Whoever leaps highest takes the mark (+1). If nobody holds it, first to the loose ball gets it. Then line up for goal: push the stick left or right to aim (watch the wind), and press JUMP / KICK to stop the power meter. Between the tall posts is a goal (6), between a tall and a short post is a behind (1).",
-  padText: 'Run, JUMP for the mark, KICK for goal',
+  blurb: "Sunday arvo at the oval. Fly for the mark, slot it from where you took it, and get in the way of everyone else's. Goals are 6.",
+  howTo: "Coach Robbo kicks it high into the pack. Run under it with the stick and hit JUMP / KICK just before it gets to you. Whoever leaps highest takes the mark (+1). If it hits the ground, it's a dead ball. Then line up for goal: push the stick left or right to aim (watch the wind), and press JUMP / KICK to stop the power meter. Between the tall posts is a goal (6), between a tall and a short post is a behind (1). When someone else is kicking, run into the path of the ball (stay outside the ring around them) and JUMP to get a hand to it and knock it off line. Once the ball hits the ground it's dead.",
+  padText: 'Run, JUMP for the mark or to block, KICK for goal',
   duration: 92,
   pad: { kind: 'stick', buttons: [{ bit: BTN.GO, label: '🏉 JUMP / KICK', tone: 'go' }] },
 
@@ -63,6 +66,8 @@ export default {
     ball.scale.set(1, 1, 1.6); ball.castShadow = true; scene.add(ball);
     // where it's coming down (a faint ring, so you can read it)
     const landRing = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.75, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 })); landRing.rotation.x = -Math.PI / 2; landRing.position.y = 0.03; scene.add(landRing);
+    // the protected ring around whoever is lining up for goal
+    const guardRing = new THREE.Mesh(new THREE.RingGeometry(GUARD - 0.08, GUARD, 48), new THREE.MeshBasicMaterial({ color: 0xff5a3a, transparent: true, opacity: 0 })); guardRing.rotation.x = -Math.PI / 2; guardRing.position.y = 0.035; scene.add(guardRing);
     // the aim arrow for a shot at goal
     const arrow = new THREE.Group(); scene.add(arrow); arrow.visible = false;
     { const m = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.85 }); const shaft = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 3.2), m); shaft.rotation.x = -Math.PI / 2; shaft.position.set(0, 0.04, -1.6); arrow.add(shaft); const head = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 3), m); head.rotation.x = -Math.PI / 2; head.position.set(0, 0.04, -3.5); head.scale.y = 1; arrow.add(head); }
@@ -115,9 +120,9 @@ export default {
     let phase = 'pre', phaseT = 2.0, round = 0, tAll = 0, finishAt = null;
     let wind = 0; // sideways push on a kick at goal (m/s^2, + is to the right from the kicker's view... in world, +x)
     const fly = { sx: 0, sz: 0, tx: 0, tz: 0, t: 0 };
-    let holder = null, marked = false, loose = null, meter = 0, meterDir = 1, shot = null;
+    let holder = null, marked = false, meter = 0, meterDir = 1, shot = null;
     const startRound = () => {
-      round++; phase = 'fly'; phaseT = FLY_T; holder = null; marked = false; loose = null; shot = null; arrow.visible = false;
+      round++; phase = 'fly'; phaseT = FLY_T; holder = null; marked = false; shot = null; arrow.visible = false;
       fly.sx = coach.group.position.x + 0.6; fly.sz = coach.group.position.z + 0.4; fly.t = 0;
       fly.tx = ZONE.x0 + rng() * (ZONE.x1 - ZONE.x0); fly.tz = ZONE.z0 + rng() * (ZONE.z1 - ZONE.z0);
       wind = (rng() * 2 - 1) * 2;
@@ -137,6 +142,9 @@ export default {
       drawBoard();
       K.vx = K.vz = 0; K.y = 0; K.jumpT = -1;
       K.aim = 0;
+      // a couple of the CPUs (at most) go and stand in the way
+      let backs = 0;
+      for (const O of kickers) if (O.bot && O !== K) { O.bot.defend = backs < 2 && rng() < 0.4; if (O.bot.defend) backs++; O.bot.dd = GUARD + 0.4 + rng() * 2.2; O.bot.dx = (rng() * 2 - 1) * O.bot.err * 0.8; O.bot.jumped = rng() < 0.3; }
       if (K.bot) {
         // aim off the middle allowing for the wind, and pick a power for the distance
         const B = K.bot, base = Math.atan2(-K.x, K.z);
@@ -152,7 +160,7 @@ export default {
       const v = V0 + (V1 - V0) * meter;
       const dir = Math.atan2(-K.x, K.z) + K.aim; // straight at the middle of the goals, plus aim
       const h = v * Math.cos(KICK_ANG);
-      shot = { x: K.x, y: 0.6, z: K.z, vx: -Math.sin(dir) * h, vy: v * Math.sin(KICK_ANG), vz: -Math.cos(dir) * h, done: false };
+      shot = { x: K.x, y: 0.6, z: K.z, vx: -Math.sin(dir) * h, vy: v * Math.sin(KICK_ANG), vz: -Math.cos(dir) * h, done: false, touched: new Set([K]) };
       arrow.visible = false; sfx.play('thud'); K.doll.bounce(1.2); K.doll.setArms(-0.2, 0.5); K.armT = 0.5;
     };
     const result = (text, color, pts, kind) => {
@@ -185,15 +193,7 @@ export default {
               for (const K of kickers) { const d = Math.hypot(K.x - bx, K.z - bz), r = reach(K); if (d <= GRAB && r >= by && r > br) { br = r; best = K; } }
               if (best) takeBall(best, best.jumpT >= 0 && best.jumpT < LEAP_T);
             }
-            if (phase === 'fly' && fly.t >= FLY_T) { phase = 'loose'; phaseT = 3; loose = { x: fly.tx, z: fly.tz, vx: (fly.tx - fly.sx) * 0.12, vz: (fly.tz - fly.sz) * 0.12, y: 0.2, vy: 3 }; sfx.play('boing'); pop(fly.tx, 3.6, fly.tz, 'SPILLED!', '#ffffff', 0.6, 0.6); landRing.material.opacity = 0; }
-          } else if (phase === 'loose') {
-            loose.vy -= G * dt; loose.y += loose.vy * dt; if (loose.y < 0.17) { loose.y = 0.17; loose.vy = Math.abs(loose.vy) * 0.45; loose.vx *= 0.7; loose.vz *= 0.7; }
-            loose.x += loose.vx * dt; loose.z += loose.vz * dt;
-            ball.position.set(loose.x, loose.y, loose.z); ball.rotation.y += dt * 6;
-            let best = null, bd = 0.7;
-            for (const K of kickers) { const d = Math.hypot(K.x - loose.x, K.z - loose.z); if (d < bd && loose.y < 1.2) { bd = d; best = K; } }
-            if (best) takeBall(best, false);
-            else if (phaseT <= 0) { phase = 'show'; phaseT = 1.2; banner('BALL UP', '#ffffff', 0.8); }
+            if (phase === 'fly' && fly.t >= FLY_T) { phase = 'show'; phaseT = 1.6; ball.position.set(fly.tx, 0.17, fly.tz); sfx.play('boing'); banner('DEAD BALL', '#ffffff', 0.8); landRing.material.opacity = 0; round--; }
           } else if (phase === 'kick') {
             const K = holder;
             if (!shot) {
@@ -210,7 +210,18 @@ export default {
               const s = shot;
               s.vx += wind * dt; s.vy -= G * dt;
               const pz = s.z; s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
-              ball.position.set(s.x, s.y, s.z); ball.rotation.x += dt * 14;
+              ball.position.set(s.x, s.y, s.z); ball.rotation.x += dt * (s.wobble ? 22 : 14); if (s.wobble) ball.rotation.z += dt * 17;
+              // anyone in the way who gets a hand to it knocks it off line (once each per kick)
+              for (const O of kickers) {
+                if (s.touched.has(O) || s.y < 0.25 || s.y > reach(O) || Math.hypot(O.x - s.x, O.z - s.z) > TOUCH) continue;
+                s.touched.add(O); s.wobble = true;
+                const hv = Math.hypot(s.vx, s.vz), leaping = O.jumpT >= 0 && O.jumpT < LEAP_T;
+                const side = Math.sign((s.x - O.x) * s.vz - (s.z - O.z) * s.vx) || (rng() < 0.5 ? -1 : 1);
+                const turn = side * (0.25 + rng() * 0.45) * (leaping ? 1.3 : 1), keep = leaping ? 0.65 + rng() * 0.2 : 0.8 + rng() * 0.15;
+                const head = Math.atan2(s.vx, s.vz) + turn;
+                s.vx = Math.sin(head) * hv * keep; s.vz = Math.cos(head) * hv * keep; s.vy = Math.max(0, s.vy) * 0.7 + 0.8 + rng() * 1.2;
+                pop(O.x, 4.2, O.z, leaping ? `${O.p.name.toUpperCase()} GOT A HAND TO IT!` : 'TOUCHED!', '#ff9a5a', 0.7, 0.8); sfx.play('bonk'); O.doll.setArms(1.8, 0.4); O.armT = 0.4;
+              }
               if (pz > 0 && s.z <= 0) {
                 const ax = Math.abs(s.x);
                 if (ax < GOAL_HALF) result('GOAL!', '#ffd23f', GOAL, 'goal');
@@ -234,13 +245,17 @@ export default {
         // ----- move the players -----
         for (const K of kickers) {
           let ix = 0, iz = 0;
-          const free = running && finishAt == null && (phase === 'fly' || phase === 'loose' || phase === 'pre' || (phase === 'kick' && holder !== K) || phase === 'show');
+          const free = running && finishAt == null && (phase === 'fly' || phase === 'pre' || (phase === 'kick' && holder !== K) || phase === 'show');
           if (K.bot && free) {
             const B = K.bot;
             let tx, tz;
             if (phase === 'fly') { tx = fly.tx + (B.ox || 0); tz = fly.tz + (B.oz || 0); }
-            else if (phase === 'loose') { tx = loose.x; tz = loose.z; }
-            else { tx = ZONE.x0 + (ZONE.x1 - ZONE.x0) * ((K.k + 0.5) / n); tz = (ZONE.z0 + ZONE.z1) / 2; }
+            else if (phase === 'kick' && holder && holder !== K && B.defend) {
+              // stand in the path of the kick, just outside the ring
+              const dir = Math.atan2(-holder.x, holder.z) + holder.aim, ux = -Math.sin(dir), uz = -Math.cos(dir);
+              tx = holder.x + ux * B.dd - uz * B.dx; tz = holder.z + uz * B.dd + ux * B.dx;
+              if (shot && !shot.done && !B.jumped) { const ahead = (K.x - shot.x) * shot.vx + (K.z - shot.z) * shot.vz, hv = Math.hypot(shot.vx, shot.vz) || 1; if (ahead > 0 && ahead / (hv * hv) < 0.22 + B.timing) { B.jumped = true; if (K.jumpT < 0) K.jumpT = 0; } }
+            } else { tx = ZONE.x0 + (ZONE.x1 - ZONE.x0) * ((K.k + 0.5) / n); tz = (ZONE.z0 + ZONE.z1) / 2; }
             const dx = tx - K.x, dz = tz - K.z, d = Math.hypot(dx, dz);
             if (d > 0.15) { const s = Math.min(1, d / 1.2); ix = dx / d * s; iz = dz / d * s; }
             if (phase === 'fly' && !B.jumped) { const tl = FLY_T - fly.t; if (tl < 0.32 + (B.timingNow ?? B.timing) && Math.hypot(K.x - fly.tx, K.z - fly.tz) < 2.2) { B.jumped = true; if (K.jumpT < 0) K.jumpT = 0; } }
@@ -251,7 +266,9 @@ export default {
           const tvx = m > 0.05 ? ix / Math.hypot(ix, iz) * m * RUN : 0, tvz = m > 0.05 ? iz / Math.hypot(ix, iz) * m * RUN : 0;
           const a = 1 - Math.exp(-dt * 8); K.vx += (tvx - K.vx) * a; K.vz += (tvz - K.vz) * a;
           if (phase === 'kick' && holder === K) K.vx = K.vz = 0;
-          K.x = Math.max(-12, Math.min(12, K.x + K.vx * dt)); K.z = Math.max(4, Math.min(18, K.z + K.vz * dt));
+          K.x = Math.max(-12, Math.min(12, K.x + K.vx * dt)); K.z = Math.max(0.6, Math.min(18, K.z + K.vz * dt));
+          // nobody inside the protected ring around the kicker
+          if (phase === 'kick' && holder && holder !== K) { const dx = K.x - holder.x, dz = K.z - holder.z, d = Math.hypot(dx, dz); if (d < GUARD) { const u = d > 1e-4 ? 1 / d : 0; K.x = holder.x + (u ? dx * u : 0) * GUARD; K.z = holder.z + (u ? dz * u : 1) * GUARD; } }
           if (K.jumpT >= 0) { K.jumpT += dt; if (K.jumpT > LEAP_T + 0.35) K.jumpT = -1; }
           K.y = K.jumpT >= 0 && K.jumpT < LEAP_T ? Math.sin(K.jumpT / LEAP_T * Math.PI) * LEAP : 0;
           K.doll.group.position.set(K.x, K.y, K.z);
@@ -270,6 +287,8 @@ export default {
         }
         // the ball sits with whoever has it
         if (phase === 'kick' && holder && !shot) ball.position.set(holder.x + 0.2, 1.0 * DOLL / 0.62 + holder.y, holder.z - 0.25);
+        guardRing.material.opacity += ((phase === 'kick' && holder && !shot ? 0.55 : 0) - guardRing.material.opacity) * Math.min(1, dt * 6);
+        if (holder) guardRing.position.set(holder.x, 0.035, holder.z);
         if (phase === 'pre') ball.position.set(coach.group.position.x + 0.5, 0.9, coach.group.position.z - 0.3);
         coach.setArms(phase === 'pre' ? 0.6 : 0, 0); coach.update(dt);
         // the windsock swings to the wind for the kick at goal
