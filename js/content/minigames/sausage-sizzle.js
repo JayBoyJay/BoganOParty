@@ -1,13 +1,14 @@
 // Sausage Sizzle: the hardware store snag sizzle, and everyone's on the barbie with a line of Under 12s
-// footy kids (and their dads) out the front. Four snags each on the hotplate; only the side touching the
-// plate cooks, so flip each one at the right time. Every customer wants theirs a certain way: just done,
+// footy kids (and their dads) out the front. Two snags each on the hotplate; only the side touching the
+// plate cooks, so flip each one at the right time. Lift one up onto the warming rack to stop it cooking
+// (it won't burn up there) and put it back down if it needs more. Every customer wants theirs a certain way: just done,
 // golden, well done, or cremated for the dads. SERVE hands over whichever snag is closest to what they
 // asked for. Nail it for 3 (plus a tip if they weren't kept waiting); leave them too long and they walk
 // off. Fat flare-ups cook a snag three times as fast, the magpie nicks one now and then, and the last
 // 25 seconds are the lunch rush: shorter tempers, double points.
 import { addSky } from '../../host/sky.js';
 
-const N_SNAGS = 4;
+const N_SNAGS = 2;
 const SEC = 1.7; // each player's bit of the hotplate
 const HEAT = 0.2; // cook per second on the down side; 1.0 is golden
 const CHAR = 1.95, READY = 0.6; // charcoal; and under this on either side it's still raw and stays on
@@ -20,6 +21,8 @@ const WANTS = [
 ];
 const CLOSE = 0.18, PATIENCE = 15, RUSH_PATIENCE = 10, RUSH_T = 25, FLARE_T = 2.4;
 const SNAG_L = 0.95, SNAG_R = 0.075;
+const PLATE_Z = [0.28, -0.04]; // where each snag sits on the hotplate
+const RACK_Z = [-0.4, -0.54], RACK_Y = 1.13; // and on the warming rack above the back of it
 const DOLL = 0.7;
 
 // raw pink → golden → dark → charcoal
@@ -29,14 +32,14 @@ const cookCol = (c, out) => { for (let i = 1; i < STOPS.length; i++) if (c <= ST
 export default {
   id: 'sausage-sizzle',
   name: 'Sausage Sizzle',
-  blurb: 'A line of hungry footy kids, four snags each on the barbie. Cook every one the way they asked.',
-  howTo: 'Only the side touching the hotplate cooks. Tap a snag number to flip it. Your customer\'s bubble shows how they want it (just done, golden, well done, or cremated) and the colour to aim for. SERVE gives them your snag that is closest. Spot on is 3 points, plus 1 if they weren\'t kept waiting; near enough is 1. Keep them waiting too long and they walk off (-1). Flare-ups cook fast, charcoal loses a point, and the last 25 seconds are the lunch rush: double points.',
-  padText: 'Flip 1-4. SERVE when it looks right',
+  blurb: 'A line of hungry footy kids, two snags each on the barbie. Cook every one the way they asked.',
+  howTo: 'Only the side touching the hotplate cooks. FLIP turns a snag over. LIFT puts it up on the warming rack, where it stops cooking and can\'t burn; press it again to put it back down. Your customer\'s bubble shows how they want it (just done, golden, well done, or cremated) and the colour to aim for. SERVE gives them your snag that is closest. Spot on is 3 points, plus 1 if they weren\'t kept waiting; near enough is 1. Keep them waiting too long and they walk off (-1). Flare-ups cook fast, charcoal loses a point, and the last 25 seconds are the lunch rush: double points.',
+  padText: 'FLIP to turn, LIFT to rest it on the rack. SERVE when it looks right',
   duration: 80,
   pad: { kind: 'buttons', buttons: [
-    { id: 's1', label: '🌭 1', color: '#ffd8a8' }, { id: 's2', label: '🌭 2', color: '#ffd8a8' },
-    { id: 's3', label: '🌭 3', color: '#ffd8a8' }, { id: 's4', label: '🌭 4', color: '#ffd8a8' },
-    { id: 'serve', label: '🍞 SERVE', tone: 'go', wide: true },
+    { id: 's1', label: '🔄 FLIP 1', color: '#ffd8a8', row: 0 }, { id: 's2', label: '🔄 FLIP 2', color: '#ffd8a8', row: 0 },
+    { id: 'l1', label: '✋ LIFT 1 / PUT DOWN', color: '#bfe3ff', row: 1 }, { id: 'l2', label: '✋ LIFT 2 / PUT DOWN', color: '#bfe3ff', row: 1 },
+    { id: 'serve', label: '🍞 SERVE', tone: 'go', row: 2 },
   ] },
 
   create(mg) {
@@ -63,6 +66,10 @@ export default {
     kit.box(W + 0.4, 0.8, 1.2, kit.mat(0x7a7e82, { metalness: 0.6, roughness: 0.4 }), 0, 0, 0);
     kit.box(W + 0.5, 0.06, 1.3, plateM, 0, 0.8, 0);
     kit.box(W + 0.5, 0.12, 0.05, plateM, 0, 0.86, -0.62);
+    // a chrome warming rack over the back of the plate: snags up here stop cooking
+    const rackM = kit.mat(0xc8ccd0, { metalness: 0.9, roughness: 0.25 });
+    for (const z of [-0.34, -0.47, -0.6]) kit.box(W + 0.3, 0.015, 0.015, rackM, 0, RACK_Y - SNAG_R - 0.01, z).castShadow = false;
+    for (let x = -W / 2 - 0.1; x <= W / 2 + 0.11; x += SEC / 2) for (const z of [-0.34, -0.6]) kit.box(0.02, RACK_Y - SNAG_R - 0.86, 0.02, rackM, x, 0.86, z).castShadow = false;
     // a folding table of bread and sauce out the front
     kit.box(W + 0.4, 0.05, 0.5, 0xf4f0e8, 0, 0.72, 1.1, undefined, { roughness: 0.6 });
     for (const sx of [-1, 1]) kit.box(0.04, 0.72, 0.04, 0xa8a8a8, sx * (W / 2), 0, 1.1);
@@ -83,7 +90,7 @@ export default {
       return out;
     })();
     const numTex = (k) => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.beginPath(); g.arc(32, 32, 28, 0, 7); g.fill(); g.fillStyle = '#1a1a1a'; g.font = '900 44px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(k), 32, 35); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
-    const nums = [1, 2, 3, 4].map(numTex);
+    const nums = [1, 2].map(numTex);
     const smokeTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); return t; })();
     const puffs = [];
     const puff = (x, y, z, cook) => {
@@ -131,14 +138,14 @@ export default {
       const tongs = kit.box(0.04, 0.03, 0.45, 0xc8ccd0, x0 + 0.45, 1.2, -0.7, undefined, { metalness: 0.9, roughness: 0.3 });
       const snags = [];
       for (let k = 0; k < N_SNAGS; k++) {
-        const z = 0.39 - k * 0.26;
+        const z = PLATE_Z[k];
         const mats = [new THREE.MeshStandardMaterial({ roughness: 0.45 }), new THREE.MeshStandardMaterial({ roughness: 0.45 })];
         const mesh = new THREE.Mesh(snagGeo, mats); mesh.castShadow = true;
         mesh.position.set(x0 + 0.1, 0.83 + SNAG_R, z); scene.add(mesh);
         const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: nums[k], depthTest: false })); tag.scale.setScalar(0.17); tag.renderOrder = 12;
         tag.position.set(x0 - SNAG_L / 2 - 0.12 + 0.1, 0.96, z); scene.add(tag);
         const flame = new THREE.Sprite(flameMat.clone()); flame.visible = false; flame.renderOrder = 11; scene.add(flame);
-        snags.push({ k, mesh, mats, z, x: x0 + 0.1, cook: [0, 0], down: 1, rot: 0, rotTo: 0, gone: 0, smokeT: rng() * 0.3, heat: 0.92 + rng() * 0.16, flare: 0, flame });
+        snags.push({ k, mesh, mats, tag, z, x: x0 + 0.1, cook: [0, 0], down: 1, rot: 0, rotTo: 0, up: false, lift: 0, gone: 0, smokeT: rng() * 0.3, heat: 0.92 + rng() * 0.16, flare: 0, flame });
       }
       // the customer: a little footy kid (or a dad, for the cremated ones) at the front of the table
       const kid = { face: '#fff', dad: false, k: -1, wait: 0, max: PATIENCE, walk: 0, leaving: 0, bubble: null, ctx: null, tex: null, drawn: '' };
@@ -148,13 +155,20 @@ export default {
       return { p, x0, doll, tongs, snags, kid, score: 0, served: 0, armT: 0, streak: 0,
         bot: p.bot ? { lag: 0, slop: 0.04 + rng() * 0.1, react: 0.2 + rng() * 0.35 } : null };
     });
-    const resetSnag = (s, delay = 0.7) => { s.cook = [0, 0]; s.down = 1; s.rot = s.rotTo = 0; s.gone = delay; s.mesh.visible = delay <= 0; s.bot = null; s.flare = 0; if (s.flame) s.flame.visible = false; };
+    const resetSnag = (s, delay = 0.7) => { s.cook = [0, 0]; s.down = 1; s.rot = s.rotTo = 0; s.up = false; s.lift = 0; s.gone = delay; s.mesh.visible = delay <= 0; s.bot = null; s.flare = 0; if (s.flame) s.flame.visible = false; };
 
     const flip = (C, k) => {
-      const s = C.snags[k]; if (!s || s.gone > 0 || Math.abs(s.rot - s.rotTo) > 0.3) return;
+      const s = C.snags[k]; if (!s || s.gone > 0 || s.up || Math.abs(s.rot - s.rotTo) > 0.3) return;
       s.down = 1 - s.down; s.rotTo += Math.PI;
       C.armT = 0.25; sfx.play('squeak');
     };
+    // lift a snag up onto the warming rack (it stops cooking there), or put it back down on the plate
+    const lift = (C, k) => {
+      const s = C.snags[k]; if (!s || s.gone > 0 || Math.abs(s.lift - (s.up ? 1 : 0)) > 0.4) return;
+      s.up = !s.up; if (s.up) { s.flare = 0; s.flame.visible = false; }
+      C.armT = 0.25; sfx.play('squeak');
+    };
+    const snagPos = (s) => { const k = s.lift * s.lift * (3 - 2 * s.lift); return { y: 0.83 + SNAG_R + (RACK_Y - 0.83 - SNAG_R) * k + Math.sin(k * Math.PI) * 0.18, z: s.z + (RACK_Z[s.k] - s.z) * k }; };
     const bandMiss = (c, [lo, hi]) => (c < lo ? lo - c : c > hi ? c - hi : 0);
     const miss = (s, w) => Math.max(bandMiss(s.cook[0], w.band), bandMiss(s.cook[1], w.band));
     const rush = () => mg.timeLeft() <= RUSH_T;
@@ -192,7 +206,7 @@ export default {
       const b = new THREE.Group(); const sl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.02, 0.3), breadM); b.add(sl);
       const sn = new THREE.Mesh(snagGeo, [s.mats[0].clone(), s.mats[1].clone()]); sn.scale.setScalar(0.32); sn.rotation.y = Math.PI / 4; sn.position.y = 0.03; b.add(sn);
       const kp = C.kid.bubble.position;
-      b.position.set(s.x, 1.0, s.z); scene.add(b); breads.push({ b, life: 0, from: b.position.clone(), to: kp.clone(), good });
+      b.position.set(s.x, snagPos(s).y + 0.1, snagPos(s).z); scene.add(b); breads.push({ b, life: 0, from: b.position.clone(), to: kp.clone(), good });
       resetSnag(s);
     };
     const serve = (C) => {
@@ -241,7 +255,7 @@ export default {
           // a flare-up under someone's snag every few seconds
           if ((flareT -= dt) <= 0) {
             flareT = 3.5 + rng() * 3.5;
-            const C = cooks[(rng() * n) | 0], s = C.snags.filter((q) => q.gone <= 0 && q.flare <= 0)[(rng() * 4) | 0];
+            const C = cooks[(rng() * n) | 0], hot = C.snags.filter((q) => q.gone <= 0 && !q.up && q.flare <= 0), s = hot[(rng() * hot.length) | 0];
             if (s) { s.flare = FLARE_T; pop(s.x, 1.5, s.z, 'FLARE UP!', '#ffb030', 0.6); sfx.play('whoosh'); }
           }
           if (!rushSaid && mg.timeLeft() <= RUSH_T) { rushSaid = true; pop(0, 3.2, 0, 'LUNCH RUSH! x2', '#ffd23f', 1.6); sfx.play('whistle'); }
@@ -254,30 +268,40 @@ export default {
               const w = order(C.kid.k).want, mid = (w.band[0] + w.band[1]) / 2;
               const live = C.snags.filter((s) => s.gone <= 0);
               const hits = live.filter((s) => miss(s, w) <= B.slop * 0.5 && s.cook[0] >= READY && s.cook[1] >= READY);
-              const flipMe = live.find((s) => s.cook[s.down] >= mid + (rng() - 0.5) * B.slop && s.cook[1 - s.down] < mid);
+              const onPlate = live.filter((s) => !s.up);
+              const flipMe = onPlate.find((s) => s.cook[s.down] >= mid + (rng() - 0.5) * B.slop && s.cook[1 - s.down] < mid);
+              const restMe = onPlate.find((s) => hits.includes(s)); // done to order: rest it on the rack while the other catches up
+              const dropMe = live.find((s) => s.up && !hits.includes(s) && s.cook[s.down] < w.band[1] - B.slop); // undercooked for this order
               if (hits.length >= order(C.kid.k).count) serve(C);
+              else if (restMe) lift(C, restMe.k);
+              else if (dropMe) lift(C, dropMe.k);
               else if (flipMe) flip(C, flipMe.k);
               else if (C.kid.wait > C.kid.max * 0.8 && live.some((s) => s.cook[0] >= READY && s.cook[1] >= READY)) serve(C); // better something than nothing
             }
           }
           for (const s of C.snags) {
             if (s.gone > 0) { s.gone -= dt; if (s.gone <= 0) { s.mesh.visible = true; s.mesh.rotation.x = 0; } continue; }
-            if (running) s.cook[s.down] += HEAT * s.heat * dt * (s.flare > 0 ? 3 : 1);
+            if (running && !s.up) s.cook[s.down] += HEAT * s.heat * dt * (s.flare > 0 ? 3 : 1);
             if (s.flare > 0) {
               s.flare -= dt; s.flame.visible = s.flare > 0;
               s.flame.position.set(s.x + Math.sin(tAll * 23 + s.k) * 0.25, 1.0 + Math.abs(Math.sin(tAll * 17 + s.k)) * 0.08, s.z);
               s.flame.scale.set(0.4 + Math.sin(tAll * 31) * 0.06, 0.55 + Math.sin(tAll * 27 + 1) * 0.1, 1);
             }
-            if (s.cook[s.down] >= CHAR) { s.flare = 0; s.flame.visible = false; C.score -= 1; pop(s.x, 1.6, s.z, 'CHARCOAL -1', '#ff5a5a', 0.7); sfx.play('lose'); resetSnag(s, 1); continue; }
+            if (!s.up && s.cook[s.down] >= CHAR) { s.flare = 0; s.flame.visible = false; C.score -= 1; pop(s.x, 1.6, s.z, 'CHARCOAL -1', '#ff5a5a', 0.7); sfx.play('lose'); resetSnag(s, 1); continue; }
             // flip animation: a quick roll with a little hop
             const d = s.rotTo - s.rot; s.rot += Math.sign(d) * Math.min(Math.abs(d), dt * 14);
             s.mesh.rotation.x = s.rot;
-            s.mesh.position.y = 0.83 + SNAG_R + Math.sin(Math.min(1, Math.abs(d) / Math.PI) * Math.PI) * 0.12;
+            s.lift += Math.sign((s.up ? 1 : 0) - s.lift) * Math.min(Math.abs((s.up ? 1 : 0) - s.lift), dt * 5);
+            const at = snagPos(s);
+            s.mesh.position.y = at.y + Math.sin(Math.min(1, Math.abs(d) / Math.PI) * Math.PI) * 0.12;
+            s.mesh.position.z = at.z;
+            s.tag.position.set(s.x - SNAG_L / 2 - 0.12, at.y + 0.13 - SNAG_R, at.z);
+            if (s.flare > 0) s.flame.position.z = at.z;
             // the top half of the mesh is group 0 when it hasn't been flipped (down = 1)
             cookCol(s.cook[0], s.mats[0].color); cookCol(s.cook[1], s.mats[1].color);
             s.smokeT -= dt;
             const dc = s.cook[s.down];
-            if (running && s.smokeT <= 0 && dc > 0.3) { s.smokeT = dc > 1.2 ? 0.08 : dc > 0.85 ? 0.16 : 0.35; puff(s.x + (rng() - 0.5) * SNAG_L * 0.8, 0.9, s.z, dc); }
+            if (running && !s.up && s.smokeT <= 0 && dc > 0.3) { s.smokeT = dc > 1.2 ? 0.08 : dc > 0.85 ? 0.16 : 0.35; puff(s.x + (rng() - 0.5) * SNAG_L * 0.8, 0.9, s.z, dc); }
           }
           // the customer: walk up, wait (and get the sulks), take the snag and wander off
           {
@@ -307,12 +331,12 @@ export default {
         // the magpie: swoops in, nicks a snag off someone's plate, and leaves
         if (running) {
           if (!M.fly) { M.t -= dt; if (M.t <= 0) {
-            const C = cooks[(rng() * n) | 0], s = C.snags.filter((q) => q.gone <= 0)[0 | (rng() * 3)];
+            const C = cooks[(rng() * n) | 0], live = C.snags.filter((q) => q.gone <= 0), s = live[(rng() * live.length) | 0];
             if (s) { M.fly = { C, s, k: 0, from: new THREE.Vector3(-W / 2 - 8, 6, -4), to: new THREE.Vector3(W / 2 + 8, 7, 4) }; bird.visible = true; sfx.play('squeak'); }
             M.t = 11 + rng() * 8;
           } } else {
             const F = M.fly; F.k += dt / 2.6;
-            const at = new THREE.Vector3(F.s.x, 1.0, F.s.z);
+            const sp = snagPos(F.s), at = new THREE.Vector3(F.s.x, sp.y + 0.15, sp.z);
             const p = F.k < 0.5 ? F.from.clone().lerp(at, F.k * 2) : at.clone().lerp(F.to, (F.k - 0.5) * 2);
             bird.position.copy(p); bird.lookAt(F.k < 0.5 ? at : F.to);
             for (const w of bird.userData.wings) w.rotation.z = Math.sin(tAll * 30) * 0.6 * (w.position.x > 0 ? 1 : -1);
@@ -328,7 +352,8 @@ export default {
       input(p, m) {
         const C = cooks.find((x) => x.p === p); if (!C) return;
         if (m.b === 'serve') serve(C);
-        else if (/^s[1-4]$/.test(m.b)) flip(C, Number(m.b[1]) - 1);
+        else if (/^s[12]$/.test(m.b)) flip(C, Number(m.b[1]) - 1);
+        else if (/^l[12]$/.test(m.b)) lift(C, Number(m.b[1]) - 1);
       },
       scores() { return Object.fromEntries(cooks.map((C) => [C.p.id, C.score])); },
     };
