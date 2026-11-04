@@ -35,6 +35,7 @@ export class Sfx {
     switch (name) {
       case 'tick': this.tone(900, 0.04, { vol: 0.04 }); break;
       case 'step': this.tone(520, 0.06, { type: 'triangle', vol: 0.06 }); break;
+      case 'clack': this.noise(0.05, 0.25); this.tone(1700 + Math.random() * 500, 0.03, { type: 'triangle', vol: 0.05 }); break; // a die hitting the board
       case 'dice': [0, 0.05, 0.1].forEach((d) => this.tone(300 + Math.random() * 400, 0.05, { delay: d, vol: 0.05 })); break;
       case 'coin': this.tone(988, 0.08, { vol: 0.06 }); this.tone(1319, 0.2, { vol: 0.06, delay: 0.08 }); break;
       case 'lose': this.tone(400, 0.25, { type: 'sawtooth', vol: 0.05, slide: -250 }); break;

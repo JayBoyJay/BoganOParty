@@ -174,16 +174,22 @@ export class Game {
     this.view.focus(p);
     this.hud.diceStart(n, bonus);
     this.sfx.play('tick');
-    await this.ask(p, {
-      kind: 'roll', title: n > 1 ? `Roll ${n} dice!` : 'Roll!', body: bonus ? `+${bonus} bonus on top` : '',
-      options: [{ id: 'roll', label: '🎲 ROLL', tone: 'go' }], timer: 20,
+    // the phone shows the dice to flick up the screen; how hard and which way comes back as fling
+    const ans = await this.ask(p, {
+      kind: 'roll', title: n > 1 ? `Throw ${n} dice!` : 'Throw the die!', body: bonus ? `+${bonus} bonus on top` : '',
+      options: [{ id: 'roll', label: '🎲 ROLL', tone: 'go' }], timer: 20, dice: n, color: p.color, meta: true,
     });
+    const fling = ans?.fling || { power: 0.45 + this.rng() * 0.45, aim: (this.rng() - 0.5) * 0.8, spin: (this.rng() - 0.5) };
     const values = Array.from({ length: n }, () => 1 + Math.floor(this.rng() * RULES.diceSides));
     const total = values.reduce((a, b) => a + b, 0) + bonus;
+    this.hud.diceThrown?.();
+    this.hub.idle(p, 'Rolling…', 'Watch the TV');
+    await this.view.throwDice?.(p, values, fling, this.speed, () => this.sfx.play('clack'));
     this.sfx.play('dice');
     await this.hud.diceStop(values, bonus, total);
     this.rolled.add(p.id);
     this.hub.idle(p, `You rolled ${total}`);
+    this.view.clearDice?.();
     await this.move(p, total);
     if (!this.over) await this.landOn(p);
     this.hud.diceHide();

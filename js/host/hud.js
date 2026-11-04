@@ -78,7 +78,15 @@ export class Hud {
   diceStart(n, bonus) {
     const d = this.$('hudDice');
     d.classList.remove('hidden');
-    d.innerHTML = Array.from({ length: n }, () => '<div class="die spin">?</div>').join('') + (bonus ? `<div class="bonus">+${bonus}</div>` : '');
+    clearInterval(this.diceT);
+    d.innerHTML = Array.from({ length: n }, () => '<div class="die wait">?</div>').join('') + (bonus ? `<div class="bonus">+${bonus}</div>` : '')
+      + `<div class="dice-hint">📱 Flick the ${n > 1 ? 'dice' : 'die'} up your phone!</div>`;
+  }
+  // the dice are in the air on the board: the boxes up top spin until they land
+  diceThrown() {
+    const d = this.$('hudDice');
+    d.querySelector('.dice-hint')?.remove();
+    d.querySelectorAll('.die.wait').forEach((x) => { x.classList.remove('wait'); x.classList.add('spin'); });
     clearInterval(this.diceT);
     this.diceT = setInterval(() => d.querySelectorAll('.die.spin').forEach((x) => { x.textContent = 1 + Math.floor(Math.random() * 10); }), 70);
   }
