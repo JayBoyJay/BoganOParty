@@ -347,6 +347,7 @@ export default {
     };
     const finish = (P, why) => {
       if (P.done) return;
+      P.done = true; P.cur = null; P.ghost.clear();
       if (!why) strapUp(P);
       pop(P.ox + EW / 2, P.oy + EH + 1.0, P.oz + 0.6, why || `${P.items} PACKED`, why ? '#ff8a5a' : P.p.color, 0.8);
     };
