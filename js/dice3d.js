@@ -44,11 +44,25 @@ function buildShape() {
   const span = Math.max(maxX - minX, maxY - minY) * 1.04;
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const uv = (q) => [0.5 + (q[0] - cx) / span, 0.5 + (q[1] - cy) / span];
-  // where the number goes: across the wide part, a touch towards the near point
-  const sideMid = [(pts[1][0] + pts[3][0]) / 2, (pts[1][1] + pts[3][1]) / 2];
-  const numAt = uv([sideMid[0] * 0.8 + pts[2][0] * 0.2, sideMid[1] * 0.8 + pts[2][1] * 0.2]);
-  const sideLen = Math.hypot(pts[1][0] - pts[3][0], pts[1][1] - pts[3][1]) / span;
-
+  // Where the number goes: the biggest box (of a given width/height ratio) that fits inside the kite,
+  // centred across it. N is at the origin and A straight up the v axis, so the kite is symmetric about u = 0.
+  const hw = Math.abs(pts[1][0]), vS = pts[1][1], vA = pts[0][1];
+  const halfW = (v) => (v <= 0 || v >= vA ? 0 : v < vS ? hw * v / vS : hw * (vA - v) / (vA - vS));
+  const fitText = (wr, hr = 0.74) => {
+    let best = { size: 0, at: vS };
+    for (let i = 1; i < 200; i++) {
+      const c = vA * i / 200;
+      let lo = 0, hi = vA;
+      for (let j = 0; j < 30; j++) {
+        const fs = (lo + hi) / 2;
+        const ok = Math.min(halfW(c - fs * hr / 2), halfW(c + fs * hr / 2)) >= fs * wr / 2 * 1.14;
+        if (ok) lo = fs; else hi = fs;
+      }
+      if (lo > best.size) best = { size: lo, at: c };
+    }
+    return { at: uv([0, best.at]), size: best.size / span };
+  };
+  const num1 = fitText(0.62), num2 = fitText(1.18);
   const pos = [], uvs = [], groups = [], faces = [];
   kites.forEach((k, i) => {
     const f = flat(k);
@@ -64,7 +78,7 @@ function buildShape() {
   });
   for (const f of faces) if (!f.value) f.value = 11 - faces.find((o) => o.normal.dot(f.normal) < -0.999).value;
   const inradius = faces[0].normal.dot(k0.A);
-  shape = { pos, uvs, groups, faces, numAt, sideLen, inradius };
+  shape = { pos, uvs, groups, faces, num1, num2, inradius };
   return shape;
 }
 
@@ -84,7 +98,7 @@ function faceTexture(color, value) {
   const key = color + ':' + value;
   if (texCache.has(key)) return texCache.get(key);
   const s = buildShape();
-  const W = 256;
+  const W = 512;
   const c = document.createElement('canvas'); c.width = c.height = W;
   const g = c.getContext('2d');
   const base = new THREE.Color(color);
@@ -92,15 +106,24 @@ function faceTexture(color, value) {
   const grd = g.createLinearGradient(0, 0, 0, W);
   grd.addColorStop(0, '#' + light.getHexString()); grd.addColorStop(1, '#' + dark.getHexString());
   g.fillStyle = grd; g.fillRect(0, 0, W, W);
-  const x = s.numAt[0] * W, y = (1 - s.numAt[1]) * W;
-  const fs = s.sideLen * W * (value === 10 ? 0.4 : 0.5);
+  const fit = value === 10 ? s.num2 : s.num1;
+  const text = String(value);
+  const x = fit.at[0] * W, cy = (1 - fit.at[1]) * W;
+  let fs = fit.size * W;
   g.font = `900 ${fs}px system-ui, Arial, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.lineJoin = 'round'; g.lineWidth = fs * 0.16; g.strokeStyle = 'rgba(20,8,4,0.85)';
-  g.strokeText(String(value), x, y);
-  g.fillStyle = '#fffaf0'; g.fillText(String(value), x, y);
+  // shrink it if this font draws it wider than the box it was fitted to
+  const room = fs * (value === 10 ? 1.18 : 0.62);
+  let m = g.measureText(text);
+  if (m.width > room) { fs *= room / m.width; g.font = `900 ${fs}px system-ui, Arial, sans-serif`; m = g.measureText(text); }
+  // centre the digits themselves (not the line box) on the spot
+  const asc = m.actualBoundingBoxAscent || fs * 0.72, desc = m.actualBoundingBoxDescent || 0;
+  const y = cy + (asc - desc) / 2;
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.lineJoin = 'round'; g.lineWidth = fs * 0.14; g.strokeStyle = 'rgba(20,8,4,0.85)';
+  g.strokeText(text, x, y);
+  g.fillStyle = '#fffaf0'; g.fillText(text, x, y);
   // 6 and 9 look the same upside down: underline them
-  if (value === 6 || value === 9) { g.fillRect(x - fs * 0.24, y + fs * 0.42, fs * 0.48, fs * 0.09); }
+  if (value === 6 || value === 9) { g.fillRect(x - fs * 0.22, y + fs * 0.08, fs * 0.44, fs * 0.08); }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
