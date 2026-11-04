@@ -6,7 +6,7 @@
 //               { t: 'idle', title }                                               nothing to do right now
 //               { t: 'stats', ... }                                                coins, items, power-ups
 //   phone → TV  { t: 'answer', id, v, fling? }   (fling = how hard/where the die was flicked, roll prompts only)
-//                 { t: 'in', id, b, ...extra }   { t: 'emote', mood }
+//                 { t: 'in', id, b, ...extra }   { t: 'emote', mood }  (a head balloon, see balloons.js)
 //
 // CPU players answer prompts here too, so game code never needs to care who is a bot.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

@@ -14,6 +14,7 @@ import { Game } from './engine.js';
 import { MinigameRunner } from './minigames.js';
 import { Marathon, MARATHON_POINTS } from './marathon.js';
 import { Drinks } from './drinks.js';
+import { Balloons } from './balloons.js';
 import { MOODS, BODIES, OUTFITS, HATS, PLAYER_COLORS, faceDataUrl, defaultOutfit } from './doll.js';
 
 const $ = (id) => document.getElementById(id);
@@ -36,7 +37,11 @@ const state = {
   players: new Map(), // pid -> { id, name, body, photos, color, ready, connected }
   settings: { mode: 'board', mgRounds: 5, map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, drinks: 1, kingCup: 0, practice: 1, ...store.load('settings', {}) },
   game: null,
+  runner: null,
 };
+// emotes show on the board and the screens around a minigame (results, standings), but not in practice or play
+const emotesOk = () => state.phase !== 'lobby' && !state.runner?.playing;
+
 if (qp.has('bots')) state.settings.cpus = Math.min(7, Number(qp.get('bots')) || 0);
 if (qp.has('drinks')) state.settings.drinks = Number(qp.get('drinks')) ? 1 : 0;
 if (qp.has('practice')) state.settings.practice = Number(qp.get('practice')) ? 1 : 0;
@@ -56,6 +61,7 @@ const stage = new Stage($('scene'));
 window.__stage = stage; // renderer.info etc. for tests (add ?fps to see it on screen)
 const sfx = new Sfx();
 const hud = new Hud($('hud'));
+const balloons = new Balloons((p, mood) => hud.faceFor(p, mood));
 hud.show(false);
 addEventListener('pointerdown', () => sfx.unlock(), { once: true });
 addEventListener('keydown', () => sfx.unlock(), { once: true });
@@ -141,12 +147,11 @@ function onNet(m) {
       break;
     }
     case 'emote': {
-      // faces work as emotes on the board (not during minigames)
+      // faces work as emotes on the board and between minigames, never while one is being played
       const g = state.game;
-      if (p && g && state.phase === 'board' && MOODS.includes(msg.mood) && g.players.includes(p)) {
-        g.setMood(p, msg.mood, 3000);
-        g.view.floatText(p, { neutral: '😐', happy: '😁', sad: '😢', angry: '😡' }[msg.mood]);
-      }
+      if (!p || !g || !MOODS.includes(msg.mood) || !g.players.includes(p) || !emotesOk()) return;
+      if (!balloons.launch(p, msg.mood)) return;
+      if (state.phase === 'board') g.setMood(p, msg.mood, 3000);
       break;
     }
     case 'again': if (state.phase === 'over') backToLobby(); break;
@@ -288,6 +293,7 @@ async function startGame() {
   dropLobbyBoard();
   hud.setGoal(`${map.item.emoji} First to ${state.settings.itemsToWin}`);
   const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1, practice: !!state.settings.practice });
+  state.runner = runner;
   const only = qp.get('minigame') && MINIGAME_BY_ID[qp.get('minigame')] ? [qp.get('minigame')] : null;
   const game = new Game({
     map, board, players, hub, view, hud, sfx,
@@ -314,6 +320,7 @@ async function startMarathon(players) {
   hub.players = players;
   hub.idleAll('Starting!', `Minigames only: ${state.settings.mgRounds} games`);
   const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1, practice: !!state.settings.practice });
+  state.runner = runner;
   const only = qp.get('minigame') && MINIGAME_BY_ID[qp.get('minigame')] ? [qp.get('minigame')] : null;
   const { drinks: drinkOn, kingCup } = state.settings;
   const drinks = drinkOn || kingCup ? new Drinks({ players, hub, sfx, speed: fast ? 0.25 : 1, kingCup: !!kingCup }) : null;
@@ -346,6 +353,8 @@ function gameOver(players, result) {
 function backToLobby() {
   state.phase = 'lobby';
   state.game = null;
+  state.runner = null;
+  balloons.clear();
   hud.hideOverlay();
   hud.show(false);
   for (const p of state.players.values()) p.ready = false;

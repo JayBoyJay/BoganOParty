@@ -1,6 +1,7 @@
 // Phone remote. It only shows whatever screen the TV last sent and sends taps back;
 // all game rules live on the TV (see js/host/hub.js for the message list).
 import { PhoneNet } from '../net.js';
+import { keepAwake } from './wakelock.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -35,6 +36,7 @@ document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.prev
 let lastTouchEnd = 0;
 document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea, select')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) net.reconnectNow(); });
+keepAwake(); // stop the screen sleeping mid-game
 
 let holdUntil = 0, heldT = 0;
 // the 3D dice (three.js) load in the background once the game starts, so a roll shows them straight away
@@ -63,6 +65,7 @@ function onMsg(m) {
     case 'padx':
       if (screen?.t !== 'pad' || screen.id !== m.id) break;
       if ('pin' in m) pinBar(m);
+      if ('btn' in m) relabel(m);
       if ('lit' in m) { const b = document.querySelector(`[data-b="${CSS.escape(m.lit)}"]`); b?.classList.toggle('lit', !!m.on); b?.classList.toggle('off', !m.on); } // e.g. Burger Boys' PISS button once the bar is full
       break;
   }
@@ -201,7 +204,7 @@ function renderScreen() {
   if (s.t === 'prompt' && s.kind === 'roll') { renderRoll(s, el); return; }
   if (s.t === 'idle') {
     el.innerHTML = `<div class="idle"><div class="big">📺</div><h2>${esc(s.title || 'Watch the TV')}</h2><div class="dim">${esc(s.body || '')}</div></div>
-      ${stats ? `<div class="label">Pull a face on the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>` : ''}`;
+      <div class="label">Send a face balloon to the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>`;
     for (const b of el.querySelectorAll('[data-e]')) b.onclick = () => { send({ t: 'emote', mood: b.dataset.e }); buzz(15); };
     return;
   }
@@ -304,6 +307,18 @@ function padRows(buttons) {
   for (const b of buttons) { if (b.wide) { if (run.length) flush(); rows.push([b]); } else run.push(b); }
   if (run.length) flush();
   return rows;
+}
+
+// the TV can change what a pad button says mid-game, e.g. Marble Mayhem's power button showing the power you hold:
+// { btn: id, label, sub?, color?, on } (on: 0 greys it out)
+function relabel(m) {
+  const b = document.querySelector(`[data-b="${CSS.escape(m.btn)}"]`);
+  if (!b) return;
+  b.innerHTML = `<span style="display:flex;flex-direction:column;align-items:center;line-height:1.1;">${esc(m.label || '')}${m.sub ? `<small style="font-size:0.5em;font-weight:700;opacity:0.85;margin-top:0.3em;">${esc(m.sub)}</small>` : ''}</span>`;
+  // the power's colour as a glowing rim, so it doesn't blend into a neighbouring button of the same colour
+  b.style.background = m.color ? '#1d1420' : ''; b.style.borderColor = m.color || ''; b.style.color = m.color || '';
+  b.style.boxShadow = m.color ? `inset 0 0 0 3px ${m.color}, 0 0 18px ${m.color}88` : '';
+  b.classList.toggle('off', !m.on);
 }
 
 // buttons in rows that stretch to fill the screen, so the same pad fits a phone held sideways or upright
