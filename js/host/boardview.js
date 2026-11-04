@@ -10,6 +10,7 @@ import { ImprovedNoise } from '../../vendor/ImprovedNoise.js';
 import { Doll } from './doll.js';
 import { Tweens, easeInOut, easeOut } from './stage.js';
 import { makeD10, restQuaternion } from '../dice3d.js';
+import { gatherColliders, simulateDice } from './dicephys.js';
 
 const SPACE_R = 1.25;
 const iconTex = {};
@@ -335,22 +336,20 @@ export class BoardView {
 
   // ---------- dice ----------
   // Throw dice (already decided: values) from the viewer's side of the screen onto the board in front of p.
-  // fling = { power 0..1, aim -1..1 (left/right), spin -1..1 } from the phone flick. They bounce, tumble and
-  // settle with each value on top, reading upright from the camera.
-  async throwDice(p, values, fling = {}, speed = 1, onBounce = null) {
+  // fling = { power 0..1, aim -1..1 (left/right), spin -1..1 } from the phone flick: harder goes further.
+  // A physics sim (dicephys.js) bounces them off the ground, props, buildings, dolls and each other; the
+  // last half second eases each onto its value, reading upright from the camera.
+  // onHit(kind, hard) for sounds: kind is 'ground' | 'wall' | 'doll' | 'dice', hard 0..1.
+  async throwDice(p, values, fling = {}, speed = 1, onHit = null) {
     this.clearDice(true);
     const d = this.dolls.get(p.id);
     if (!d) return;
     const power = Math.max(0, Math.min(1, fling.power ?? 0.6)), aim = fling.aim || 0, spin = fling.spin || 0;
     const base = d.group.position.clone();
     const ground = base.y;
-    // a harder flick throws further: the dice land past the doll and keep rolling away from the camera
-    const reach = 3 + power * 12;
-    this.followNow(base.clone().add(new THREE.Vector3(2.4 + aim * 2, 0, 1.5 - reach * 0.5)));
-    const T = (1.6 + power * 1.2) * speed;
-    const up = new THREE.Vector3(0, 1, 0);
+    const SIZE = 1.15, R = 0.85;
     const dice = values.map((value, i) => {
-      const mesh = makeD10(p.color || '#ff4f8b', 1.15);
+      const mesh = makeD10(p.color || '#ff4f8b', SIZE);
       mesh.castShadow = true;
       const verts = [];
       const pa = mesh.geometry.getAttribute('position');
@@ -358,51 +357,65 @@ export class BoardView {
         const v = new THREE.Vector3().fromBufferAttribute(pa, j);
         if (!verts.some((w) => w.distanceToSquared(v) < 1e-6)) verts.push(v);
       }
-      const off = (i - (values.length - 1) / 2) * 2.4;
-      // they go down a lane beside the doll rather than through it
-      const land = base.clone().add(new THREE.Vector3(2.4 + off + aim * (2 + power * 3), 0, 3 - reach + (i % 2) * 0.6));
-      const start = base.clone().add(new THREE.Vector3(2.4 + off * 0.5 + aim, 8 + power * 3, 15));
-      const dir = land.clone().sub(start).setY(0).normalize();
-      const roll = new THREE.Vector3().crossVectors(up, dir).normalize();
-      const wob = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
-      const final = restQuaternion(value, new THREE.Vector3(0, 0, -1));
-      // it rolls forward, turning as far as it travels (a d10 rolls about like a 0.9-radius wheel)
-      const turns = land.clone().sub(start).setY(0).length() / (0.9 * 1.15) + Math.random() * 2;
-      // bounces after the first hit, as fractions of the throw: [time it starts, how high]
-      const hits = [0.38, 0.62, 0.78, 0.88].map((t, h) => [t + (Math.random() - 0.5) * 0.03, [1.8, 0.8, 0.3, 0][h] * (0.6 + power * 0.6)]);
-      this.scene.add(mesh);
-      return { mesh, verts, land, start, roll, wob, final, turns, hits, value, bounced: 0, wobAmt: (1.5 + Math.abs(spin) * 2) * Math.PI };
+      const off = (i - (values.length - 1) / 2) * 2.2;
+      // in from the viewer's side, along a lane that clips the thrower's doll
+      const pos = base.clone().add(new THREE.Vector3(1.5 + off * 0.6 + aim * 2, 7 + power * 2, 15));
+      const dir = new THREE.Vector3(aim * 0.3 + off * 0.02 + (Math.random() - 0.5) * 0.06, 0, -1).normalize();
+      const vel = dir.multiplyScalar(10 + power * 8).setY(2);
+      const w = new THREE.Vector3(-(6 + power * 8), spin * 6, (Math.random() - 0.5) * 6);
+      const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
+      return { mesh, verts, value, start: { pos, vel, spin: w, quat } };
+    });
+    // what's solid round here: props and buildings near the throw, and everyone's doll
+    const skip = new Set([this.item, ...[...this.dolls.values()].map((x) => x.group)]);
+    const colliders = gatherColliders(this.scene, base.clone().add(new THREE.Vector3(0, 0, -8)), 32, ground, skip);
+    const dolls = (this.players || []).map((o) => ({ id: o.id, pos: this.dolls.get(o.id)?.group.position.clone(), r: 0.75, h: 3.6 })).filter((x) => x.pos);
+    const sim = simulateDice(dice.map((x) => x.start), { colliders, dolls, groundY: ground, R });
+    // ease the last half second onto the face each die has to show
+    const blend = Math.round(0.5 / (1 / 120));
+    dice.forEach((die, i) => {
+      const fr = sim.frames[i];
+      const target = restQuaternion(die.value, new THREE.Vector3(0, 0, -1));
+      // where this die stopped (others may roll on after it)
+      let stop = fr.length - 1;
+      while (stop > 0 && fr[stop].p.distanceToSquared(fr[stop - 1].p) < 1e-6) stop--;
+      const from = Math.max(0, stop - blend);
+      for (let j = from; j < fr.length; j++) {
+        const k = Math.min(1, (j - from) / Math.max(1, stop - from));
+        fr[j].q.slerp(target, k * k * (3 - 2 * k));
+      }
+      die.frames = fr;
+      die.land = fr[fr.length - 1].p.clone().setY(ground);
+      this.scene.add(die.mesh);
     });
     this.dice = dice;
-    const q = new THREE.Quaternion(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), tmp = new THREE.Vector3();
+    const T = Math.max(0.5, sim.T) * speed;
+    const events = sim.events.slice();
+    const tmp = new THREE.Vector3(), look = new THREE.Vector3();
+    const place = (die, f) => {
+      die.mesh.quaternion.copy(f.q);
+      let low = Infinity;
+      for (const v of die.verts) low = Math.min(low, tmp.copy(v).applyQuaternion(f.q).y);
+      // the ball's bottom is where the die's lowest point goes
+      die.mesh.position.set(f.p.x, f.p.y - R - low, f.p.z);
+    };
+    for (const die of dice) place(die, die.frames[0]);
     await this.tweens.add(T, (k) => {
+      const t = k * sim.T;
+      look.set(0, 0, 0);
       for (const die of dice) {
-        // across the ground: fast at first, slowing as it rolls to a stop
-        const h = 1 - Math.pow(1 - Math.min(1, k / 0.95), 2.2);
-        die.mesh.position.lerpVectors(die.start, die.land, h);
-        // up and down: falls to the first hit, then smaller and smaller hops
-        let y;
-        const t1 = die.hits[0][0];
-        if (k < t1) { const f = k / t1; y = (die.start.y - ground) * (1 - f * f); }
-        else {
-          y = 0;
-          for (let j = 0; j < die.hits.length - 1; j++) {
-            const [a, ht] = die.hits[j], b = die.hits[j + 1][0];
-            if (k >= a && k < b) { const f = (k - a) / (b - a); y = ht * 4 * f * (1 - f); }
-          }
-        }
-        const hitNow = die.hits.filter(([a]) => k >= a).length;
-        if (hitNow > die.bounced) { die.bounced = hitNow; if (die.bounced <= 3) onBounce?.(); }
-        // rolling forward (the angle climbs to zero as it travels) down to rest on its value
-        qa.setFromAxisAngle(die.roll, -die.turns * (1 - h));
-        qb.setFromAxisAngle(die.wob, -die.wobAmt * Math.pow(1 - k, 3.5));
-        q.copy(qa).multiply(qb).multiply(die.final);
-        die.mesh.quaternion.copy(q);
-        // sit on the ground whichever way up it is
-        let low = Infinity;
-        for (const v of die.verts) low = Math.min(low, tmp.copy(v).applyQuaternion(q).y);
-        die.mesh.position.y = ground + y - low;
+        const f = die.frames[Math.min(die.frames.length - 1, Math.floor(t * 120))];
+        place(die, f);
+        look.add(die.mesh.position);
       }
+      while (events.length && events[0].t <= t) {
+        const e = events.shift();
+        if (e.kind === 'doll') this.dolls.get(e.id)?.flinch();
+        onHit?.(e.kind, e.hard);
+      }
+      // the camera follows the dice down the board
+      look.divideScalar(dice.length).lerp(base, 0.35);
+      this.followNow(look);
     });
     // pop the numbers up over the dice
     for (const die of dice) {
@@ -410,12 +423,13 @@ export class BoardView {
       die.label.renderOrder = 12;
       this.scene.add(die.label);
     }
+    const tops = dice.map((die) => die.mesh.position.y);
     await this.tweens.add(0.35 * speed, (k) => {
-      for (const die of dice) {
+      dice.forEach((die, i) => {
         die.mesh.scale.setScalar(1 + Math.sin(k * Math.PI) * 0.18);
-        die.label.position.copy(die.land).setY(ground + 2 + easeOut(k) * 0.6);
+        die.label.position.copy(die.mesh.position).setY(tops[i] + 1.6 + easeOut(k) * 0.6);
         die.label.scale.setScalar(0.2 + easeOut(k) * 1.4);
-      }
+      });
     });
   }
 

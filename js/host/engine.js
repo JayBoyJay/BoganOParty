@@ -184,7 +184,7 @@ export class Game {
     const total = values.reduce((a, b) => a + b, 0) + bonus;
     this.hud.diceThrown?.();
     this.hub.idle(p, 'Rolling…', 'Watch the TV');
-    await this.view.throwDice?.(p, values, fling, this.speed, () => this.sfx.play('clack'));
+    await this.view.throwDice?.(p, values, fling, this.speed, (kind) => this.sfx.play(kind === 'doll' ? 'boing' : kind === 'wall' ? 'bonk' : 'clack'));
     this.sfx.play('dice');
     await this.hud.diceStop(values, bonus, total);
     this.rolled.add(p.id);
