@@ -5,7 +5,7 @@
 //               { t: 'pad', id, kind, title, body, buttons, timer }               live controls, every tap sent
 //               { t: 'idle', title }                                               nothing to do right now
 //               { t: 'stats', ... }                                                coins, items, power-ups
-//   phone → TV  { t: 'answer', id, v }   { t: 'in', id, b, ...extra }   { t: 'emote', mood }
+//   phone → TV  { t: 'answer', id, v }   { t: 'in', id, b, ...extra }   { t: 'emote', mood }  (a head balloon, see balloons.js)
 //
 // CPU players answer prompts here too, so game code never needs to care who is a bot.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

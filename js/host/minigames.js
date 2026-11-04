@@ -142,6 +142,7 @@ export class MinigameRunner {
   async run(players, entry = this.pick()) {
     const def = await this.load(entry);
     const root = this.root;
+    this.playing = true; // practice + play: no emote balloons until the results are up
     markPlayed(def.id);
     this.hud.show(false);
     root.classList.remove('hidden');
@@ -205,6 +206,7 @@ export class MinigameRunner {
     await sleep(1200 * this.speed);
 
     // ----- results -----
+    this.playing = false;
     const sc = inst.scores();
     const sorted = [...players].sort((a, b) => (sc[b.id] || 0) - (sc[a.id] || 0));
     const placings = [];

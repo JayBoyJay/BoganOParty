@@ -186,7 +186,7 @@ function renderScreen() {
   $('vGame').classList.toggle('pad', s.t === 'pad' && s.kind !== 'touchpad');
   if (s.t === 'idle') {
     el.innerHTML = `<div class="idle"><div class="big">📺</div><h2>${esc(s.title || 'Watch the TV')}</h2><div class="dim">${esc(s.body || '')}</div></div>
-      ${stats ? `<div class="label">Pull a face on the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>` : ''}`;
+      <div class="label">Send a face balloon to the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>`;
     for (const b of el.querySelectorAll('[data-e]')) b.onclick = () => { send({ t: 'emote', mood: b.dataset.e }); buzz(15); };
     return;
   }
