@@ -1,6 +1,7 @@
 // Phone remote. It only shows whatever screen the TV last sent and sends taps back;
 // all game rules live on the TV (see js/host/hub.js for the message list).
 import { PhoneNet } from '../net.js';
+import { keepAwake } from './wakelock.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -35,6 +36,7 @@ document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.prev
 let lastTouchEnd = 0;
 document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea, select')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) net.reconnectNow(); });
+keepAwake(); // stop the screen sleeping mid-game
 
 function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); }
 
