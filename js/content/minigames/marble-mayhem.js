@@ -11,6 +11,7 @@ import { RaceSim, BOOSTS_PER_RACE } from './marble/sim.js';
 import { World } from './marble/render.js';
 import { Director } from './marble/camera.js';
 import { MARBLE_R } from './marble/track.js';
+import { POWERS } from './marble/powers.js';
 
 const AFTER_WIN = 12; // seconds the rest get to finish once someone's won
 
@@ -84,7 +85,9 @@ export default {
         if (!el) {
           el = document.createElement('div');
           el.style.cssText = 'position:absolute;box-sizing:border-box;border:3px solid;';
-          el.innerHTML = '<span style="position:absolute;left:0.5rem;bottom:0.5rem;padding:0.2rem 0.7rem;border-radius:0.5rem;background:rgba(10,10,20,0.75);color:#fff;font-weight:900;font-size:clamp(0.8rem,1.6vw,1.4rem);white-space:nowrap;"></span>';
+          el.innerHTML = '<span style="position:absolute;left:0.5rem;bottom:0.5rem;padding:0.2rem 0.7rem;border-radius:0.5rem;background:rgba(10,10,20,0.75);color:#fff;font-weight:900;font-size:clamp(0.8rem,1.6vw,1.4rem);white-space:nowrap;"></span>'
+            // the power this marble is holding, bottom right of its pane
+            + '<span style="position:absolute;right:0.5rem;bottom:0.5rem;padding:0.2rem 0.7rem;border-radius:0.5rem;background:rgba(10,10,20,0.75);color:#fff;font-weight:900;font-size:clamp(0.8rem,1.6vw,1.4rem);white-space:nowrap;display:none;"></span>';
           overlay.appendChild(el); tags.set(p.id, el);
         }
         const r = p.rect;
@@ -93,8 +96,32 @@ export default {
         const text = p.label.replace(/\s*🍺$/, ''); // MarbleDrinks' "drink up, last place" mug; the drinks layer handles that here
         if (el.firstChild.textContent !== text) el.firstChild.textContent = text;
         el.firstChild.style.borderLeft = `0.35rem solid ${p.color}`;
+        const key = sim.marbles.find((m) => m.id === p.followId)?.power || '';
+        const badge = el.lastChild;
+        if (badge.dataset.k !== key) {
+          badge.dataset.k = key;
+          const pw = POWERS[key];
+          badge.style.display = pw ? '' : 'none';
+          if (pw) { badge.textContent = `${pw.icon} ${pw.name}`; badge.style.borderRight = `0.35rem solid ${pw.color}`; badge.style.color = pw.color; }
+        }
       }
       for (const [id, el] of tags) el.style.display = seen.has(id) ? '' : 'none';
+    };
+
+    // each phone's USE POWER button shows the power that player is holding (greyed out when they've got none).
+    // Sent when it changes, and again every few seconds in case a phone reconnected and redrew its pad.
+    const padPower = new Map(); let padT = 0;
+    const syncPads = (dt) => {
+      const again = (padT -= dt) <= 0;
+      if (again) padT = 3;
+      for (const p of players) {
+        if (p.bot) continue;
+        const key = sim.marbles.find((m) => m.id === p.id)?.power || '';
+        if (!again && padPower.get(p.id) === key) continue;
+        padPower.set(p.id, key);
+        const pw = POWERS[key];
+        mg.padSend(p, pw ? { btn: 'power', label: `${pw.icon} USE ${pw.name.toUpperCase()}`, sub: pw.desc, color: pw.color, on: 1 } : { btn: 'power', label: '⚡ NO POWER', sub: 'Roll through a vape', on: 0 });
+      }
     };
 
     let started = false, winAt = null, t0 = 0, now = 0;
@@ -125,6 +152,7 @@ export default {
         director.update(dt, sim);
         if (started && !running) world.panes = null; // time's up: hand back to one camera for the results
         drawOverlay(dt);
+        syncPads(dt);
         now = t;
       },
       draw(r, target) {
