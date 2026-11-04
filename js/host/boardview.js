@@ -344,8 +344,10 @@ export class BoardView {
     const power = Math.max(0, Math.min(1, fling.power ?? 0.6)), aim = fling.aim || 0, spin = fling.spin || 0;
     const base = d.group.position.clone();
     const ground = base.y;
-    this.followNow(base.clone().add(new THREE.Vector3(0, 0, 1.6)));
-    const T = (1.7 + power * 0.5) * speed;
+    // a harder flick throws further: the dice land past the doll and keep rolling away from the camera
+    const reach = 3 + power * 12;
+    this.followNow(base.clone().add(new THREE.Vector3(2.4 + aim * 2, 0, 1.5 - reach * 0.5)));
+    const T = (1.6 + power * 1.2) * speed;
     const up = new THREE.Vector3(0, 1, 0);
     const dice = values.map((value, i) => {
       const mesh = makeD10(p.color || '#ff4f8b', 1.15);
@@ -357,13 +359,15 @@ export class BoardView {
         if (!verts.some((w) => w.distanceToSquared(v) < 1e-6)) verts.push(v);
       }
       const off = (i - (values.length - 1) / 2) * 2.4;
-      const land = base.clone().add(new THREE.Vector3(off + aim * 1.8, 0, 3.3 + (i % 2) * 0.5));
-      const start = base.clone().add(new THREE.Vector3(off * 0.5 + aim * 3, 9 + power * 3, 15));
+      // they go down a lane beside the doll rather than through it
+      const land = base.clone().add(new THREE.Vector3(2.4 + off + aim * (2 + power * 3), 0, 3 - reach + (i % 2) * 0.6));
+      const start = base.clone().add(new THREE.Vector3(2.4 + off * 0.5 + aim, 8 + power * 3, 15));
       const dir = land.clone().sub(start).setY(0).normalize();
       const roll = new THREE.Vector3().crossVectors(up, dir).normalize();
       const wob = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
       const final = restQuaternion(value, new THREE.Vector3(0, 0, -1));
-      const turns = (2.5 + power * 2.5 + Math.random()) * Math.PI * 2;
+      // it rolls forward, turning as far as it travels (a d10 rolls about like a 0.9-radius wheel)
+      const turns = land.clone().sub(start).setY(0).length() / (0.9 * 1.15) + Math.random() * 2;
       // bounces after the first hit, as fractions of the throw: [time it starts, how high]
       const hits = [0.38, 0.62, 0.78, 0.88].map((t, h) => [t + (Math.random() - 0.5) * 0.03, [1.8, 0.8, 0.3, 0][h] * (0.6 + power * 0.6)]);
       this.scene.add(mesh);
@@ -389,10 +393,9 @@ export class BoardView {
         }
         const hitNow = die.hits.filter(([a]) => k >= a).length;
         if (hitNow > die.bounced) { die.bounced = hitNow; if (die.bounced <= 3) onBounce?.(); }
-        // spinning down to rest on its value
-        const left = 1 - k;
-        qa.setFromAxisAngle(die.roll, die.turns * Math.pow(left, 2.4));
-        qb.setFromAxisAngle(die.wob, die.wobAmt * Math.pow(left, 3.5));
+        // rolling forward (the angle climbs to zero as it travels) down to rest on its value
+        qa.setFromAxisAngle(die.roll, -die.turns * (1 - h));
+        qb.setFromAxisAngle(die.wob, -die.wobAmt * Math.pow(1 - k, 3.5));
         q.copy(qa).multiply(qb).multiply(die.final);
         die.mesh.quaternion.copy(q);
         // sit on the ground whichever way up it is
