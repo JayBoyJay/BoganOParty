@@ -522,68 +522,88 @@ function renderTouchpad(s, el) {
   tiltStop = () => removeEventListener('resize', layout);
 }
 
-// Gyro aiming (Zombies vs Plants): point the phone like a spud gun. Turning it left/right and up/down
-// moves your crosshair on the TV (the gyroscope's turn rate, added up), and the big button fires.
-// The crosshair stops at the TV's edges, so if you drift just swing back past the edge to re-line it up.
-// Without a gyro (or before iPhones say yes) dragging on the little TV moves the crosshair instead.
-// Sends { b: 'aim', x, y } as it moves and { b: 'shot', x, y } on SHOOT, 0..1 from the TV's top left.
-const GYRO_SPAN = 42; // degrees of turn that sweep the crosshair right across the TV
+// Gyro aiming (Zombies vs Plants): point the phone at the TV like a spud gun. Uses the phone's own
+// fused orientation (deviceorientation), so where the phone points is where the crosshair sits: no drift
+// from adding up turn speeds, and the same pointing always gives the same spot. CENTRE (or the first
+// reading) sets "pointing at the middle of the TV". Aims with the back of the phone, or its top edge
+// when it's held flat like a controller. Dragging on the little TV nudges the aim (or is the whole aim
+// on a phone without a gyro). Sends { b: 'aim', x, y } as it moves and { b: 'shot', x, y } on SHOOT.
+const GYRO_SENS = [[40, 'Low'], [28, 'Med'], [18, 'High']]; // degrees of turn across the whole TV
 function renderGyro(s, el) {
-  let flip = store.get('gyroflip') === '1';
+  let sens = Math.max(0, Math.min(2, Number(store.get('gyrosens') ?? 1) || 0));
   const label = s.buttons?.[0]?.label || 'SHOOT';
   el.innerHTML = `<div class="gyropad"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
-    <div class="gyrobox" id="gyrobox"><div class="tpgrid"></div><div class="gyrohint" id="gyrohint">Point your phone at the TV and turn it to aim.<br>Or drag here.</div><div class="tpdot" id="gyrodot" style="display:block"></div></div>
+    <div class="gyrobox" id="gyrobox"><div class="tpgrid"></div><div class="gyrohint" id="gyrohint">No gyro yet: drag here to aim.</div><div class="tpdot" id="gyrodot" style="display:block"></div></div>
     <div class="gyrobtns"><button id="gyroshoot" class="go">${esc(label)}</button>
-      <div class="gyrosmall"><button id="gyroperm" class="hidden">Turn on gyro aim</button><button id="gyroctr">⌖ Centre</button><button id="gyroflip">${flip ? '⇆ Flipped' : '⇆ Flip'}</button></div></div></div>`;
+      <div class="gyrosmall"><button id="gyroperm" class="hidden">Turn on gyro aim</button><button id="gyroctr">⌖ Centre</button><button id="gyrosens"></button></div></div></div>`;
   const box = $('gyrobox'), dot = $('gyrodot'), hint = $('gyrohint');
-  let x = 0.5, y = 0.55, lastSent = 0, lastT = 0, gotGyro = false;
   const clamp = (v) => Math.max(0, Math.min(1, v));
+  let x = 0.5, y = 0.5, ox = 0, oy = 0, lastSent = 0, got = false;
+  let ref = null; // { yaw, pitch, top } of the pose that means "middle of the TV"
+  let yaw = 0, pitch = 0, sy = 0, sp = 0, lastT = 0;
   const draw = () => { dot.style.left = x * 100 + '%'; dot.style.top = y * 100 + '%'; };
   const push = (force) => {
-    const now = Date.now(); if (!force && now - lastSent < 33) return;
+    const now = Date.now(); if (!force && now - lastSent < 25) return;
     lastSent = now; sendFast({ t: 'in', id: s.id, b: 'aim', x: +x.toFixed(3), y: +y.toFixed(3) });
   };
-  const move = (dx, dy) => { x = clamp(x + dx); y = clamp(y + dy); draw(); push(false); };
-  // iPhones report gravity the other way up to Android, so flip it there to get a true "up"
-  const iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const G = iOS ? -1 : 1;
-  const onMotion = (e) => {
-    const r = e.rotationRate, g = e.accelerationIncludingGravity;
-    const now = performance.now(), dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0; lastT = now;
-    if (!r || r.alpha == null || !g || g.x == null || !dt) return;
-    // up in the phone's own axes, so it doesn't matter how the phone is held (or if rotation lock is on)
-    let ux = g.x * G, uy = g.y * G, uz = g.z * G; const gl = Math.hypot(ux, uy, uz); if (gl < 3) return;
-    ux /= gl; uy /= gl; uz /= gl;
-    if (flip) { ux = -ux; uy = -uy; uz = -uz; }
-    // turn rate (deg/s) about the phone's x, y and z axes
-    const wx = r.beta || 0, wy = r.gamma || 0, wz = r.alpha || 0;
-    if (!gotGyro && (wx || wy || wz)) { gotGyro = true; motionOk = true; $('gyroperm').classList.add('hidden'); hint.textContent = 'Turn the phone to aim. Drag to nudge.'; }
-    // sideways axis = up x the screen's normal; if the phone's lying flat fall back to the screen's own right
-    let rx = uy, ry = -ux, rz = 0, rl = Math.hypot(rx, ry);
-    if (rl < 0.35) {
-      const th = screenAngle() * Math.PI / 180, sx = Math.cos(th), sy = -Math.sin(th), d = sx * ux + sy * uy;
-      rx = sx - d * ux; ry = sy - d * uy; rz = -d * uz; rl = Math.hypot(rx, ry, rz);
+  const showSens = () => { $('gyrosens').textContent = `Aim speed: ${GYRO_SENS[sens][1]}`; };
+  showSens();
+  const wrap = (a) => ((a + 540) % 360) - 180;
+  const D = Math.PI / 180;
+  // where the phone points, as compass-style yaw and up/down pitch (degrees). Built from the spec's
+  // Z-X'-Y'' rotation, so it is right whichever way the phone is held or the page is turned.
+  const pose = (e, top) => {
+    const cA = Math.cos(e.alpha * D), sA = Math.sin(e.alpha * D), cB = Math.cos(e.beta * D), sB = Math.sin(e.beta * D), cG = Math.cos(e.gamma * D), sG = Math.sin(e.gamma * D);
+    let vx, vy, vz;
+    if (!top) { vx = -(cG * sA * sB + cA * sG); vy = -(sA * sG - cA * cG * sB); vz = -cB * cG; } // out the back
+    else {
+      // the screen's top edge (the page's "up"), for a phone held flat like a game controller
+      const th = screenAngle() * D, ux = Math.sin(th), uy = Math.cos(th);
+      vx = (cA * cG - sA * sB * sG) * ux - cB * sA * uy;
+      vy = (cG * sA + cA * sB * sG) * ux + cA * cB * uy;
+      vz = -cB * sG * ux + sB * uy;
     }
-    rx /= rl; ry /= rl; rz /= rl;
-    let yaw = wx * ux + wy * uy + wz * uz, pitch = wx * rx + wy * ry + wz * rz;
-    // ignore the tiny jitter of a phone held still, so the crosshair doesn't creep
-    const dead = (v) => (Math.abs(v) < 1.2 ? 0 : v);
-    yaw = dead(yaw); pitch = dead(pitch);
-    if (yaw || pitch) move(-yaw * dt / GYRO_SPAN, -pitch * dt / (GYRO_SPAN * 9 / 16));
+    return { yaw: Math.atan2(vx, vy) / D, pitch: Math.asin(Math.max(-1, Math.min(1, vz))) / D, back: -cB * cG };
   };
-  addEventListener('devicemotion', onMotion);
-  if (!motionOk && typeof window.DeviceMotionEvent?.requestPermission === 'function') {
+  const onOrient = (e) => {
+    if (e.alpha == null || e.beta == null || e.gamma == null) return;
+    if (!got) { got = true; motionOk = true; $('gyroperm').classList.add('hidden'); hint.textContent = 'Point at the middle of the TV and press Centre. Drag to nudge.'; }
+    if (!ref) {
+      // lying flatter than ~30 degrees from flat: aim with the top edge instead of the back
+      const p0 = pose(e, false), top = Math.abs(p0.back) > 0.87;
+      const p = pose(e, top); ref = { yaw: p.yaw, pitch: p.pitch, top }; ox = oy = 0; yaw = sy = 0; pitch = sp = 0;
+    }
+    const p = pose(e, ref.top);
+    yaw = wrap(p.yaw - ref.yaw); pitch = p.pitch - ref.pitch;
+    // a light low-pass takes out hand shake without feeling laggy
+    const now = performance.now(), dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0.016; lastT = now;
+    const k = 1 - Math.exp(-dt * 22);
+    sy += wrap(yaw - sy) * k; sp += (pitch - sp) * k;
+    const span = GYRO_SENS[sens][0];
+    x = clamp(0.5 + sy / span + ox); y = clamp(0.5 - sp / (span * 9 / 16) + oy);
+    draw(); push(false);
+  };
+  addEventListener('deviceorientation', onOrient);
+  // iPhones ask for motion access once, from a button press
+  const DO = window.DeviceOrientationEvent;
+  if (!motionOk && (typeof DO?.requestPermission === 'function' || typeof window.DeviceMotionEvent?.requestPermission === 'function')) {
     $('gyroperm').classList.remove('hidden');
-    $('gyroperm').onclick = async () => { if (await askMotion()) $('gyroperm').classList.add('hidden'); };
+    $('gyroperm').onclick = async () => {
+      try { if (typeof DO?.requestPermission === 'function') await DO.requestPermission(); } catch { /* denied */ }
+      await askMotion();
+      if (motionOk) $('gyroperm').classList.add('hidden');
+    };
   }
-  // drag on the little TV: works like a laptop trackpad
+  // drag on the little TV: a nudge on top of the gyro, or the whole aim without one
   let sid = null, px = 0, py = 0;
   box.onpointerdown = (e) => { e.preventDefault(); sid = e.pointerId; box.setPointerCapture(sid); px = e.clientX; py = e.clientY; };
   box.onpointermove = (e) => {
     if (e.pointerId !== sid) return;
-    const rc = box.getBoundingClientRect();
-    move((e.clientX - px) / rc.width * 1.3, (e.clientY - py) / rc.height * 1.3);
+    const rc = box.getBoundingClientRect(), dx = (e.clientX - px) / rc.width * 1.3, dy = (e.clientY - py) / rc.height * 1.3;
     px = e.clientX; py = e.clientY;
+    const nx = clamp(x + dx), ny = clamp(y + dy);
+    ox += nx - x; oy += ny - y; x = nx; y = ny;
+    draw(); push(false);
   };
   box.onpointerup = box.onpointercancel = (e) => { if (e.pointerId === sid) sid = null; };
   const shoot = $('gyroshoot');
@@ -592,11 +612,12 @@ function renderGyro(s, el) {
     send({ t: 'in', id: s.id, b: 'shot', x: +x.toFixed(3), y: +y.toFixed(3) }); buzz(25);
   };
   shoot.onpointerup = shoot.onpointercancel = shoot.onpointerleave = () => shoot.classList.remove('dn');
-  $('gyroctr').onclick = () => { x = 0.5; y = 0.55; draw(); push(true); };
-  $('gyroflip').onclick = () => { flip = !flip; store.set('gyroflip', flip ? '1' : '0'); $('gyroflip').textContent = flip ? '⇆ Flipped' : '⇆ Flip'; };
+  // CENTRE: wherever the phone points now is the middle of the TV
+  $('gyroctr').onclick = () => { ref = null; ox = oy = 0; x = 0.5; y = 0.5; draw(); push(true); buzz(15); };
+  $('gyrosens').onclick = () => { sens = (sens + 1) % GYRO_SENS.length; store.set('gyrosens', String(sens)); showSens(); };
   draw(); push(true);
   const keep = setInterval(() => push(true), 250);
-  tiltStop = () => { removeEventListener('devicemotion', onMotion); clearInterval(keep); };
+  tiltStop = () => { removeEventListener('deviceorientation', onOrient); clearInterval(keep); };
 }
 
 function renderTilt(s, el) {

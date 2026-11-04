@@ -1,6 +1,6 @@
 // Zombies vs Plants: a shooting gallery in a suburban veggie patch at dusk. Blow-up zombie dolls pop
 // up behind the tomato bed, the hedge and the back fence, and everyone shoots at them with a spud gun.
-// Aim by pointing the phone: its gyro moves your crosshair on the TV, and the big SHOOT button fires
+// Aim by pointing the phone at the TV: its orientation sets your crosshair, and the big SHOOT button fires
 // (dragging on the phone's little TV also aims, for phones without a gyro). A miss jams the gun for a second. The players' own dolls pop up too: shoot one of
 // your mates and your gun's jammed for five seconds. Further back is harder, and worth more.
 import { addSky } from '../../host/sky.js';
@@ -50,7 +50,7 @@ export default {
   id: 'zombies-vs-plants',
   name: 'Zombies vs Plants',
   blurb: "Blow-up zombies are coming through the veggie patch. Spud gun 'em. Don't shoot your mates.",
-  howTo: "Hold your phone sideways and point it like a spud gun: turn it left, right, up and down to move your crosshair, then hit SHOOT. If it drifts, swing past the edge of the screen or press Centre. Miss and your gun jams for a second. Your mates pop up too: shoot one and you're jammed for 5 seconds. Zombies at the back fence are worth 3, the hedge 2, the tomato bed 1.",
+  howTo: "Hold your phone sideways and point it at the TV like a spud gun: point at the middle of the TV and press Centre, then turn the phone to move your crosshair and hit SHOOT. Too fast or slow? Change the aim speed on your phone. Miss and your gun jams for a second. Your mates pop up too: shoot one and you're jammed for 5 seconds. Zombies at the back fence are worth 3, the hedge 2, the tomato bed 1.",
   padText: 'Turn your phone to aim, SHOOT to fire.',
   duration: 90,
   pad: { kind: 'gyro', buttons: [{ label: 'SHOOT' }] },
@@ -317,6 +317,7 @@ export default {
         for (const h of xh) {
           h.cool = Math.max(0, h.cool - dt);
           h.flash = Math.max(0, h.flash - dt * 6);
+          if (h.tx != null) { const k = 1 - Math.exp(-dt * 25); h.x += (h.tx - h.x) * k; h.y += (h.ty - h.y) * k; }
           drawXh(h); placeXh(h);
         }
         for (let i = fx.length - 1; i >= 0; i--) {
@@ -330,8 +331,9 @@ export default {
         const h = xh.find((q) => q.p === p);
         if (!h || !Number.isFinite(m.x) || !Number.isFinite(m.y)) return;
         const x = Math.max(0, Math.min(1, m.x)), y = Math.max(0, Math.min(1, m.y));
-        if (m.b === 'aim') { h.x = x; h.y = y; }
-        else if (m.b === 'shot') shoot(h, x, y);
+        // the phone sends ~40 aims a second; the crosshair glides to the newest so it doesn't step
+        if (m.b === 'aim') { h.tx = x; h.ty = y; }
+        else if (m.b === 'shot') { h.tx = x; h.ty = y; shoot(h, x, y); }
       },
       scores() { return Object.fromEntries(xh.map((h) => [h.p.id, h.score])); },
     };
