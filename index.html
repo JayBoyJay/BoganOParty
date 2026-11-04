@@ -149,6 +149,10 @@
   .hud-dice { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); display: flex; gap: 0.9rem; align-items: center; }
   .die { width: 6.9rem; height: 6.9rem; border-radius: 1.4rem; background: linear-gradient(160deg, #ffffff, #f1e8dc); color: #1a0d06; font-size: 4rem; font-weight: 900; display: grid; place-items: center; box-shadow: 0 0.5rem 0 #c9b8a6, 0 0.9rem 1.9rem rgba(0,0,0,0.5), inset 0 -0.3rem 0 rgba(0,0,0,0.06); font-variant-numeric: tabular-nums; }
   .die.spin { animation: wob .12s infinite alternate; }
+  .die.wait { animation: diewait 1.1s ease-in-out infinite; opacity: 0.85; }
+  @keyframes diewait { 50% { transform: translateY(-0.5rem) rotate(-6deg); } }
+  .hud-dice { flex-wrap: wrap; justify-content: center; }
+  .hud-dice .dice-hint { flex-basis: 100%; text-align: center; font-size: 1.6rem; font-weight: 900; text-shadow: 0 3px 0 #000; animation: diewait 1.1s ease-in-out infinite; }
   @keyframes wob { to { transform: rotate(8deg) translateY(-6px); } }
   .hud-dice .bonus, .hud-dice .total { font-size: 3rem; font-weight: 900; text-shadow: 0 3px 0 #000; }
   .hud-dice .bonus { color: #ff4fd8; }

@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#1a0d06">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Bogan-o Party remote</title>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎉</text></svg>">
 <style>
   :root { --ink: #fff8ee; --dim: #d8c8b8; --bg: #1a0d06; --panel: #2c160b; --panel2: #3c1f10; --line: rgba(255,255,255,0.14); --hot: #ff7a3d; --gold: #ffd23f; --good: #5cff9d; --pc: #ff7a3d; }
@@ -60,6 +61,17 @@
   /* live pads: the game view becomes a full screen frame, and the pad stretches to fill it */
   #vGame.pad { position: fixed; inset: 0; display: flex; flex-direction: column; padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
   #vGame.pad .bar { position: static; margin-bottom: 8px; }
+  .rollscr { display: flex; flex-direction: column; min-height: 0; }
+  .rollhead { font-size: 20px; text-transform: uppercase; font-style: italic; }
+  .rollbox { position: relative; flex: 1; min-height: 240px; border-radius: 18px; overflow: hidden; touch-action: none;
+    background: radial-gradient(ellipse at 50% 85%, rgba(255,255,255,0.10), transparent 60%), linear-gradient(180deg, rgba(255,210,63,0.10), rgba(0,0,0,0.25)); border: 2px solid var(--line); }
+  .rollcv { position: absolute; inset: 0; touch-action: none; display: block; }
+  .rollhint { position: absolute; left: 0; right: 0; top: 10px; text-align: center; font-weight: 900; font-size: 18px; pointer-events: none; text-shadow: 0 2px 0 #000; z-index: 1; }
+  .rollhint .arrow { display: block; font-size: 40px; line-height: 1; color: var(--gold); animation: rollup 1s ease-in-out infinite; }
+  .rollhint.nudge { animation: nudge .35s; color: var(--gold); }
+  .rollhint.thrown { color: var(--good); }
+  @keyframes rollup { 50% { transform: translateY(-10px); opacity: 0.6; } }
+  @keyframes nudge { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
   #vGame.pad #screen { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
   #vGame.pad #screen > * { flex: 1; min-height: 0; }
   .pstrip { flex: none !important; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 6px 6px 6px 14px; border-radius: 14px; background: rgba(92,255,157,0.14); border: 2px solid var(--good); font-size: 15px; }

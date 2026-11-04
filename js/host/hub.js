@@ -5,10 +5,12 @@
 //               { t: 'pad', id, kind, title, body, buttons, timer }               live controls, every tap sent
 //               { t: 'idle', title }                                               nothing to do right now
 //               { t: 'stats', ... }                                                coins, items, power-ups
-//   phone → TV  { t: 'answer', id, v }   { t: 'in', id, b, ...extra }   { t: 'emote', mood }  (a head balloon, see balloons.js)
+//   phone → TV  { t: 'answer', id, v, fling? }   (fling = how hard/where the die was flicked, roll prompts only)
+//                 { t: 'in', id, b, ...extra }   { t: 'emote', mood }  (a head balloon, see balloons.js)
 //
 // CPU players answer prompts here too, so game code never needs to care who is a bot.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
 export class Hub {
   constructor(net, { speed = 1 } = {}) {
@@ -37,13 +39,14 @@ export class Hub {
     const pick = (v) => (typeof v === 'function' ? v() : v);
     return new Promise((resolve) => {
       let done = false, timer = null;
-      const finish = (v) => {
+      // prompt.meta: resolve { v, fling } instead of just v (the dice throw wants to know how it was flicked)
+      const finish = (v, fling) => {
         if (done) return;
         done = true;
         clearTimeout(timer);
         this.pending.delete(id);
         if (!p.bot && this.screens.get(p.id)?.id === id) this.idle(p, 'Waiting…');
-        resolve(v);
+        resolve(prompt.meta ? { v, fling } : v);
       };
       this.pending.set(id, { finish, player: p, options });
       const fallback = () => finish(prompt.fallback !== undefined ? pick(prompt.fallback) : (enabled[0]?.id ?? null));
@@ -57,7 +60,7 @@ export class Hub {
       }
       const secs = prompt.timer || 45;
       timer = setTimeout(fallback, secs * 1000 * Math.max(0.2, this.speed));
-      this.send(p, { t: 'prompt', id, kind: prompt.kind || 'choice', title: prompt.title || '', body: prompt.body || '', layout: prompt.layout || (options.length > 4 ? 'list' : 'grid'), timer: secs,
+      this.send(p, { t: 'prompt', id, kind: prompt.kind || 'choice', title: prompt.title || '', body: prompt.body || '', layout: prompt.layout || (options.length > 4 ? 'list' : 'grid'), timer: secs, dice: prompt.dice, color: prompt.color,
         options: options.map(({ id: oid, label, sub, disabled, tone }) => ({ id: oid, label, sub, disabled: !!disabled, tone })) });
     });
   }
@@ -92,7 +95,8 @@ export class Hub {
       if (!q || q.player.id !== pid) return true;
       const opt = q.options.find((o) => o.id === m.v);
       if (q.options.length && (!opt || opt.disabled)) return true;
-      q.finish(m.v);
+      const f = m.fling;
+      q.finish(m.v, f && typeof f === 'object' ? { power: clamp01(Number(f.power) || 0), aim: Math.max(-1, Math.min(1, Number(f.aim) || 0)), spin: Math.max(-1, Math.min(1, Number(f.spin) || 0)) } : undefined);
       return true;
     }
     if (m.t === 'in') {

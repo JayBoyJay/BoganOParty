@@ -38,6 +38,11 @@ document.addEventListener('touchend', (e) => { const now = Date.now(); if (now -
 document.addEventListener('visibilitychange', () => { if (!document.hidden) net.reconnectNow(); });
 keepAwake(); // stop the screen sleeping mid-game
 
+let holdUntil = 0, heldT = 0;
+// the 3D dice (three.js) load in the background once the game starts, so a roll shows them straight away
+let rollMod = null;
+const loadRoll = () => (rollMod ||= import('./roll.js').catch(() => { rollMod = null; return null; }));
+
 function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); }
 
 function onMsg(m) {
@@ -49,7 +54,14 @@ function onMsg(m) {
     case 'moved': show('vConnect'); $('vConnect').querySelector('p').textContent = 'This player is now open on another tab or phone.'; break;
     case 'lobby': lobby = m; screen = null; stats = null; renderLobby(); break;
     case 'stats': stats = m; renderBar(); break;
-    case 'prompt': case 'pad': case 'idle': screen = m; renderScreen(); if (m.t !== 'idle') buzz(25); break;
+    case 'prompt': case 'pad': case 'idle':
+      screen = m;
+      if (m.t !== 'idle') buzz(25);
+      // let a thrown die finish flying off the top before the next screen replaces it
+      clearTimeout(heldT);
+      if (Date.now() < holdUntil) heldT = setTimeout(renderScreen, holdUntil - Date.now());
+      else renderScreen();
+      break;
     case 'padx':
       if (screen?.t !== 'pad' || screen.id !== m.id) break;
       if ('pin' in m) pinBar(m);
@@ -178,15 +190,18 @@ function renderBar() {
     <div class="pus">${stats.powerups.length ? stats.powerups.map((p) => `${p.emoji} ${esc(p.name)}`).join(' · ') : 'No power-ups'}${stats.effects.map((e) => ` · 🍬 ${esc(e.name)} (${e.rounds})`).join('')}</div>`;
 }
 
-let timerT = null, tiltStop = null;
+let timerT = null, tiltStop = null, rollStop = null;
 function renderScreen() {
   show('vGame');
   renderBar();
+  loadRoll();
   clearInterval(timerT);
   if (tiltStop) { tiltStop(); tiltStop = null; }
+  if (rollStop) { rollStop(); rollStop = null; }
   const s = screen, el = $('screen');
   // live pads take the whole screen (no scrolling), so they fit a phone held sideways
-  $('vGame').classList.toggle('pad', s.t === 'pad' && s.kind !== 'touchpad');
+  $('vGame').classList.toggle('pad', (s.t === 'pad' && s.kind !== 'touchpad') || (s.t === 'prompt' && s.kind === 'roll'));
+  if (s.t === 'prompt' && s.kind === 'roll') { renderRoll(s, el); return; }
   if (s.t === 'idle') {
     el.innerHTML = `<div class="idle"><div class="big">📺</div><h2>${esc(s.title || 'Watch the TV')}</h2><div class="dim">${esc(s.body || '')}</div></div>
       <div class="label">Send a face balloon to the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>`;
@@ -215,6 +230,45 @@ function renderScreen() {
     else renderButtons(s, el);
     if (s.practice) practiceStrip(s, el);
   }
+}
+
+// A roll: the dice sit at the bottom of the screen; grab them and flick them up off the top to throw.
+// If three.js won't load (or WebGL is off) it's the old ROLL button.
+function renderRoll(s, el) {
+  const n = s.dice || 1;
+  const fallback = () => {
+    el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : ''}
+      <div class="opts one"><button data-o="roll" class="go roll">🎲 ROLL</button></div>`;
+    el.querySelector('[data-o]').onclick = () => { send({ t: 'answer', id: s.id, v: 'roll' }); buzz([40, 30, 80]); el.innerHTML = '<div class="idle"><div class="big">🎲</div><h2>Rolling…</h2></div>'; };
+  };
+  el.innerHTML = `<div class="rollscr"><div class="rollhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span></div>
+    ${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : ''}
+    <div class="rollbox" id="rollBox"><div class="rollhint" id="rollHint"><span class="arrow">⇡</span>Grab the ${n > 1 ? 'dice' : 'die'} and flick ${n > 1 ? 'them' : 'it'} up to the top</div></div></div>`;
+  if (s.timer) startTimer(s.timer);
+  const me = s;
+  loadRoll().then((mod) => {
+    if (screen !== me) return; // moved on while it loaded
+    let stop = null;
+    try {
+      stop = mod.mountRoll($('rollBox'), {
+        dice: n, color: s.color || getComputedStyle(document.documentElement).getPropertyValue('--pc').trim() || '#ff7a3d',
+        onThrow: (fling) => {
+          send({ t: 'answer', id: s.id, v: 'roll', fling });
+          buzz([30, 20, 60]);
+          holdUntil = Date.now() + 700;
+          const h = $('rollHint');
+          if (h) { h.classList.add('thrown'); h.innerHTML = '📺 Watch the TV!'; }
+        },
+        onMiss: () => {
+          buzz(15);
+          const h = $('rollHint');
+          if (h) { h.classList.remove('nudge'); void h.offsetWidth; h.classList.add('nudge'); h.innerHTML = `<span class="arrow">⇡</span>Harder! Flick ${n > 1 ? 'them' : 'it'} right up off the top`; }
+        },
+      });
+    } catch { stop = null; }
+    if (!stop) { fallback(); if (s.timer) { clearInterval(timerT); startTimer(s.timer); } return; }
+    rollStop = stop;
+  });
 }
 
 // Practice round: the controls work for real but nothing counts. A strip on top says so and has the
