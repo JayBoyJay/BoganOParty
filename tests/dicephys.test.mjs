@@ -34,3 +34,10 @@ test('dice: knock a doll and each other, never overlapping', () => {
   assert.ok(r.events.some((e) => e.kind === 'dice'), 'hit each other');
   for (let i = 0; i < r.frames[0].length; i++) assert.ok(r.frames[0][i].p.distanceTo(r.frames[1][i].p) > 1.68, 'dice overlap');
 });
+
+test('dice: curve bends the throw sideways', () => {
+  const end = (curve) => simulateDice([{ ...die(0, 14), curve }], { groundY: 0.4, R: 0.85 }).frames[0].at(-1).p.x;
+  assert.ok(end(1) > 2, `right curve ends at x ${end(1)}`);
+  assert.ok(end(-1) < -2, `left curve ends at x ${end(-1)}`);
+  assert.ok(Math.abs(end(0)) < 0.01);
+});

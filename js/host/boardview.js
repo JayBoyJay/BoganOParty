@@ -336,7 +336,8 @@ export class BoardView {
 
   // ---------- dice ----------
   // Throw dice (already decided: values) from the viewer's side of the screen onto the board in front of p.
-  // fling = { power 0..1, aim -1..1 (left/right), spin -1..1 } from the phone flick: harder goes further.
+  // fling from the phone flick: power 0..1 (harder goes further), exit -1..1 (where it left the top of the
+  // phone: where it comes in), aim -1..1 (which way it was heading), curve -1..1 (a bent swipe: spin that bends it).
   // A physics sim (dicephys.js) bounces them off the ground, props, buildings, dolls and each other; the
   // last half second eases each onto its value, reading upright from the camera.
   // onHit(kind, hard) for sounds: kind is 'ground' | 'wall' | 'doll' | 'dice', hard 0..1.
@@ -344,7 +345,7 @@ export class BoardView {
     this.clearDice(true);
     const d = this.dolls.get(p.id);
     if (!d) return;
-    const power = Math.max(0, Math.min(1, fling.power ?? 0.6)), aim = fling.aim || 0, spin = fling.spin || 0;
+    const power = Math.max(0, Math.min(1, fling.power ?? 0.6)), aim = fling.aim || 0, exit = fling.exit || 0, curve = fling.curve ?? fling.spin ?? 0;
     const base = d.group.position.clone();
     const ground = base.y;
     const SIZE = 1.15, R = 0.85;
@@ -358,13 +359,13 @@ export class BoardView {
         if (!verts.some((w) => w.distanceToSquared(v) < 1e-6)) verts.push(v);
       }
       const off = (i - (values.length - 1) / 2) * 2.2;
-      // in from the viewer's side, along a lane that clips the thrower's doll
-      const pos = base.clone().add(new THREE.Vector3(1.5 + off * 0.6 + aim * 2, 7 + power * 2, 15));
-      const dir = new THREE.Vector3(aim * 0.3 + off * 0.02 + (Math.random() - 0.5) * 0.06, 0, -1).normalize();
+      // in from the viewer's side where it left the top of the phone, heading the way it was flicked
+      const pos = base.clone().add(new THREE.Vector3(1.5 + exit * 4 + off * 0.6, 7 + power * 2, 15));
+      const dir = new THREE.Vector3(aim * 0.45 + off * 0.02 + (Math.random() - 0.5) * 0.04, 0, -1).normalize();
       const vel = dir.multiplyScalar(10 + power * 8).setY(2);
-      const w = new THREE.Vector3(-(6 + power * 8), spin * 6, (Math.random() - 0.5) * 6);
+      const w = new THREE.Vector3(-(6 + power * 8), curve * 12, (Math.random() - 0.5) * 6);
       const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
-      return { mesh, verts, value, start: { pos, vel, spin: w, quat } };
+      return { mesh, verts, value, start: { pos, vel, spin: w, quat, curve } };
     });
     // what's solid round here: props and buildings near the throw, and everyone's doll
     const skip = new Set([this.item, ...[...this.dolls.values()].map((x) => x.group)]);

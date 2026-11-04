@@ -47,11 +47,11 @@ export function gatherColliders(scene, center, radius, groundY, skip = new Set()
 const G = 30; // gravity (the board is roughly 0.4 m to the unit)
 const DT = 1 / 120;
 
-// dice: [{ pos, vel, spin (angular velocity, rad/s), quat }]; dolls: [{ id, pos, r, h }]
+// dice: [{ pos, vel, spin (angular velocity, rad/s), quat, curve (-1..1, + bends right) }]; dolls: [{ id, pos, r, h }]
 // Returns { frames: per die [{ p, q }] every DT, events: [{ t, kind: 'ground'|'wall'|'doll'|'dice', id, hard }], R }.
 export function simulateDice(dice, { colliders = [], dolls = [], groundY = 0, R = 0.9, maxT = 5 } = {}) {
   const up = new THREE.Vector3(0, 1, 0);
-  const st = dice.map((d) => ({ p: d.pos.clone(), v: d.vel.clone(), w: d.spin.clone(), q: d.quat.clone(), still: 0, frames: [], lastHit: new Map() }));
+  const st = dice.map((d) => ({ p: d.pos.clone(), v: d.vel.clone(), w: d.spin.clone(), q: d.quat.clone(), curve: d.curve || 0, still: 0, frames: [], lastHit: new Map() }));
   const events = [];
   const tmp = new THREE.Vector3(), n = new THREE.Vector3(), dq = new THREE.Quaternion();
   const hit = (t, kind, s, id, speed) => {
@@ -67,6 +67,14 @@ export function simulateDice(dice, { colliders = [], dolls = [], groundY = 0, R 
     let allStill = true;
     for (const s of st) {
       s.v.y -= G * DT;
+      // spin from a curved flick bends the path sideways (strongest in the air, fading as it slows)
+      if (s.curve) {
+        const sp = Math.hypot(s.v.x, s.v.z);
+        if (sp > 0.5) {
+          const k = s.curve * (s.p.y - R > groundY + 0.05 ? 9 : 5) * Math.min(1, sp / 10) * DT / sp;
+          s.v.x += -s.v.z * k; s.v.z += s.v.x * k; // right of travel: direction × up
+        }
+      }
       s.p.addScaledVector(s.v, DT);
       let onGround = false;
       // the ground
@@ -120,7 +128,8 @@ export function simulateDice(dice, { colliders = [], dolls = [], groundY = 0, R 
         const slow = Math.max(0, sp - (4 + sp * 2.2) * DT);
         if (sp > 1e-4) { s.v.x *= slow / sp; s.v.z *= slow / sp; }
         n.crossVectors(up, s.v).divideScalar(R);
-        s.w.lerp(n.setY(0), 1 - Math.pow(0.0005, DT));
+        n.setY(s.curve * 4 * Math.min(1, sp / 5)); // and keeps a bit of twist from the curve
+        s.w.lerp(n, 1 - Math.pow(0.0005, DT));
       }
       // the tumble
       const ang = s.w.length() * DT;

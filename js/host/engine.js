@@ -179,7 +179,7 @@ export class Game {
       kind: 'roll', title: n > 1 ? `Throw ${n} dice!` : 'Throw the die!', body: bonus ? `+${bonus} bonus on top` : '',
       options: [{ id: 'roll', label: '🎲 ROLL', tone: 'go' }], timer: 20, dice: n, color: p.color, meta: true,
     });
-    const fling = ans?.fling || { power: 0.45 + this.rng() * 0.45, aim: (this.rng() - 0.5) * 0.8, spin: (this.rng() - 0.5) };
+    const fling = ans?.fling || { power: 0.45 + this.rng() * 0.45, aim: (this.rng() - 0.5) * 0.5, exit: (this.rng() - 0.5) * 0.8, curve: this.rng() < 0.4 ? (this.rng() - 0.5) * 1.6 : 0 };
     const values = Array.from({ length: n }, () => 1 + Math.floor(this.rng() * RULES.diceSides));
     const total = values.reduce((a, b) => a + b, 0) + bonus;
     this.hud.diceThrown?.();
