@@ -23,6 +23,7 @@ const TURBO = { t: 2.6, k: 1.55 }, SNAIL = { t: 2.4, k: 0.5 }, SPIN_T = 1.1, BOX
 // CORNER: bends still tug you gently toward the outside rail, so you lean on the stick through them.
 const MAX_A = 0.55, GRIP = 9, DEAD = 0.12, CORNER = 0.09;
 const AFTER_WIN = 10;
+const FAR_CAR = 55; // in a player's own pane, cars further off than this aren't drawn
 
 // the centre line, laid out around a house (x east, z south), metres at 10x toy scale
 const PATH = [
@@ -160,6 +161,56 @@ export default {
       kit.sign('FINISH', 6, 1.1, 0, 5.9, 0.75, at, { bg: '#111', fg: '#fff' });
     }
 
+    // ----- bake the house and track into a few big meshes -----
+    // Everything built so far stands still, and every player's pane draws the whole scene again, so
+    // ~130 separate pieces of scenery cost ~130 draws a pane. Merge them: one mesh per textured
+    // material, and the plain coloured ones share a material with their colours baked into the vertices.
+    {
+      scene.updateMatrixWorld(true);
+      const groups = new Map(), plainMats = new Map(), col = new THREE.Color();
+      const plain = (m) => m.type === 'MeshStandardMaterial' && !Object.values(m).some((v) => v?.isTexture);
+      scene.traverse((o) => {
+        if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || o.material.transparent || o.morphTargetInfluences) return;
+        if (o.matrixWorld.determinant() < 0) return; // a mirrored piece would turn inside out
+        const m = o.material, flat = plain(m);
+        const names = Object.keys(o.geometry.attributes).filter((n) => ['position', 'normal', flat ? '' : 'uv'].includes(n)).sort();
+        if (!names.includes('position') || !names.includes('normal')) return;
+        const look = flat ? `plain:${m.roughness}:${m.metalness}:${m.emissive.getHex()}:${m.emissiveIntensity}:${m.side}:${m.flatShading}` : m.uuid;
+        const key = `${look}|${o.castShadow}|${o.receiveShadow}|${names.join(',')}`;
+        if (!groups.has(key)) {
+          let mat = m;
+          if (flat) {
+            if (!plainMats.has(look)) plainMats.set(look, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: m.roughness, metalness: m.metalness, emissive: m.emissive, emissiveIntensity: m.emissiveIntensity, side: m.side, flatShading: m.flatShading }));
+            mat = plainMats.get(look);
+          }
+          groups.set(key, { mat, flat, cast: o.castShadow, recv: o.receiveShadow, names, list: [] });
+        }
+        groups.get(key).list.push(o);
+      });
+      for (const grp of groups.values()) {
+        if (grp.list.length < 2 && !grp.flat) continue;
+        const parts = grp.list.map((o) => {
+          const src = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry, g = new THREE.BufferGeometry();
+          for (const n of grp.names) g.setAttribute(n, src.attributes[n].clone());
+          if (grp.flat) {
+            col.copy(o.material.color); const n = g.attributes.position.count, c = new Float32Array(n * 3);
+            for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; }
+            g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+          }
+          g.applyMatrix4(o.matrixWorld);
+          return g;
+        });
+        const merged = mergeGeometries(parts);
+        if (!merged) continue;
+        merged.computeBoundingSphere();
+        const mesh = new THREE.Mesh(merged, grp.mat); mesh.castShadow = grp.cast; mesh.receiveShadow = grp.recv; scene.add(mesh);
+        for (const o of grp.list) o.removeFromParent();
+      }
+      // drop the groups left empty
+      const empty = []; scene.traverse((o) => { if (o !== scene && o.isGroup && !o.children.length) empty.push(o); });
+      for (const o of empty) o.removeFromParent();
+    }
+
     // ----- the cars -----
     const n = players.length;
     const carBody = (() => {
@@ -169,18 +220,32 @@ export default {
       hull.computeVertexNormals();
       return hull;
     })();
-    const wheelGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.2, 16); wheelGeo.rotateZ(Math.PI / 2);
-    const tyre = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 }), chrome = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, metalness: 1, roughness: 0.2 });
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0x1a2a3a, roughness: 0.05, metalness: 0.3, clearcoat: 1 });
+    // every pane draws every car, so each car is kept to a few meshes: colours go in the vertices
+    // (body + racing stripe + bumper in one, tyre + hub in one)
+    const tinted = (geo, hex) => {
+      const g = geo.index ? geo.toNonIndexed() : geo, n = g.attributes.position.count, c = new Float32Array(n * 3), col = new THREE.Color(hex);
+      for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; }
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k);
+      g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g;
+    };
+    // an axle: two wheels, tyre and hub each
+    const axleGeo = mergeGeometries([-1, 1].flatMap((x) => [
+      tinted(new THREE.CylinderGeometry(0.22, 0.22, 0.2, 16).rotateZ(Math.PI / 2).translate(x * CAR_W * 0.52, 0, 0), 0x151515),
+      tinted(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 10).rotateZ(Math.PI / 2).translate(x * CAR_W * 0.52, 0, 0), 0xb0b4b8),
+    ]));
+    const tyre = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.2 });
+    const bodyGeo = (color) => mergeGeometries([
+      tinted(carBody, color),
+      tinted(new THREE.BoxGeometry(0.18, 0.02, CAR_L * 1.001).translate(0, 0.6, 0), 0xffffff), // stripe
+      tinted(new THREE.BoxGeometry(CAR_W * 0.9, 0.06, 0.12).translate(0, 0.48, -CAR_L / 2), 0xc8ccd0), // bumper
+      tinted(new THREE.BoxGeometry(CAR_W * 0.8, 0.28, 0.08).rotateX(-0.5).translate(0, 0.7, 0.22), 0x1a2a3a), // windscreen
+    ]);
     const cars = players.map((p, i) => {
       const g = new THREE.Group(); scene.add(g);
-      const paint = new THREE.MeshPhysicalMaterial({ color: p.color, roughness: 0.25, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.08 });
-      const body = new THREE.Mesh(carBody, paint); body.castShadow = true; g.add(body);
-      const screen = new THREE.Mesh(new THREE.BoxGeometry(CAR_W * 0.8, 0.28, 0.08), glass); screen.position.set(0, 0.7, 0.22); screen.rotation.x = -0.5; g.add(screen);
-      const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, CAR_L * 1.001), new THREE.MeshStandardMaterial({ color: 0xffffff })); stripe.position.y = 0.6; g.add(stripe);
-      const wheels = [];
-      for (const [x, z] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) { const w = new THREE.Group(); w.position.set(x * CAR_W * 0.52, 0.22, z * CAR_L * 0.32); const t = new THREE.Mesh(wheelGeo, tyre); t.castShadow = true; w.add(t); const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 10).rotateZ(Math.PI / 2), chrome); w.add(hub); g.add(w); wheels.push(w); }
-      kit.box(CAR_W * 0.9, 0.06, 0.12, chrome, 0, 0.45, -CAR_L / 2, g); // bumper
+      const paint = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.08 });
+      const body = new THREE.Mesh(bodyGeo(p.color), paint); body.castShadow = true; g.add(body);
+      // front axle steers (the group) and spins (the mesh); the back one just spins
+      const wheels = [1, -1].map((z) => { const w = new THREE.Group(); w.position.set(0, 0.22, z * CAR_L * 0.32); const t = new THREE.Mesh(axleGeo, tyre); t.castShadow = true; w.add(t); g.add(w); return w; });
       // the driver: the player's doll head poking out of the cockpit
       const doll = mg.makeDoll(p, { tag: false });
       const head = doll.head; head.removeFromParent();
@@ -209,9 +274,11 @@ export default {
     })();
     const boxMat = new THREE.MeshStandardMaterial({ map: boxTex, emissive: 0xffa020, emissiveMap: boxTex, emissiveIntensity: 0.6, roughness: 0.3, transparent: true, opacity: 0.92 });
     const boxGeo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
-    const boxes = [];
+    // all twelve drawn as one instanced mesh; each box's m is a stand-in object that sets its matrix
+    const boxes = [], boxInst = new THREE.InstancedMesh(boxGeo, boxMat, 12), hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    boxInst.castShadow = true; boxInst.frustumCulled = false; scene.add(boxInst);
     for (const f of [0.18, 0.47, 0.76]) for (const u of [-0.62, -0.2, 0.2, 0.62]) {
-      const m = new THREE.Mesh(boxGeo, boxMat); m.castShadow = true; scene.add(m);
+      const m = new THREE.Object3D();
       const bs = L * f + (u * 3), bu = u * HW; posAt(bs, bu, m.position); m.position.y = 1.0;
       boxes.push({ s: bs, u: bu, m, back: 0 });
     }
@@ -309,6 +376,8 @@ export default {
           const c = cars.find((q) => !q.finished && Math.abs(wrap(q.s) - b.s) < 1.0 && Math.abs(q.u - b.u) < 1.15);
           if (c) { b.back = BOX_BACK; b.m.visible = false; grab(c); }
         }
+        boxes.forEach((b, i) => { if (b.m.visible) { b.m.updateMatrix(); boxInst.setMatrixAt(i, b.m.matrix); } else boxInst.setMatrixAt(i, hidden); });
+        boxInst.instanceMatrix.needsUpdate = true;
         for (let i = bricks.length - 1; i >= 0; i--) {
           const B = bricks[i]; B.life += dt;
           posAt(wrap(B.s), B.u, B.m.position); B.m.position.y = 0.12; B.m.rotation.y = yawS(wrap(B.s)) + 0.4;
@@ -332,12 +401,13 @@ export default {
         for (const c of cars) {
           posAt(((c.s % L) + L) % L, c.u, tmp);
           c.g.position.set(tmp.x, 0.12, tmp.z);
-          c.g.rotation.y = yawS(((c.s % L) + L) % L) + c.a + (c.spinOut > 0 ? (1 - c.spinOut / SPIN_T) * Math.PI * 4 : 0);
+          // +a heads toward +u, the right of travel, which is a turn the other way round three.js's y axis
+          c.g.rotation.y = yawS(((c.s % L) + L) % L) - c.a + (c.spinOut > 0 ? (1 - c.spinOut / SPIN_T) * Math.PI * 4 : 0);
           c.fx.fire.visible = c.boost > 0; if (c.boost > 0) c.fx.fire.scale.setScalar(0.8 + Math.sin(now * 40) * 0.25);
           c.fx.snail.visible = c.slow > 0;
           c.g.rotation.z = -c.steer * 0.06 * Math.min(1, c.v / 8); // body roll
           c.spin += c.v * dt / 0.22;
-          c.wheels.forEach((w, i) => { w.rotation.x = c.spin; if (i < 2) w.rotation.y = c.steer * 0.4; });
+          c.wheels.forEach((w, i) => { w.children[0].rotation.x = c.spin; if (i === 0) w.rotation.y = -c.steer * 0.4; });
           c.tag.position.set(tmp.x, 2.6, tmp.z);
         }
         // camera: high and behind the pack, Micro Machines style, pulled back to fit everyone in
@@ -381,10 +451,12 @@ export default {
         drawPanes(r, target, scene, panes, (p) => {
           for (const c of cars) {
             c.tag.visible = c !== p.car;
+            // a car this far off is a few pixels: skip drawing it (its flag still shows where it is)
+            c.g.visible = c.g.position.distanceToSquared(p.camera.position) < FAR_CAR * FAR_CAR;
             const h = Math.min(0.65, 0.05 * c.tag.position.distanceTo(p.camera.position)); c.tag.scale.set(h * 4, h, 1);
           }
         });
-        for (const c of cars) { c.tag.visible = true; c.tag.scale.set(2.6, 0.65, 1); }
+        for (const c of cars) { c.tag.visible = true; c.tag.scale.set(2.6, 0.65, 1); c.g.visible = true; }
       },
       dispose() { overlay.remove(); },
       input(p, m) { const c = cars.find((x) => x.p === p); if (c && m.b === 'stick' && Number.isFinite(m.x)) {
