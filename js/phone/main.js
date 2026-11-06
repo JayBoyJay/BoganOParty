@@ -11,6 +11,10 @@ const store = {
   set(k, v) { try { localStorage.setItem('bop:' + k, v); } catch { /* private mode */ } },
 };
 const buzz = (p) => { try { navigator.vibrate?.(p); } catch { /* not supported */ } };
+// Mr Music Maa'm keyboard: 8 notes, low to high, in whatever key the TV's song is in
+const KEY_COLORS = ['#ff5a5a', '#ff9a3d', '#ffd23f', '#7ee06a', '#3ddcc0', '#4aa8ff', '#9a7bff', '#ff6bd0'];
+const KEY_NAMES = ['1', '2', '3', '4', '5', '6', '7', '8']; // low to high (the scale may only have 5 notes, so no do-re-mi)
+const hasKeys = () => !!stats?.effects?.some((e) => e.id === 'music');
 const MOOD_LABEL = { neutral: ['😐', 'Neutral'], happy: ['😁', 'Happy'], sad: ['😢', 'Sad'], angry: ['😡', 'Angry'] };
 
 let pid = store.get('pid');
@@ -54,7 +58,11 @@ function onMsg(m) {
     case 'kicked': show('vConnect'); $('vConnect').querySelector('p').textContent = 'You were removed from the lobby. Refresh to join again.'; break;
     case 'moved': show('vConnect'); $('vConnect').querySelector('p').textContent = 'This player is now open on another tab or phone.'; break;
     case 'lobby': lobby = m; screen = null; stats = null; renderLobby(); break;
-    case 'stats': stats = m; renderBar(); break;
+    case 'stats': {
+      const had = hasKeys(); stats = m; renderBar();
+      if (had !== hasKeys() && screen?.t === 'idle') renderScreen(); // Mr Music Maa'm started or wore off
+      break;
+    }
     case 'prompt': case 'pad': case 'idle':
       screen = m;
       if (m.t !== 'idle') buzz(25);
@@ -189,7 +197,7 @@ function renderBar() {
   if (!stats) { $('bar').classList.add('hidden'); return; }
   $('bar').classList.remove('hidden');
   $('bar').innerHTML = `<span class="nm">${esc(lobby?.you?.name || '')}</span><span>${stats.item.emoji} ${stats.items}/${stats.target}</span><span>🪙 ${stats.coins}</span>
-    <div class="pus">${stats.powerups.length ? stats.powerups.map((p) => `${p.emoji} ${esc(p.name)}`).join(' · ') : 'No power-ups'}${stats.effects.map((e) => ` · 🍬 ${esc(e.name)} (${e.rounds})`).join('')}</div>`;
+    <div class="pus">${stats.powerups.length ? stats.powerups.map((p) => `${p.emoji} ${esc(p.name)}`).join(' · ') : 'No power-ups'}${stats.effects.map((e) => ` · ${e.emoji || '🍬'} ${esc(e.name)} (${e.rounds})`).join('')}</div>`;
 }
 
 let timerT = null, tiltStop = null, rollStop = null;
@@ -207,8 +215,11 @@ function renderScreen() {
   if (s.t === 'prompt' && s.kind === 'roll') { renderRoll(s, el); return; }
   if (s.t === 'idle') {
     el.innerHTML = `<div class="idle"><div class="big">📺</div><h2>${esc(s.title || 'Watch the TV')}</h2><div class="dim">${esc(s.body || '')}</div></div>
+      ${hasKeys() ? `<div class="label">🎹 Mr Music Maa'm: play along with the music</div><div class="keys">${KEY_COLORS.map((c, i) => `<button data-k="${i}" style="--kc:${c}">${KEY_NAMES[i]}</button>`).join('')}</div>` : ''}
       <div class="label">Send a face balloon to the TV</div><div class="emotes">${Object.entries(MOOD_LABEL).map(([m, [e]]) => `<button data-e="${m}">${e}</button>`).join('')}</div>`;
     for (const b of el.querySelectorAll('[data-e]')) b.onclick = () => { send({ t: 'emote', mood: b.dataset.e }); buzz(15); };
+    // pointerdown, not click: a keyboard has to answer the moment a finger lands
+    for (const b of el.querySelectorAll('[data-k]')) b.onpointerdown = (e) => { e.preventDefault(); send({ t: 'note', n: Number(b.dataset.k) }); buzz(8); b.classList.remove('hit'); void b.offsetWidth; b.classList.add('hit'); };
     return;
   }
   if (s.t === 'prompt') {

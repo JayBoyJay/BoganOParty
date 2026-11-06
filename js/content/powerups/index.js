@@ -8,6 +8,7 @@ import teleport from './teleport.js';
 import drinkVoucher from './drink-voucher.js';
 import groupDrink from './group-drink.js';
 import reverseCard from './reverse-card.js';
+import mrMusic from './mr-music.js';
 
-export const POWERUPS = [coinFlip, sugarBomb, teleport, vacuum, holyHandGrenade, reverseCard, drinkVoucher, groupDrink];
+export const POWERUPS = [coinFlip, sugarBomb, teleport, vacuum, holyHandGrenade, reverseCard, drinkVoucher, groupDrink, mrMusic];
 export const POWERUP_BY_ID = Object.fromEntries(POWERUPS.map((p) => [p.id, p]));
