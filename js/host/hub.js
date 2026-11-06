@@ -70,9 +70,12 @@ export class Hub {
   live(p, pad, onInput) {
     const id = ++this.seq;
     this.pads.set(id, { player: p, onInput });
-    this.send(p, { t: 'pad', id, ...pad });
+    const msg = { t: 'pad', id, ...pad };
+    this.send(p, msg);
     return {
       id,
+      // drop a key from the remembered pad, so a phone that reconnects later doesn't get it (e.g. the countdown)
+      forget: (k) => { delete msg[k]; },
       close: () => { this.pads.delete(id); if (!p.bot && this.screens.get(p.id)?.id === id) this.idle(p, ''); },
       // extra live info for this pad (e.g. Joe Master's kick-out bar): not remembered, so senders resync it themselves
       send: (m) => { if (this.pads.has(id)) this.send(p, { ...m, t: 'padx', id }, false); },

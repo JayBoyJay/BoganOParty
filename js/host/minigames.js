@@ -17,6 +17,8 @@ import { spinWheel, wheelGames, markPlayed } from './wheel.js';
 
 // longest a practice round runs if not everyone presses READY
 const PRACTICE_SECS = 45;
+// each number of the 3-2-1 before a minigame starts
+const COUNT_MS = 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -174,11 +176,24 @@ export class MinigameRunner {
 
     // ----- controls + countdown -----
     let running = false;
-    const pads = players.map((p) => this.hub.live(p, { title: def.name, body: def.padText || '', sideways: true, ...def.pad }, (m) => { if (running) inst.input(p, m); }));
+    // 3 seconds of 3-2-1 on the TV and every phone; the controls are up (so you can get a grip) but
+    // nothing counts until GO
+    const step = COUNT_MS * this.speed;
+    // let the new scene draw a couple of frames first: the first one compiles its shaders and can stall
+    // the TV for a moment, which would otherwise eat into the 3
+    for (let i = 0; i < 3; i++) await new Promise((r) => { requestAnimationFrame(r); setTimeout(r, 400); }); // (no frames in a hidden tab)
+    const pads = players.map((p) => this.hub.live(p, { title: def.name, body: def.padText || '', sideways: true, ...def.pad, countdown: step * 3 }, (m) => { if (running) inst.input(p, m); }));
     pads.forEach((h, i) => padOf.set(players[i].id, h));
-    for (const n of ['3', '2', '1']) { big.textContent = n; this.sfx.play('beep'); await sleep(800 * this.speed); }
+    big.classList.add('count');
+    const c0 = performance.now(); // on a fixed schedule, so a slow frame doesn't stretch it
+    for (const [i, n] of ['3', '2', '1'].entries()) {
+      big.textContent = n; big.classList.remove('pop'); void big.offsetWidth; big.classList.add('pop'); this.sfx.play('beep');
+      await sleep(c0 + (i + 1) * step - performance.now());
+    }
+    big.classList.remove('count', 'pop');
     big.textContent = 'GO!'; this.sfx.play('go');
     running = true;
+    pads.forEach((h) => { h.forget('countdown'); h.send({ go: true }); }); // a phone that reconnects now gets no countdown
     g.start();
     setTimeout(() => { if (big.textContent === 'GO!') big.textContent = ''; }, 700);
     const timeEl = root.querySelector('#mgTime'), boardEl = root.querySelector('#mgBoard');

@@ -223,6 +223,9 @@
   .mg-name, .mg-time { background: var(--panel); padding: 0.5rem 1.1rem; border-radius: 0.75rem; font-size: 1.6rem; font-weight: 900; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mg-time { min-width: 5rem; text-align: center; color: var(--gold); font-variant-numeric: tabular-nums; flex: none; }
   .mg-big { position: absolute; top: 30%; left: 0; right: 0; text-align: center; font-size: clamp(4rem, 16vw, 10rem); font-weight: 900; font-style: italic; text-shadow: 0 0.5rem 0 #7a2a0a, 0 0 2rem rgba(0,0,0,0.4); }
+  .mg-big.count { top: 22%; font-size: clamp(8rem, 30vw, 20rem); color: var(--gold); }
+  .mg-big.pop { animation: mgpop 1s ease-out both; }
+  @keyframes mgpop { 0% { transform: scale(1.8); opacity: 0; } 15% { transform: scale(1); opacity: 1; } 75% { opacity: 1; } 100% { transform: scale(0.85); opacity: 0.2; } }
   .mg-board { position: absolute; top: 5.6rem; right: 1rem; display: flex; flex-direction: column; gap: 0.4rem; }
   .mg-board div, .mg-results div { display: flex; align-items: center; gap: 0.6rem; background: var(--panel); border-left: 0.4rem solid var(--pc); border-radius: 0.6rem; padding: 0.4rem 0.75rem; font-size: 1.25rem; }
   .mg-board img, .mg-results img { width: 2.25rem; height: 2.25rem; border-radius: 50%; object-fit: cover; background: #fff; }

@@ -78,6 +78,7 @@ function onMsg(m) {
     case 'padx':
       if (screen?.t !== 'pad' || screen.id !== m.id) break;
       if ('pin' in m) pinBar(m);
+      if (m.go) countGo();
       if ('btn' in m) relabel(m);
       if ('rod' in m) rodSay?.(m);
       if ('map' in m) { screen.map = { ...screen.map, ...m.map }; miniMap?.redraw(); } // e.g. the grenade's aim marker
@@ -345,6 +346,7 @@ function renderScreen() {
     else if (s.kind === 'rod') renderRod(s, el);
     else renderButtons(s, el);
     if (s.practice) practiceStrip(s, el);
+    if (s.countdown) countdown(s);
   }
 }
 
@@ -394,6 +396,41 @@ function renderRoll(s, el) {
     if (!stop) { fallback(); if (s.timer) { clearInterval(timerT); startTimer(s.timer); } return; }
     rollStop = stop;
   });
+}
+
+// 3-2-1 before a minigame starts, in time with the TV. The end time is kept per pad, so a redraw (turning
+// the phone) carries on rather than starting again. GO! itself waits for the TV's { go }.
+const countEnd = new Map(); // pad id -> Date.now() when it hits GO
+let countT = null;
+function countdown(s) {
+  if (!countEnd.has(s.id)) countEnd.set(s.id, Date.now() + s.countdown);
+  document.querySelector('.pcount')?.remove();
+  clearInterval(countT);
+  if (countEnd.get(s.id) <= Date.now()) return; // already went
+  const ov = document.createElement('div');
+  ov.className = 'pcount';
+  document.body.append(ov);
+  let shown = '';
+  const tick = () => {
+    if (screen !== s) { clearInterval(countT); ov.remove(); return; }
+    const left = countEnd.get(s.id) - Date.now();
+    if (left < -2500) { countGo(); return; } // never heard GO from the TV: don't block the screen forever
+    // stays on 1 until the TV says GO, so GO! here is when the controls actually go live
+    const n = String(Math.max(1, Math.ceil(left / (s.countdown / 3))));
+    if (n !== shown) { shown = n; ov.innerHTML = `<i>${n}</i>`; buzz(30); }
+  };
+  tick();
+  countT = setInterval(tick, 50);
+}
+function countGo() {
+  clearInterval(countT);
+  if (screen?.t === 'pad') countEnd.set(screen.id, 0);
+  const ov = document.querySelector('.pcount');
+  if (!ov || ov.classList.contains('go')) return;
+  ov.classList.add('go');
+  ov.innerHTML = '<i>GO!</i>';
+  buzz([60, 30, 60]);
+  setTimeout(() => ov.remove(), 600);
 }
 
 // Practice round: the controls work for real but nothing counts. A strip on top says so and has the
