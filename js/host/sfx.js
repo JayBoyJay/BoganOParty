@@ -21,7 +21,7 @@ const GAP = { tick: 0.03, step: 0.04, clack: 0.03, bonk: 0.045, whoosh: 0.06, sw
 // Loudness trims, set by rendering each sound offline and evening them out: clicks sit low, normal
 // feedback in the middle, explosions and crowds on top. Raise or lower one here rather than in its recipe.
 const TRIM = {
-  yell: 0.4, baa: 0.4, meow: 0.4, oi: 0.7, thud: 0.7, kick: 0.45, deflate: 0.75, snare: 1.3,
+  yell: 0.4, baa: 0.4, meow: 0.4, wah: 0.3, oi: 0.7, thud: 0.7, kick: 0.45, deflate: 0.75, snare: 1.3,
   squeak: 5, tick: 2.5, clack: 1.5, slap: 1.3, swing: 2.5, tiptoe: 3, snort: 2, magpie: 1.6, squawk: 1.5,
   creak: 3, ko: 1.8, miss: 2, lego: 1.6, shot: 1.8, boost: 1.5, coins: 1.6, plop: 2, reel: 1, clank: 1.4, hat: 1.4, coin: 1.3,
 };
@@ -31,7 +31,7 @@ export const SOUNDS = {
   board: ['tick', 'step', 'clack', 'dice', 'coin', 'lose', 'item', 'shop', 'event', 'go', 'beep', 'fanfare'],
   powerups: ['flip', 'boom', 'bigboom', 'hallelujah', 'vacuum', 'teleport'],
   bodies: ['boing', 'squeak', 'bonk', 'thud', 'slap', 'punch', 'slam', 'swing', 'whoosh', 'deflate', 'ko', 'miss', 'tiptoe'],
-  voices: ['oi', 'yell', 'snore', 'snort', 'baa', 'bark', 'meow', 'magpie', 'squawk', 'crowd'],
+  voices: ['oi', 'yell', 'snore', 'snort', 'baa', 'bark', 'meow', 'magpie', 'squawk', 'crowd', 'wah'],
   things: ['creak', 'kick', 'snare', 'hat', 'clank', 'lego', 'crash', 'shot', 'gunshot', 'horn', 'boost', 'takeoff', 'trim', 'pour', 'whistle', 'cheers', 'coins', 'ding', 'buzz'],
   water: ['splash', 'plop', 'reel', 'snap'],
 };
@@ -384,6 +384,12 @@ function recipes() {
         V({ f, f2: f * rnd(1.05, 1.3), glide: 0.4, vowels: [[0, ['a', 'o', 'eh', 'u'][i % 4]]], a: rnd(0.08, 0.3), hold: rnd(0.3, 0.7), d: 0.7, vol: 0.012, at: rnd(0, 0.15), vib: [rnd(4, 7), f * 0.02], verb: 0.4 });
       }
       for (let i = 0; i < 22; i++) N({ filt: 'bandpass', ff: rnd(1200, 2200), q: 1.2, a: 0.001, d: 0.02, vol: rnd(0.1, 0.25), at: rnd(0.1, 1.3) });
+    },
+
+    // a giant baby crying (The Strait): "wah... WAAAH"
+    wah: ({ V }) => {
+      V({ f: 470, f2: 640, glide: 0.4, vowels: [[0, 'u'], [0.12, 'a']], a: 0.04, hold: 0.3, d: 0.2, vol: 0.16, vib: [7, 14], verb: 0.25 });
+      V({ f: 720, path: [[0.15, 780], [0.8, 430]], vowels: [[0, 'u'], [0.1, 'a'], [0.7, 'ah']], a: 0.04, hold: 0.6, d: 0.3, vol: 0.18, vib: [7, 20], at: 0.55, verb: 0.25 });
     },
 
     // --- things ---
