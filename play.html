@@ -128,6 +128,29 @@
   .stickzone .knob .cap { position: absolute; inset: 24%; border-radius: 50%; background: repeating-radial-gradient(circle, rgba(0,0,0,0.18) 0 2px, rgba(0,0,0,0) 2px 5px); }
   .stickzone.on .knob { transition: none; filter: brightness(1.12); }
   .stickzone.on .base { border-color: rgba(255,255,255,0.4); }
+  .rodpad { display: grid; grid-template-rows: auto 1fr; gap: 10px; height: 100%; }
+  .rodmain { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; min-height: 0; }
+  .rodsay { text-align: center; } .rodsay h2 { margin: 0 0 6px; font-size: clamp(22px, 5vmin + 8px, 40px); font-style: italic; }
+  .rodsay[data-s="bite"] h2 { color: #ff5a3a; animation: rodpulse 0.3s infinite alternate; } .rodsay[data-s="run"] h2 { color: #ffb800; }
+  @keyframes rodpulse { to { transform: scale(1.08); } }
+  .rodbtns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; } .rodbtns button { padding: 12px 18px; font-size: 18px; }
+  .reel { position: relative; width: min(62vmin, 300px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #3a4a58, #1c2630 70%); border: 6px solid #8a9aa8; touch-action: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+  .reelplate i { position: absolute; left: 50%; top: 50%; width: 86%; height: 6px; background: rgba(255,255,255,0.12); transform-origin: center; }
+  .reelplate i:nth-child(1) { transform: translate(-50%, -50%) rotate(0deg); } .reelplate i:nth-child(2) { transform: translate(-50%, -50%) rotate(60deg); } .reelplate i:nth-child(3) { transform: translate(-50%, -50%) rotate(120deg); }
+  .reelarm { position: absolute; inset: 0; pointer-events: none; }
+  .reelarm::before { content: ''; position: absolute; left: 50%; top: 50%; width: 38%; height: 14px; margin-top: -7px; background: #c8d0d8; border-radius: 7px; }
+  .reelarm b { position: absolute; left: 82%; top: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; background: var(--pc); transform: translate(-50%, -50%); box-shadow: 0 3px 10px rgba(0,0,0,0.5); }
+  .reelhint { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; color: var(--dim); font-weight: 900; letter-spacing: 0.15em; font-size: 13px; pointer-events: none; }
+  @media (orientation: portrait) { .rodmain { grid-template-columns: 1fr; justify-items: center; } }
+  .tiltview, .tiltswap { display: none; }
+  .stickzone.tilting .ghost, .stickzone.tilting .base, .stickzone.tilting .knob { display: none !important; }
+  .stickzone.tilting .tiltview { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; place-items: center; gap: 6px; padding: 10px 10px 50px; }
+  .tiltwheel { width: min(46vmin, 190px); aspect-ratio: 1; border-radius: 50%; border: 10px solid var(--pc); position: relative; transition: transform 60ms linear; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .tiltwheel i { position: absolute; left: 50%; top: 50%; width: 100%; height: 10px; background: var(--pc); transform: translate(-50%, -50%); border-radius: 5px; }
+  .tiltwheel::after { content: ''; position: absolute; left: 50%; top: -12px; width: 12px; height: 18px; border-radius: 4px; background: #fff; transform: translateX(-50%); }
+  .tiltnote { color: var(--dim); font-weight: 800; font-size: 13px; text-align: center; }
+  .tiltsmall { display: flex; gap: 8px; } .tiltsmall button { padding: 6px 12px; font-size: 14px; }
+  .tiltswap { display: block; position: absolute; left: 8px; bottom: 8px; padding: 6px 12px; font-size: 13px; z-index: 2; }
   .stickbtns { display: grid; grid-template-columns: 1fr; grid-auto-rows: 1fr; gap: 10px; touch-action: none; }
   .stickbtns.n3, .stickbtns.n4 { grid-template-columns: 1fr 1fr; }
   .stickbtns.n3 button:first-child { grid-column: 1 / -1; }

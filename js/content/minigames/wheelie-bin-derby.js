@@ -18,10 +18,10 @@ export default {
   id: 'wheelie-bin-derby',
   name: 'Wheelie Bin Derby',
   blurb: 'Bin night on the steepest street in town. Ride a wheelie bin to the bottom. First one down wins.',
-  howTo: 'Push your stick left and right to steer your bin. Press KICK for a burst of speed (every few seconds). Bins out for collection, parked cars and potholes will wipe you out. Plank ramps send you flying, and speed humps bounce you if you hit them fast. First to the bottom of the hill wins.',
-  padText: 'Stick to steer, KICK for speed',
+  howTo: 'Tilt your phone like a steering wheel (or push the stick) to steer your bin. Press KICK for a burst of speed (every few seconds). Bins out for collection, parked cars and potholes will wipe you out. Plank ramps send you flying, and speed humps bounce you if you hit them fast. First to the bottom of the hill wins.',
+  padText: 'Tilt to steer, KICK for speed',
   duration: 70,
-  pad: { kind: 'stick', buttons: [{ bit: BTN.KICK, label: '🦶 KICK', tone: 'go' }] },
+  pad: { kind: 'stick', tilt: true, buttons: [{ bit: BTN.KICK, label: '🦶 KICK', tone: 'go' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
