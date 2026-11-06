@@ -1,9 +1,9 @@
-// Fishing Off the Jetty: everyone lines up at the end of the jetty with a rod. The phone is one big
-// button. Hold it and a power bar swings up and down; let go to cast (more power goes further out, and
-// further out is bigger fish and more junk). When your float goes under it's a BITE: press straight away
-// to strike, then hold to reel it in. Reeling tightens the line, and when the fish makes a run it
-// tightens on its own, so let go when the bar goes red or it snaps. One press per bite, no mashing
-// (phones zoom on quick taps). Stingrays just nick your bait. Heaviest total catch wins.
+// Fishing Off the Jetty: everyone lines up at the end of the jetty with a rod. The phone is the rod
+// (the 'rod' pad in js/phone/main.js): flick it forward to cast (a harder flick goes further out, and
+// further out is bigger fish and more junk). When your float goes under it's a BITE: pull the phone back
+// straight away to hook it, then wind the reel on the screen round in circles to bring it in. Winding
+// tightens the line, and when the fish makes a run it tightens on its own, so stop winding when the bar
+// goes red or it snaps. Stingrays just nick your bait. Heaviest total catch wins.
 import { addSky } from '../../host/sky.js';
 
 const DOLL = 0.62;
@@ -25,10 +25,10 @@ export default {
   id: 'fishing-off-the-jetty',
   name: 'Fishing Off the Jetty',
   blurb: 'Cast, wait for a bite, and reel it in without snapping the line. Heaviest catch wins.',
-  howTo: "One button does it all. Hold it and the power bar swings up and down: let go to cast. More power goes further out, and further out means bigger fish (and more junk). When your float goes under it's a bite: press straight away to strike, then keep holding to reel it in. Reeling tightens the line, and when the fish makes a run it tightens on its own, so let go when the bar goes red or the line snaps. Stingrays just nick your bait. Heaviest total catch wins.",
-  padText: 'Hold, let go to cast. Press on a bite. Hold to reel',
+  howTo: "Your phone is the rod. Flick it forward to cast: a harder flick goes further out, and further out means bigger fish (and more junk). When your float goes under it's a bite: pull the phone back towards you straight away to hook it. Then wind the reel on your screen round in circles with your thumb to bring it in. Winding tightens the line, and when the fish makes a run it tightens on its own, so stop winding when the bar goes red or the line snaps. Stingrays just nick your bait. Heaviest total catch wins.",
+  padText: 'Flick to cast. Pull back on a bite. Wind the reel',
   duration: 75,
-  pad: { kind: 'buttons', buttons: [{ id: 'reel', label: '🎣 HOLD', color: '#5cc8ff', tall: true, hold: true }] },
+  pad: { kind: 'rod' },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -115,10 +115,10 @@ export default {
       const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
       const card = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); card.scale.set(2.6 * CARD, 1.38 * CARD, 1); card.renderOrder = 900;
       card.position.set(x, DECK + 3.3, 0.4); scene.add(card);
-      return { p, k, x, doll, rod, float, line, lg, c, t, card, kg: 0, best: null, state: 'ready', T: 0, power: 0, pdir: 1, dist: 0, fx: x, fz: 0, fish: null, tension: 0, surge: 0, nextSurge: 0, held: null, heldT: 0, caught: [], clickT: 0, down: false, needUp: false,
+      return { p, k, x, doll, rod, float, line, lg, c, t, card, kg: 0, best: null, state: 'ready', T: 0, power: 0, pdir: 1, dist: 0, fx: x, fz: 0, fish: null, tension: 0, surge: 0, nextSurge: 0, held: null, heldT: 0, caught: [], clickT: 0, crank: 0, crankAt: -9, said: '', sayT: 0,
         bot: p.bot ? { react: 0.25 + rng() * 0.45, spin: 8 + rng() * 6, care: 0.5 + rng() * 0.45, nextT: 0.5 + rng() * 1.5 } : null };
     });
-    const STATE_TXT = { ready: 'HOLD TO CAST', up: 'LET GO OF THE BUTTON', flying: '...', wait: 'WAITING', bite: 'BITE! PRESS!', fight: 'HOLD TO REEL', rig: 'NEW BAIT' };
+    const STATE_TXT = { ready: 'FLICK TO CAST', flying: '...', wait: 'WAITING', bite: 'BITE! PULL BACK!', fight: 'WIND THE REEL', rig: 'NEW BAIT' };
     // the cast power bar swings bottom to top and back while the button is held
     const swing = (T) => { const u = (T / SWING) % 2; return u < 1 ? u : 2 - u; };
     const drawCard = (F) => {
@@ -138,8 +138,8 @@ export default {
         g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(22, 112, 276, 22);
         g.fillStyle = v > 0.8 ? '#ff3a2a' : v > 0.55 ? '#ffb800' : '#5cff9d'; g.fillRect(22, 112, 276 * v, 22);
         if (F.state === 'fight') { g.fillStyle = '#ff3a2a'; g.fillRect(22 + 276 * 0.999 - 4, 108, 4, 30); }
-        g.fillStyle = '#ffffff'; g.font = '800 20px system-ui'; g.fillText(F.surge > 0 ? 'IT\'S RUNNING! LET GO' : 'HOLD TO REEL IT IN', 160, 152);
-      } else { g.fillStyle = F.state === 'bite' ? '#ff5a3a' : '#c8d8e8'; g.font = '900 30px system-ui'; g.fillText((F.state === 'ready' && F.needUp ? STATE_TXT.up : STATE_TXT[F.state]) || '', 160, 130, 290); }
+        g.fillStyle = '#ffffff'; g.font = '800 20px system-ui'; g.fillText(F.surge > 0 ? 'IT\'S RUNNING! STOP WINDING' : 'WIND IT IN', 160, 152);
+      } else { g.fillStyle = F.state === 'bite' ? '#ff5a3a' : '#c8d8e8'; g.font = '900 30px system-ui'; g.fillText(STATE_TXT[F.state] || '', 160, 130, 290); }
       F.t.needsUpdate = true;
     };
     fishers.forEach(drawCard);
@@ -195,7 +195,10 @@ export default {
           }
           // ----- states -----
           if (running) F.T += F.state === 'rig' ? -dt : dt;
-          if (F.state === 'fight' && F.down && running) reel(F, dt);
+          // winding the reel: about a turn a second reels at the normal speed, faster winds faster (to a point)
+          if (F.state === 'fight' && running && F.crank > 0.15 && tAll - F.crankAt < 0.4) reel(F, dt * Math.min(1.6, 0.35 + F.crank * 0.65));
+          // tell the phone what's happening, so it says what to do next and buzzes on a bite
+          if (!F.bot) { const say = F.state === 'fight' ? (F.surge > 0 ? 'run' : 'fight') : F.state === 'charge' ? 'ready' : F.state; F.sayT -= dt; if (say !== F.said || F.sayT <= 0) { F.said = say; F.sayT = 1.5; mg.padSend(F.p, { rod: say }); } }
           if (F.state === 'flying') {
             const f = Math.min(1, F.T / 0.75);
             F.float.position.set(F.x + (F.fx - F.x) * f, DECK + 3 + Math.sin(f * Math.PI) * 3 - f * (DECK + 3), 0.7 + (F.fz - 0.7) * f);
@@ -229,7 +232,7 @@ export default {
               F.float.position.set(xx, -0.05 + Math.sin(tAll * 9) * 0.05, zz);
               if (F.dist <= 0.05) land(F);
             }
-          } else if (F.state === 'rig') { if (F.T <= 0) { F.state = 'ready'; F.T = 0; F.needUp = F.down; } }
+          } else if (F.state === 'rig') { if (F.T <= 0) { F.state = 'ready'; F.T = 0; } }
           // ----- the rod and line -----
           const bend = F.state === 'fight' ? Math.min(1, F.tension) * 0.7 + (F.surge > 0 ? 0.2 : 0) : F.state === 'bite' ? 0.25 : 0;
           const lift = F.state === 'charge' ? 0.75 - 1.65 * swing(F.T) : F.state === 'flying' ? 0.9 : 0.75;
@@ -252,17 +255,12 @@ export default {
         for (let i = pops.length - 1; i >= 0; i--) { const q = pops[i]; q.life += dt; q.sp.material.opacity = Math.max(0, Math.min(1, q.life * 5, q.stay - q.life + 1)); q.sp.position.y += dt * 0.5; if (q.life > q.stay + 1) { scene.remove(q.sp); pops.splice(i, 1); } }
       },
       input(p, m) {
-        const F = fishers.find((x) => x.p === p); if (!F || m.b !== 'reel') return;
-        const down = !!m.down, was = F.down; F.down = down;
-        if (!down) {
-          F.needUp = false;
-          if (F.state === 'charge') cast(F, Math.max(0.08, swing(F.T)));
-          return;
-        }
-        if (was) return; // a fresh press only
-        // after a catch, let go before the next cast, so holding to reel doesn't start a cast
-        if (F.state === 'ready' && !F.needUp) { F.state = 'charge'; F.T = 0; sfx.play('tick'); }
-        else if (F.state === 'bite') strike(F);
+        const F = fishers.find((x) => x.p === p); if (!F) return;
+        // a flick forward casts (harder goes further); a pull back hooks a bite; anything else is ignored,
+        // so the bounce after a cast or a pull while waiting does nothing
+        if (m.b === 'cast' && F.state === 'ready') cast(F, Math.max(0.08, Math.min(1, Number(m.v) || 0)));
+        else if (m.b === 'hook' && F.state === 'bite') strike(F);
+        else if (m.b === 'crank') { F.crank = Math.max(0, Math.min(4, Number(m.v) || 0)); F.crankAt = tAll; }
       },
       scores() { return Object.fromEntries(fishers.map((F) => [F.p.id, F.kg * 10])); },
     };

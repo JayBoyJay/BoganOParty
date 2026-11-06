@@ -113,6 +113,20 @@
   .stickzone .base, .stickzone .knob { display: none; position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
   .stickzone .base { width: 130px; height: 130px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); }
   .stickzone .knob { width: 62px; height: 62px; background: var(--pc); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .rodpad { display: grid; grid-template-rows: auto 1fr; gap: 10px; height: 100%; }
+  .rodmain { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; min-height: 0; }
+  .rodsay { text-align: center; } .rodsay h2 { margin: 0 0 6px; font-size: clamp(22px, 5vmin + 8px, 40px); font-style: italic; }
+  .rodsay[data-s="bite"] h2 { color: #ff5a3a; animation: rodpulse 0.3s infinite alternate; } .rodsay[data-s="run"] h2 { color: #ffb800; }
+  @keyframes rodpulse { to { transform: scale(1.08); } }
+  .rodbtns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; } .rodbtns button { padding: 12px 18px; font-size: 18px; }
+  .reel { position: relative; width: min(62vmin, 300px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #3a4a58, #1c2630 70%); border: 6px solid #8a9aa8; touch-action: none; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+  .reelplate i { position: absolute; left: 50%; top: 50%; width: 86%; height: 6px; background: rgba(255,255,255,0.12); transform-origin: center; }
+  .reelplate i:nth-child(1) { transform: translate(-50%, -50%) rotate(0deg); } .reelplate i:nth-child(2) { transform: translate(-50%, -50%) rotate(60deg); } .reelplate i:nth-child(3) { transform: translate(-50%, -50%) rotate(120deg); }
+  .reelarm { position: absolute; inset: 0; pointer-events: none; }
+  .reelarm::before { content: ''; position: absolute; left: 50%; top: 50%; width: 38%; height: 14px; margin-top: -7px; background: #c8d0d8; border-radius: 7px; }
+  .reelarm b { position: absolute; left: 82%; top: 50%; width: 22%; aspect-ratio: 1; border-radius: 50%; background: var(--pc); transform: translate(-50%, -50%); box-shadow: 0 3px 10px rgba(0,0,0,0.5); }
+  .reelhint { position: absolute; left: 0; right: 0; bottom: 14%; text-align: center; color: var(--dim); font-weight: 900; letter-spacing: 0.15em; font-size: 13px; pointer-events: none; }
+  @media (orientation: portrait) { .rodmain { grid-template-columns: 1fr; justify-items: center; } }
   .tiltview, .tiltswap { display: none; }
   .stickzone.tilting .ghost, .stickzone.tilting .base, .stickzone.tilting .knob { display: none !important; }
   .stickzone.tilting .tiltview { position: absolute; inset: 0; display: grid; grid-template-rows: 1fr auto auto; place-items: center; gap: 6px; padding: 10px 10px 50px; }

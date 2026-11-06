@@ -35,10 +35,10 @@ export default {
   id: 'toy-cars',
   name: 'Toy Cars',
   blurb: 'Orange track through the whole house. Three laps. Mind the rails.',
-  howTo: 'Your car drives itself flat out. Push the stick left and right to steer. Scrape the rails and you slow down. Drive through the ? boxes for power-ups: TURBO speeds you up, SNAIL slows everyone ahead of you, LEGO drops a brick behind you that spins out whoever hits it. First to finish three laps wins.',
-  padText: 'Stick left and right to steer!',
+  howTo: 'Your car drives itself flat out. Tilt your phone like a steering wheel (or push the stick) to steer. Scrape the rails and you slow down. Drive through the ? boxes for power-ups: TURBO speeds you up, SNAIL slows everyone ahead of you, LEGO drops a brick behind you that spins out whoever hits it. First to finish three laps wins.',
+  padText: 'Tilt to steer (or use the stick)',
   duration: 80,
-  pad: { kind: 'stick', buttons: [] },
+  pad: { kind: 'stick', tilt: true, buttons: [] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng } = mg;

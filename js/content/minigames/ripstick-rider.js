@@ -20,10 +20,10 @@ export default {
   id: 'ripstick-rider',
   name: 'Ripstick Rider',
   blurb: 'Wiggle down the street on a ripstick. Dodge the cracks, the pets and the traffic. Last one riding wins.',
-  howTo: 'Keep wiggling your stick left and right to sway and ride: faster sway, faster board. Lean more one way to drift that way. Press PUSH to shove whoever is next to you. Grab a foam sword for a massive shove. Hit anything and you are out.',
-  padText: 'Wiggle the stick to sway! PUSH to shove',
+  howTo: 'Keep rocking your phone left and right like a steering wheel (or wiggle the stick) to sway and ride: faster sway, faster board. Lean more one way to drift that way. Press PUSH to shove whoever is next to you. Grab a foam sword for a massive shove. Hit anything and you are out.',
+  padText: 'Rock the phone side to side to sway! PUSH to shove',
   duration: 90,
-  pad: { kind: 'stick', buttons: [{ bit: BTN.PUSH, label: '👐 PUSH', tone: 'go' }] },
+  pad: { kind: 'stick', tilt: true, buttons: [{ bit: BTN.PUSH, label: '👐 PUSH', tone: 'go' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;

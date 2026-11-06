@@ -66,6 +66,7 @@ function onMsg(m) {
       if (screen?.t !== 'pad' || screen.id !== m.id) break;
       if ('pin' in m) pinBar(m);
       if ('btn' in m) relabel(m);
+      if ('rod' in m) rodSay?.(m);
       if ('lit' in m) { const b = document.querySelector(`[data-b="${CSS.escape(m.lit)}"]`); b?.classList.toggle('lit', !!m.on); b?.classList.toggle('off', !m.on); } // e.g. Burger Boys' PISS button once the bar is full
       break;
   }
@@ -227,6 +228,7 @@ function renderScreen() {
     else if (s.kind === 'slider') renderSlider(s, el);
     else if (s.kind === 'touchpad') renderTouchpad(s, el);
     else if (s.kind === 'gyro') renderGyro(s, el);
+    else if (s.kind === 'rod') renderRod(s, el);
     else renderButtons(s, el);
     if (s.practice) practiceStrip(s, el);
   }
@@ -682,6 +684,107 @@ function renderGyro(s, el) {
   draw(); push(true);
   const keep = setInterval(() => push(true), 250);
   tiltStop = () => { removeEventListener('deviceorientation', onOrient); clearInterval(keep); };
+}
+
+// Fishing rod (Fishing Off the Jetty). The phone is the rod and the screen is the reel:
+//  - flick the phone forward (top edge away from you) to cast: a harder flick goes further { b: 'cast', v: 0..1 }
+//  - when the TV says there's a bite, pull the phone back towards you to hook it { b: 'hook' }
+//  - wind the reel handle round in circles with your thumb to reel in { b: 'crank', v: turns a second }
+// The flick and pull come from how fast the screen's top edge tips forward or back (deviceorientation
+// beta/gamma, so no compass). A phone without motion gets CAST / HOOK buttons instead.
+// The TV tells the pad what's happening with { rod: 'ready' | 'wait' | 'bite' | 'fight' | 'run' | 'rig' }.
+let rodSay = null;
+const ROD_TXT = {
+  ready: ['🎣 FLICK TO CAST', 'Flick the phone forward. Harder goes further'],
+  flying: ['…', ''], wait: ['WAITING…', 'Watch your float'],
+  bite: ['BITE! PULL BACK!', 'Yank the phone back towards you'],
+  fight: ['WIND THE REEL', 'Circle your thumb round the reel'], run: ["IT'S RUNNING! STOP WINDING", 'Let the line go slack'],
+  rig: ['NEW BAIT', ''],
+};
+function renderRod(s, el) {
+  el.innerHTML = `<div class="rodpad"><div class="padhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span></div>
+    <div class="rodmain"><div class="rodsay" id="rodsay"><h2 id="rodbig"></h2><div class="dim" id="rodsmall"></div>
+      <div class="rodbtns"><button id="rodperm" class="go hidden">Turn on motion</button><button id="rodcast" class="go hidden">🎣 CAST</button><button id="rodhook" class="hidden">🪝 HOOK</button></div></div>
+    <div class="reel" id="reel"><div class="reelplate"><i></i><i></i><i></i></div><div class="reelarm" id="reelarm"><b></b></div><div class="reelhint">WIND</div></div></div></div>`;
+  const reel = $('reel'), arm = $('reelarm'), big = $('rodbig'), small = $('rodsmall');
+  let state = 'ready';
+  const say = () => { const [b, t] = ROD_TXT[state] || ['', '']; big.textContent = b; small.textContent = noMotion && state === 'ready' ? 'Press CAST' : noMotion && state === 'bite' ? 'Press HOOK' : t; $('rodsay').dataset.s = state; };
+  rodSay = (m) => { const was = state; state = m.rod; if (state === 'bite' && was !== 'bite') buzz([60, 40, 60]); say(); };
+  // ----- the reel: angle of your thumb round the centre, turned into turns a second -----
+  let sid = null, lastA = null, spin = 0, ang = 0, lastSent = 0, lastMove = 0;
+  const angleAt = (e) => { const r = reel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)); };
+  const sendCrank = (force) => { const now = Date.now(); if (!force && now - lastSent < 80) return; lastSent = now; sendFast({ t: 'in', id: s.id, b: 'crank', v: +spin.toFixed(2) }); };
+  reel.onpointerdown = (e) => { e.preventDefault(); sid = e.pointerId; reel.setPointerCapture(sid); lastA = angleAt(e); lastMove = performance.now(); };
+  reel.onpointermove = (e) => {
+    if (e.pointerId !== sid) return;
+    const a = angleAt(e), now = performance.now();
+    let d = a - lastA; d = ((d + Math.PI * 3) % (Math.PI * 2)) - Math.PI; lastA = a;
+    ang += d;
+    const dt = Math.max(0.008, (now - lastMove) / 1000); lastMove = now;
+    const rate = Math.abs(d) / (Math.PI * 2) / dt; // either way round winds it in
+    spin += (Math.min(4, rate) - spin) * Math.min(1, dt * 8);
+    arm.style.transform = `rotate(${ang}rad)`;
+    sendCrank(false);
+  };
+  const stop = (e) => { if (e.pointerId !== sid) return; sid = null; spin = 0; sendCrank(true); };
+  reel.onpointerup = stop; reel.onpointercancel = stop;
+  // a thumb resting still on the reel isn't winding
+  const keep = setInterval(() => { if (sid != null && performance.now() - lastMove > 150) spin *= 0.5; if (sid != null || spin) sendCrank(true); }, 120);
+  // ----- the flick and the pull: how fast the top edge tips -----
+  const D = Math.PI / 180;
+  let got = false, lastP = null, lastT = 0, rate = 0, peak = 0, dir = 0, quietT = 0, noMotion = false;
+  const FLICK = 220, END = 90; // degrees a second to count as a flick, and to call it over
+  const onOrient = (e) => {
+    if (e.beta == null || e.gamma == null) return;
+    if (!got) { got = true; motionOk = true; noMotion = false; $('rodperm').classList.add('hidden'); for (const id of ['rodcast', 'rodhook']) $(id).classList.add('hidden'); say(); }
+    const cB = Math.cos(e.beta * D), sB = Math.sin(e.beta * D), cG = Math.cos(e.gamma * D), sG = Math.sin(e.gamma * D);
+    const th = screenAngle() * D, st = Math.sin(th), ct = Math.cos(th);
+    const upZ = -cB * sG * st + sB * ct, faceZ = cB * cG;
+    const p = Math.atan2(upZ, faceZ) / D, now = performance.now() / 1000;
+    if (lastP != null) {
+      const dt = Math.max(0.005, now - lastT);
+      let dp = p - lastP; dp = ((dp + 540) % 360) - 180;
+      rate = rate * 0.4 + (dp / dt) * 0.6; // + = top coming back towards you, - = tipping forward
+      if (now < quietT) { /* settling after the last one */ }
+      else if (!dir && Math.abs(rate) > FLICK) { dir = Math.sign(rate); peak = Math.abs(rate); }
+      else if (dir) {
+        if (Math.sign(rate) === dir) peak = Math.max(peak, Math.abs(rate));
+        if (Math.sign(rate) !== dir || Math.abs(rate) < END) {
+          if (dir < 0) {
+            send({ t: 'in', id: s.id, b: 'cast', v: +Math.min(1, Math.max(0.08, (peak - FLICK) / 650)).toFixed(2) }); buzz(30);
+            dir = 0; quietT = now + 0.45; // a flick bounces back: don't read the bounce as a pull
+          } else {
+            send({ t: 'in', id: s.id, b: 'hook' }); if (state === 'bite') buzz(40);
+            // a pull back is often the wind-up for a cast, so a flick forward can follow straight on
+            dir = Math.abs(rate) > FLICK && rate < 0 ? -1 : 0; peak = Math.abs(rate);
+          }
+        }
+      }
+    }
+    lastP = p; lastT = now;
+  };
+  addEventListener('deviceorientation', onOrient);
+  const DO = window.DeviceOrientationEvent;
+  const needsAsk = typeof DO?.requestPermission === 'function' || typeof window.DeviceMotionEvent?.requestPermission === 'function';
+  if (!motionOk && needsAsk) {
+    $('rodperm').classList.remove('hidden');
+    $('rodperm').onclick = async () => {
+      try { if (typeof DO?.requestPermission === 'function') await DO.requestPermission(); } catch { /* denied */ }
+      await askMotion();
+      if (motionOk) $('rodperm').classList.add('hidden');
+    };
+  }
+  // no motion at all: buttons instead
+  const fallback = () => {
+    if (got || needsAsk) return;
+    noMotion = true; say();
+    $('rodcast').classList.remove('hidden'); $('rodhook').classList.remove('hidden');
+  };
+  const waitT = setTimeout(fallback, 1500);
+  $('rodcast').onclick = () => { send({ t: 'in', id: s.id, b: 'cast', v: 0.5 + Math.random() * 0.5 }); buzz(30); };
+  $('rodhook').onclick = () => { send({ t: 'in', id: s.id, b: 'hook' }); buzz(30); };
+  say();
+  tiltStop = () => { removeEventListener('deviceorientation', onOrient); clearInterval(keep); clearTimeout(waitT); rodSay = null; };
 }
 
 function renderTilt(s, el) {
