@@ -26,6 +26,7 @@ let lobby = null; // last lobby view
 let stats = null;
 let board = null; // the board layout for the map (sent by the TV once a game)
 let screen = null; // last prompt/pad/idle
+let host = { you: false, name: '', paused: false }; // who the host is (the first phone to join) and whether the game is paused
 let body = store.get('body') || 'smooth';
 let hat = store.get('hat') || 'none';
 let outfit = store.get('outfit') || '';
@@ -42,7 +43,8 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
 let lastTouchEnd = 0;
-document.addEventListener('touchend', (e) => { const now = Date.now(); if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea, select')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+const realNow = () => window.__clock?.realNow() ?? performance.now(); // Date.now stands still while paused
+document.addEventListener('touchend', (e) => { const now = realNow(); if (now - lastTouchEnd < 350 && !e.target.closest('input, textarea, select')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) net.reconnectNow(); });
 keepAwake(); // stop the screen sleeping mid-game
 
@@ -51,7 +53,7 @@ let holdUntil = 0, heldT = 0;
 let rollMod = null;
 const loadRoll = () => (rollMod ||= import('./roll.js').catch(() => { rollMod = null; return null; }));
 
-function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); if (id !== 'vGame') wantOrientation(null); }
+function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); if (id !== 'vGame') wantOrientation(null); renderPause(); }
 
 function onMsg(m) {
   switch (m.t) {
@@ -60,7 +62,8 @@ function onMsg(m) {
     case 'hostup': $('status').classList.add('hidden'); break;
     case 'kicked': show('vConnect'); $('vConnect').querySelector('p').textContent = 'You were removed from the lobby. Refresh to join again.'; break;
     case 'moved': show('vConnect'); $('vConnect').querySelector('p').textContent = 'This player is now open on another tab or phone.'; break;
-    case 'lobby': lobby = m; screen = null; stats = null; closeMap(); renderLobby(); break;
+    case 'lobby': lobby = m; screen = null; stats = null; host = { you: !!m.host, name: m.hostName || '', paused: false }; closeMap(); renderLobby(); break;
+    case 'host': host = m; renderPause(); break;
     case 'stats': {
       const had = hasKeys(); stats = m; renderBar(); mapsChanged();
       if (had !== hasKeys() && screen?.t === 'idle') renderScreen(); // Mr Music Maa'm started or wore off
@@ -108,6 +111,7 @@ function renderLobby() {
   for (const btn of $('faces').querySelectorAll('button')) btn.onclick = () => openSheet(btn.dataset.m);
   $('mapName').textContent = lobby.map.name;
   $('mapItem').textContent = `${lobby.map.emoji} Collect the ${lobby.map.item}`;
+  renderHostBox();
   $('readyBtn').textContent = you.ready ? '✔ Ready! (tap to undo)' : "I'm ready!";
   $('readyBtn').classList.toggle('go', !you.ready);
   if (!you.joined && $('name').value.trim()) sendProfile();
@@ -127,10 +131,51 @@ $('readyBtn').onclick = () => {
   buzz(30);
   askMotion(); // iPhones only allow tilt after a tap
 };
-$('mapBtn').onclick = () => {
-  const i = lobby.maps.findIndex((m) => m.id === lobby.map.id);
-  send({ t: 'settings', map: lobby.maps[(i + 1) % lobby.maps.length].id });
-};
+$('mapBtn').onclick = () => { send({ t: 'host', a: 'map', d: 1 }); buzz(15); };
+$('mapPrevBtn').onclick = () => { send({ t: 'host', a: 'map', d: -1 }); buzz(15); };
+
+// the host's copy of the TV's lobby controls: every setting, kick, and start
+function renderHostBox() {
+  const panel = lobby.host ? lobby.panel : null;
+  const mg = panel?.settings.find((x) => x.key === 'mode')?.v === 'minigames';
+  $('mapBtn').classList.toggle('hidden', !panel || mg);
+  $('mapPrevBtn').classList.toggle('hidden', !panel || mg);
+  $('hostNote').innerHTML = panel ? '<span class="hosttag">HOST</span> You joined first, so you run the TV from here.' : lobby.hostName ? `${esc(lobby.hostName)} is the host and picks the settings.` : '';
+  $('hostBox').classList.toggle('hidden', !panel);
+  if (!panel) { $('hostBox').innerHTML = ''; return; }
+  $('hostBox').innerHTML = panel.settings.map((x, i) => `<div class="set"><div class="label">${esc(x.label)}</div><div class="seg">${x.opts.map((o, j) => `<button data-s="${i}" data-o="${j}" class="${o.v === x.v ? 'on' : ''}">${esc(o.label)}</button>`).join('')}</div></div>`).join('')
+    + (panel.players.length ? `<div class="label">Players</div><div class="kicks">${panel.players.map((q) => `<div class="row"><span style="flex:1">${esc(q.name)} <span class="dim" style="font-size:12px">${q.connected ? (q.ready ? 'Ready' : '') : 'Phone asleep'}</span></span><button data-kick="${esc(q.id)}">✕ Remove</button></div>`).join('')}</div>` : '')
+    + `<div class="label">Start</div><button class="go wide" id="hostStart" ${panel.canStart ? '' : 'disabled'}>Start the party</button><div class="dim" style="font-size:13px; margin-top:6px">${esc(panel.hint)}</div>`;
+  for (const b of $('hostBox').querySelectorAll('[data-s]')) b.onclick = () => { const x = panel.settings[b.dataset.s]; send({ t: 'host', a: 'set', key: x.key, v: x.opts[b.dataset.o].v }); buzz(15); };
+  for (const b of $('hostBox').querySelectorAll('[data-kick]')) b.onclick = () => { if (confirm(`Remove ${b.closest('.row').firstElementChild.firstChild.textContent.trim()} from the game?`)) send({ t: 'host', a: 'kick', id: b.dataset.kick }); };
+  $('hostStart').onclick = () => { send({ t: 'host', a: 'start' }); buzz(30); askMotion(); };
+}
+
+// ---------------- pause ----------------
+// The host gets a ⏸ button over the game. While paused every phone shows the pause screen, and this
+// phone's own clock stops too (js/pauseclock.js), so prompt timers carry on where they were.
+function renderPause() {
+  const inGame = !$('vGame').classList.contains('hidden');
+  const barUp = !!$('barPause') && !$('bar').classList.contains('hidden');
+  $('barPause')?.classList.toggle('hidden', !(host.you && !host.paused));
+  // the pause button sits in the top bar; with no bar (Minigames only) it floats in the corner
+  $('pauseFab').classList.toggle('hidden', !(host.you && inGame && !host.paused && !barUp));
+  $('pauseOv').classList.toggle('hidden', !host.paused);
+  if (host.paused) {
+    const by = host.by && host.by !== host.name ? `${host.by} paused the game. ` : '';
+    $('pauseBy').textContent = by + (host.you ? 'Tap Resume when everyone\'s back.' : host.name ? `Waiting for ${host.name} to resume.` : 'Waiting for the TV.');
+    $('pauseHost').classList.toggle('hidden', !host.you);
+    $('pSound').textContent = host.sound ? '🔊 Sound on' : '🔇 Sound off';
+    $('pMusic').textContent = host.music ? '🎸 Music on' : '🎸 Music off';
+  }
+  const c = window.__clock;
+  if (c && host.paused !== c.paused) host.paused ? c.pause() : c.resume();
+}
+function pauseNow() { send({ t: 'host', a: 'pause', v: true }); buzz(30); }
+$('pauseFab').onclick = pauseNow;
+$('resumeBtn').onclick = () => { send({ t: 'host', a: 'pause', v: false }); buzz(30); };
+$('pSound').onclick = () => send({ t: 'host', a: 'sound' });
+$('pMusic').onclick = () => send({ t: 'host', a: 'music' });
 
 // ---------------- photos ----------------
 const crop = { img: null, zoom: 1, ox: 0, oy: 0, drag: null, mood: 'neutral' };
@@ -199,12 +244,14 @@ $('useBtn').onclick = () => {
 
 // ---------------- in game ----------------
 function renderBar() {
-  if (!stats) { $('bar').classList.add('hidden'); return; }
+  if (!stats) { $('bar').classList.add('hidden'); renderPause(); return; }
   $('bar').classList.remove('hidden');
   const canMap = !!(board && stats.where);
-  $('bar').innerHTML = `<span class="nm">${esc(lobby?.you?.name || '')}</span><span>${stats.item.emoji} ${stats.items}/${stats.target}</span><span>🪙 ${stats.coins}</span>${canMap ? '<button class="mapbtn" id="mapOpen">🗺️ Map</button>' : ''}
+  $('bar').innerHTML = `<span class="nm">${esc(lobby?.you?.name || '')}</span><span>${stats.item.emoji} ${stats.items}/${stats.target}</span><span>🪙 ${stats.coins}</span>${canMap ? '<button class="mapbtn" id="mapOpen">🗺️ Map</button>' : ''}<button class="mapbtn${host.you && !host.paused ? '' : ' hidden'}" id="barPause" aria-label="Pause">⏸</button>
     <div class="pus">${stats.powerups.length ? stats.powerups.map((p) => `${p.emoji} ${esc(p.name)}`).join(' · ') : 'No power-ups'}${stats.effects.map((e) => ` · ${e.emoji || '🍬'} ${esc(e.name)} (${e.rounds})`).join('')}</div>`;
   if (canMap) $('mapOpen').onclick = () => { buzz(15); openMap(); };
+  $('barPause').onclick = pauseNow;
+  renderPause();
 }
 
 // ---------------- the board map ----------------

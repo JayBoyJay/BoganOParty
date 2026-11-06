@@ -39,7 +39,11 @@ const state = {
   settings: { mode: 'board', mgRounds: 5, map: MAPS[0].id, itemsToWin: 5, maxRounds: 0, cpus: 0, sound: true, music: true, drinks: 1, kingCup: 0, practice: 1, ...store.load('settings', {}) },
   game: null,
   runner: null,
+  hostId: null, // the first phone to join: it can do everything the TV's own buttons do (see hostAction)
+  paused: false,
+  pausedBy: '',
 };
+let joinSeq = 0; // order phones joined in, so the host passes to whoever joined next
 // emotes show on the board and the screens around a minigame (results, standings), but not in practice or play
 const emotesOk = () => state.phase !== 'lobby' && !state.runner?.playing;
 
@@ -89,24 +93,30 @@ function nextColor() {
 
 function onNet(m) {
   if (m.t === 'phones') { for (const pid of m.pids) onNet({ t: 'phone-connect', pid }); return; }
-  if (m.t === 'all-gone') { for (const p of state.players.values()) p.connected = false; renderLobby(); return; }
+  if (m.t === 'all-gone') { for (const p of state.players.values()) p.connected = false; pickHost(); renderLobby(); return; }
   if (m.t === 'phone-connect') {
     const p = state.players.get(m.pid);
-    if (p) p.connected = true;
+    if (p) { p.connected = true; p.joinSeq ??= ++joinSeq; }
     hub.reconnect(m.pid);
+    pickHost();
     if (state.phase === 'lobby') { pushLobby(m.pid); renderLobby(); }
-    else if (!p || !state.game?.players.includes(p)) net.send(m.pid, { t: 'idle', title: 'Game in progress', body: "You'll get in next game. Grab a drink." });
+    else {
+      if (!p || !state.game?.players.includes(p)) net.send(m.pid, { t: 'idle', title: 'Game in progress', body: "You'll get in next game. Grab a drink." });
+      net.send(m.pid, hostMsg(m.pid));
+    }
     return;
   }
   if (m.t === 'phone-disconnect') {
     const p = state.players.get(m.pid);
     if (p) p.connected = false;
     hub.disconnect(m.pid);
+    pickHost();
     renderLobby();
     return;
   }
   if (m.t !== 'phone-msg') return;
   const pid = m.pid, msg = m.msg;
+  if (state.paused && (msg.t === 'in' || msg.t === 'emote' || msg.t === 'note')) return; // the game is frozen: no moving under the pause screen
   if (hub.handle(pid, msg)) return;
   const p = state.players.get(pid);
   switch (msg.t) {
@@ -118,7 +128,8 @@ function onNet(m) {
       const outfit = OUTFITS.some((o) => o.id === msg.outfit) ? msg.outfit : defaultOutfit(body);
       if (p) Object.assign(p, { name, body, hat, outfit, connected: true });
       else if ([...state.players.values()].filter((q) => q.connected).length >= MAX_PLAYERS) return; // the couch is full
-      else state.players.set(pid, { id: pid, name, body, hat, outfit, photos: {}, color: nextColor(), ready: false, connected: true });
+      else state.players.set(pid, { id: pid, name, body, hat, outfit, photos: {}, color: nextColor(), ready: false, connected: true, joinSeq: ++joinSeq });
+      if (!state.hostId) pickHost();
       savePlayers(); pushLobby(pid); renderLobby();
       break;
     }
@@ -145,10 +156,11 @@ function onNet(m) {
       break;
     }
     case 'settings': {
-      // any phone can flip the map from the lobby
-      if (state.phase === 'lobby' && msg.map && MAP_BY_ID[msg.map]) { state.settings.map = msg.map; saveSettings(); renderLobby(); pushLobbyAll(); }
+      // the host can flip the map from the lobby (older phones send this; new ones use host/map)
+      if (pid === state.hostId && state.phase === 'lobby' && msg.map && MAP_BY_ID[msg.map]) { state.settings.map = msg.map; saveSettings(); renderLobby(); pushLobbyAll(); showLobbyBoard(); }
       break;
     }
+    case 'host': if (p && pid === state.hostId) hostAction(msg); break;
     case 'emote': {
       // faces work as emotes on the board and between minigames, never while one is being played
       const g = state.game;
@@ -183,10 +195,96 @@ function lobbyView(pid) {
     bodies: BODIES, hats: HATS, outfits: OUTFITS,
     moods: MOODS,
     count: [...state.players.values()].filter((x) => x.connected).length,
+    host: pid === state.hostId,
+    hostName: state.players.get(state.hostId)?.name || '',
+    panel: pid === state.hostId ? hostPanel(pid) : null,
   };
 }
 const pushLobby = (pid) => net.send(pid, lobbyView(pid));
 const pushLobbyAll = () => { for (const p of state.players.values()) if (p.connected) pushLobby(p.id); };
+
+// ---------------- the host phone ----------------
+// The first phone to join is the host. Its lobby shows every TV setting, the map, kick buttons and
+// Start, and in a game it gets a pause button. If it leaves, the next phone to have joined takes over.
+const SEGS = [['segMode', 'mode'], ['segMgRounds', 'mgRounds'], ['segItems', 'itemsToWin'], ['segRounds', 'maxRounds'], ['segCpus', 'cpus'], ['segDrinks', 'drinks'], ['segPractice', 'practice'], ['segKingCup', 'kingCup']];
+function segSpec(id, key) {
+  const seg = $(id), set = seg.closest('.set');
+  const only = set.classList.contains('for-mg') ? 'minigames' : set.classList.contains('for-board') ? 'board' : null;
+  const opts = [...seg.querySelectorAll('button')].map((b) => ({ v: key === 'mode' ? b.dataset.v : Number(b.dataset.v), label: b.textContent }));
+  return { key, label: set.firstElementChild.textContent, only, opts };
+}
+function hostPanel(pid) {
+  const n = [...state.players.values()].filter((p) => p.connected).length + cpuCount();
+  return {
+    settings: SEGS.map(([id, key]) => ({ ...segSpec(id, key), v: state.settings[key] })).filter((s) => !s.only || s.only === state.settings.mode),
+    players: [...state.players.values()].filter((p) => p.id !== pid).map((p) => ({ id: p.id, name: p.name, connected: !!p.connected, ready: !!p.ready })),
+    canStart: n >= 2,
+    hint: n < 2 ? 'Need at least 2 players (add CPUs to test)' : `${n} players`,
+  };
+}
+function hostCandidates() {
+  const inGame = state.phase !== 'lobby' && state.game ? state.game.players : null;
+  return [...state.players.values()].filter((p) => p.connected && (!inGame || inGame.includes(p))).sort((a, b) => (a.joinSeq || 1e9) - (b.joinSeq || 1e9));
+}
+function pickHost() {
+  const c = hostCandidates();
+  const id = (c.find((p) => p.id === state.hostId) || c[0])?.id || null;
+  if (id === state.hostId) return;
+  state.hostId = id;
+  tellHost();
+}
+function hostMsg(pid) {
+  return { t: 'host', you: pid === state.hostId, name: state.players.get(state.hostId)?.name || '', paused: state.paused, by: state.pausedBy, sound: !!state.settings.sound, music: !!state.settings.music };
+}
+function tellHost() {
+  if (state.phase === 'lobby') { renderLobby(); pushLobbyAll(); }
+  else for (const p of state.players.values()) if (p.connected) net.send(p.id, hostMsg(p.id));
+  if (state.paused) showPause();
+}
+function hostAction(msg) {
+  const lobby = state.phase === 'lobby';
+  switch (msg.a) {
+    case 'set': {
+      const seg = SEGS.find(([, key]) => key === msg.key);
+      if (!lobby || !seg) return;
+      const spec = segSpec(...seg);
+      if (!spec.opts.some((o) => o.v === msg.v)) return;
+      state.settings[msg.key] = msg.v;
+      saveSettings(); renderLobby(); pushLobbyAll();
+      break;
+    }
+    case 'map': if (lobby) cycleMap(msg.d < 0 ? -1 : 1); break;
+    case 'start': if (lobby && !$('startBtn').disabled) startGame(); break;
+    case 'kick': if (lobby && msg.id !== state.hostId && state.players.has(msg.id)) kick(msg.id); break;
+    case 'pause': setPaused(!!msg.v, state.players.get(state.hostId)); break;
+    case 'sound': $('soundBtn').click(); tellHost(); break;
+    case 'music': $('musicBtn').click(); tellHost(); break;
+  }
+}
+function kick(id) { state.players.delete(id); net.kick(id); savePlayers(); pickHost(); renderLobby(); pushLobbyAll(); }
+
+// ---------------- pause ----------------
+// window.__clock (js/pauseclock.js) stops every timer, frame and sound on the TV, so the board,
+// minigames, prompt timers and CPUs all freeze and carry on exactly where they were.
+const canPause = () => state.phase === 'board' || state.phase === 'minigame';
+function showPause() {
+  const host = state.players.get(state.hostId);
+  $('pauseBy').textContent = state.pausedBy ? `Paused by ${state.pausedBy}` : '';
+  $('pauseHint').textContent = host ? `${host.name} can resume from their phone, or press P` : 'Press P to resume';
+}
+function setPaused(on, by) {
+  if (on && !canPause()) return;
+  if (on === state.paused) return;
+  if (on) sfx.play('beep');
+  state.paused = on;
+  state.pausedBy = on ? (by?.name || 'the TV') : '';
+  if (on) window.__clock?.pause(); else window.__clock?.resume();
+  $('pauseOv').classList.toggle('hidden', !on);
+  $('pauseBtn').textContent = on ? '▶' : '⏸';
+  if (on) showPause();
+  tellHost();
+}
+const syncPauseBtn = () => $('pauseBtn').classList.toggle('hidden', !canPause());
 
 // ---------------- lobby screen ----------------
 function renderLobby() {
@@ -213,11 +311,11 @@ function renderLobby() {
   $('playerList').innerHTML = people.map((p) => `
     <div class="pcard ${p.ready ? 'ready' : ''} ${p.connected ? '' : 'off'}" style="--pc:${p.color}">
       <img src="${faceDataUrl(p, 'neutral')}" alt="">
-      <div><div class="nm">${esc(p.name)}</div><div class="st">${p.connected ? (p.ready ? 'Ready!' : 'Getting set up…') : 'Phone asleep'} · ${BODIES.find((b) => b.id === p.body)?.label || ''} · ${Object.keys(p.photos || {}).length}/4 📷</div></div>
+      <div><div class="nm">${esc(p.name)}${p.id === state.hostId ? '<span class="hosttag">HOST</span>' : ''}</div><div class="st">${p.connected ? (p.ready ? 'Ready!' : 'Getting set up…') : 'Phone asleep'} · ${BODIES.find((b) => b.id === p.body)?.label || ''} · ${Object.keys(p.photos || {}).length}/4 📷</div></div>
       <button class="x" data-kick="${p.id}" title="Remove">✕</button>
     </div>`).join('') + cpuCards.join('')
     + Array.from({ length: empty }, (_, i) => `<div class="pslot"><i>+</i>${i === 0 && !people.length ? 'Scan the QR code to join' : 'Free seat'}</div>`).join('');
-  for (const b of $('playerList').querySelectorAll('[data-kick]')) b.onclick = () => { const id = b.dataset.kick; state.players.delete(id); net.kick(id); savePlayers(); renderLobby(); };
+  for (const b of $('playerList').querySelectorAll('[data-kick]')) b.onclick = () => kick(b.dataset.kick);
   const n = people.filter((p) => p.connected).length + cpuCount();
   $('startBtn').disabled = n < 2;
   $('startHint').textContent = n < 2 ? 'Need at least 2 players (add CPUs to test)' : `${n} players`;
@@ -227,10 +325,11 @@ function setupLobbyControls() {
   $('mapPrev').onclick = () => cycleMap(-1);
   $('mapNext').onclick = () => cycleMap(1);
   for (const [id, key] of [['segItems', 'itemsToWin'], ['segRounds', 'maxRounds'], ['segCpus', 'cpus'], ['segMgRounds', 'mgRounds'], ['segDrinks', 'drinks'], ['segKingCup', 'kingCup'], ['segPractice', 'practice']]) {
-    for (const b of $(id).querySelectorAll('button')) b.onclick = () => { state.settings[key] = Number(b.dataset.v); saveSettings(); renderLobby(); };
+    for (const b of $(id).querySelectorAll('button')) b.onclick = () => { state.settings[key] = Number(b.dataset.v); saveSettings(); renderLobby(); pushLobbyAll(); };
   }
   for (const b of $('segMode').querySelectorAll('button')) b.onclick = () => { state.settings.mode = b.dataset.v; saveSettings(); renderLobby(); pushLobbyAll(); };
   $('startBtn').onclick = () => startGame();
+  $('pauseBtn').onclick = () => setPaused(!state.paused, null);
   $('fsBtn').onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
   $('soundBtn').onclick = () => { state.settings.sound = !state.settings.sound; sfx.on = state.settings.sound; saveSettings(); $('soundBtn').textContent = sfx.on ? '🔊' : '🔇'; };
   sfx.on = state.settings.sound;
@@ -241,6 +340,7 @@ function setupLobbyControls() {
   musicLabel();
   addEventListener('keydown', (e) => {
     if (e.key === 'f' || e.key === 'F') $('fsBtn').click();
+    if ((e.key === 'p' || e.key === 'P') && (canPause() || state.paused)) setPaused(!state.paused, null);
     if (state.phase === 'lobby' && e.key === 'ArrowLeft') cycleMap(-1);
     if (state.phase === 'lobby' && e.key === 'ArrowRight') cycleMap(1);
     if (e.key === 'Enter' && state.phase === 'lobby' && !$('startBtn').disabled) startGame();
@@ -321,6 +421,7 @@ async function startGame() {
   });
   state.game = game;
   window.__game = game; // handy in the console, and for automated tests
+  syncPauseBtn(); pickHost(); tellHost(); // the host's phone gets its pause button
   const result = await game.play();
   state.phase = 'over';
   for (const p of players) game.setMood(p, p === result.winner ? 'happy' : 'sad', 600000);
@@ -348,6 +449,7 @@ async function startMarathon(players) {
   const marathon = new Marathon({ players, rounds: state.settings.mgRounds, runner, hub, hud, sfx, stage, root: $('minigame'), speed: fast ? 0.25 : 1, only, drinks, drinkOn: !!drinkOn });
   state.game = marathon;
   window.__game = marathon;
+  syncPauseBtn(); pickHost(); tellHost();
   marathon.view.activate();
   dropLobbyBoard();
   const result = await marathon.play();
@@ -364,6 +466,7 @@ async function startMarathon(players) {
 }
 
 function gameOver(players, result) {
+  syncPauseBtn();
   sfx.play('fanfare');
   for (const p of players) {
     if (p.bot) continue;
@@ -372,8 +475,10 @@ function gameOver(players, result) {
 }
 
 function backToLobby() {
+  setPaused(false);
   music.play('lobby');
   state.phase = 'lobby';
+  syncPauseBtn();
   state.game = null;
   state.runner = null;
   balloons.clear();
@@ -384,6 +489,7 @@ function backToLobby() {
   for (const s of [...stage.keep]) stage.release(s); // the finished game's board or standings
   lobbyBoard = null;
   showLobbyBoard();
+  pickHost();
   renderLobby();
   pushLobbyAll();
 }
