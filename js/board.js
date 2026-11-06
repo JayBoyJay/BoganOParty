@@ -91,6 +91,24 @@ function bfs(nodes, from, links) {
 
 // Forward steps from a to b (how far a player at a must walk to reach b).
 export const stepsTo = (board, a, b) => board.fwd[a][b];
+// The shortest forward walk from a to b as a list of spaces (a first, b last), or null if there's none.
+// Works on plain { next: [...] } nodes too, so the phone can run it on the board the TV sends it.
+export function routeTo(nodes, a, b) {
+  if (a == null || b == null || !nodes[a] || !nodes[b]) return null;
+  const from = new Array(nodes.length).fill(-1);
+  from[a] = a;
+  const q = [a];
+  while (q.length) {
+    const i = q.shift();
+    if (i === b) break;
+    for (const j of nodes[i].next) if (from[j] === -1) { from[j] = i; q.push(j); }
+  }
+  if (from[b] === -1) return null;
+  const path = [b];
+  while (path[0] !== a) path.unshift(from[path[0]]);
+  return path;
+}
+
 // Steps ignoring direction (for blast radius and the like).
 export const spacesApart = (board, a, b) => board.near[a][b];
 export const spacesWithin = (board, from, r) => board.nodes.filter((n) => board.near[from][n.idx] <= r).map((n) => n.idx);

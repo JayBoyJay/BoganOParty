@@ -31,7 +31,8 @@ export default {
     game.setMood(winner, 'happy'); game.setMood(loser, 'angry');
     const d = (o) => game.board.fwd[o.space][game.itemSpace];
     const ans = await game.ask(winner, {
-      title: `You won ${Math.max(a, b)}–${Math.min(a, b)}!`, body: `Swap places with ${loser.name}?`,
+      title: `You won ${Math.max(a, b)}–${Math.min(a, b)}!`, body: `Swap places with ${loser.name}? You're ${d(winner) ?? '?'} spaces from the ${game.item.name}, they're ${d(loser) ?? '?'}.`,
+      map: { hl: [winner.space, loser.space], tint: '#b388ff' }, // the two spots that would swap, with everyone on the map
       options: [{ id: 'swap', label: '🌀 Swap places', tone: 'go' }, { id: 'stay', label: 'Stay put' }],
       bot: () => (d(loser) < d(winner) ? 'swap' : 'stay'), fallback: 'stay',
     });

@@ -47,6 +47,7 @@ export class Game {
   // ================= main loop =================
   async play() {
     this.view.placeAll(this.players);
+    this.hub.board?.(this.boardData());
     this.refresh();
     this.hud.setRound(1, this.settings.maxRounds);
     await this.banner(this.map.name, `First to ${this.target} ${this.item.plural} wins`, { ms: 2600 });
@@ -204,6 +205,7 @@ export class Game {
       this.view.setStepsLeft(p, left - 1);
       await this.view.hop(p, to, this.speed);
       p.space = to;
+      this.pushStats(); // keeps the phone maps moving with the dolls
       this.sfx.play('step');
       if (this.piles.has(to)) this.pickUpPile(p, to);
       if (to === this.itemSpace) await this.offerItem(p);
@@ -258,6 +260,7 @@ export class Game {
     const pick = chooseItemSpace(this.board, this.players, { spreadGap: this.settings.spreadGap, rng: this.rng, exclude: this.itemSpace != null ? [this.itemSpace] : [] });
     this.itemSpace = pick.space;
     this.lastItemRule = pick;
+    this.pushStats();
     await this.view.setItem(pick.space, this.speed);
     const why = pick.rule === 'furthest-from-leader' ? `Everyone's spread out, so it's as far from ${this.players.find((p) => p.id === pick.leader)?.name || 'the leader'} as it gets` : 'As far from everyone as it gets';
     await this.banner(`${this.item.emoji} The ${this.item.name} has ${first ? 'appeared' : 'moved'}!`, why, { ms: 2000, small: true });
@@ -333,7 +336,8 @@ export class Game {
     const others = this.players.filter((o) => (allowSelf || o !== p));
     const options = others.map((o) => ({ id: o.id, label: o.name, sub: describe(o), disabled: !filter(o) }));
     if (!options.some((o) => !o.disabled)) return null;
-    const ans = await this.ask(p, { title, body, options: [...options, { id: 'cancel', label: 'Never mind' }], bot: bot || (() => options.filter((o) => !o.disabled)[0].id) });
+    // map: the phone shows the board with everyone on it, and tapping someone there picks them
+    const ans = await this.ask(p, { title, body, map: {}, options: [...options, { id: 'cancel', label: 'Never mind' }], bot: bot || (() => options.filter((o) => !o.disabled)[0].id) });
     return this.players.find((o) => o.id === ans) || null;
   }
 
@@ -343,9 +347,12 @@ export class Game {
   aim(p, opts) {
     const { from = p.space, title = 'Aim', confirm = 'Confirm', range = Infinity, time = 0, radius = 0, jumpToPlayers = false } = opts;
     const b = this.board;
-    let cur = from, fork = 0;
+    let cur = from, fork = 0, handle = null;
+    const lit = () => (radius ? spacesWithin(b, cur, radius) : [cur]);
+    const reach = Number.isFinite(range) ? b.nodes.filter((n) => spacesApart(b, from, n.idx) <= range).map((n) => n.idx) : null;
     const show = () => {
-      this.view.highlight(radius ? spacesWithin(b, cur, radius) : [cur], 0xff4fd8, cur);
+      this.view.highlight(lit(), 0xff4fd8, cur);
+      handle?.send({ map: { cur, hl: lit(), reach } }); // the marker on the phone's map too
       opts.onMove?.(cur);
     };
     show();
@@ -373,14 +380,16 @@ export class Game {
         ...(jumpToPlayers ? this.players.filter((o) => o !== p).map((o) => ({ id: 'p:' + o.id, label: `→ ${o.name}`, small: true })) : []),
         { id: 'ok', label: confirm, tone: 'go', wide: true },
       ];
-      const handle = this.hub.live(p, { kind: 'buttons', title, body: time ? `Auto in ${time}s` : '', buttons, timer: time || 0 }, (m) => {
+      handle = this.hub.live(p, { kind: 'buttons', title, body: time ? `Auto in ${time}s` : '', buttons, timer: time || 0, map: { cur, hl: lit(), reach, tap: 1 } }, (m) => {
         const node = b.nodes[cur];
-        if (m.b === 'back') step(node.prev[0]);
+        if (m.b === 'go') { const s = Number(m.s); if (Number.isInteger(s) && b.nodes[s] && s !== cur) step(s); } // tapped a space on the phone's map
+        else if (m.b === 'back') step(node.prev[0]);
         else if (m.b === 'fwd') step(node.next[fork % node.next.length]);
         else if (m.b === 'fork') {
           // cycle which forward path ▶ follows, and peek down it
           fork = (fork + 1) % Math.max(1, node.next.length);
           this.view.highlight([cur, node.next[fork]], 0xff4fd8, cur);
+          handle.send({ map: { cur, hl: [cur, node.next[fork]], reach } });
         } else if (m.b?.startsWith('p:')) { const o = this.players.find((x) => x.id === m.b.slice(2)); if (o) step(o.space); }
         else if (m.b === 'ok') finish();
       });
@@ -413,13 +422,13 @@ export class Game {
 
   // Pick one of several directions (each is a list of spaces it covers) with ◀ ▶.
   aimDirection(p, { title, confirm = 'Go!', directions, bot }) {
-    let i = 0;
-    const show = () => this.view.highlight(directions[i].spaces, 0x3de1ff, null);
+    let i = 0, handle = null;
+    const show = () => { this.view.highlight(directions[i].spaces, 0x3de1ff, null); handle?.send({ map: { hl: directions[i].spaces, cur: p.space, tint: '#3de1ff' } }); };
     show();
     return new Promise((resolve) => {
       let done = false;
       const finish = () => { if (done) return; done = true; handle.close(); this.view.highlight(null); resolve(directions[i]); };
-      const handle = this.hub.live(p, { kind: 'buttons', title, body: '', buttons: [{ id: 'l', label: '◀' }, { id: 'r', label: '▶' }, { id: 'ok', label: confirm, tone: 'go', wide: true }] }, (m) => {
+      handle = this.hub.live(p, { kind: 'buttons', title, body: '', map: { hl: directions[i].spaces, cur: p.space, tint: '#3de1ff' }, buttons: [{ id: 'l', label: '◀' }, { id: 'r', label: '▶' }, { id: 'ok', label: confirm, tone: 'go', wide: true }] }, (m) => {
         if (m.b === 'l') { i = (i + directions.length - 1) % directions.length; this.sfx.play('tick'); show(); }
         else if (m.b === 'r') { i = (i + 1) % directions.length; this.sfx.play('tick'); show(); }
         else if (m.b === 'ok') finish();
@@ -485,6 +494,7 @@ export class Game {
       const to = prev[Math.floor(this.rng() * prev.length)];
       await this.view.hop(p, to, this.speed * 0.6);
       p.space = to;
+      this.pushStats();
     }
   }
 
@@ -508,12 +518,35 @@ export class Game {
 
   refresh() {
     this.hud.renderPlayers(this.players, this.turn?.player, this.item);
+    this.pushStats();
+  }
+
+  // The board as the phones draw it on their map: where every space is, what it is and where it leads.
+  boardData() {
+    const r = (v) => Math.round(v * 10) / 10;
+    const def = this.map.board;
+    return {
+      name: this.map.name,
+      item: { name: this.item.name, emoji: this.item.emoji, price: this.item.price },
+      avgRoll: (RULES.diceSides + 1) / 2,
+      roads: { loop: def.loop.name || 'Main road', branches: (def.branches || []).map((b) => ({ name: b.name || 'Side track', sub: b.sub || '' })) },
+      nodes: this.board.nodes.map((n) => ({ x: r(n.x), z: r(n.z), t: n.type, next: n.next, ...(n.branch != null ? { b: n.branch } : {}) })),
+    };
+  }
+
+  // coins, items, power-ups and where everyone is on the board, for each phone's bar and map
+  pushStats() {
+    const where = {
+      players: this.players.map((o) => ({ id: o.id, name: o.name, color: o.color, s: o.space })),
+      item: this.itemSpace, piles: [...this.piles.keys()], turn: this.turn?.player?.id ?? null,
+    };
     for (const p of this.players) this.hub.stats(p, {
       coins: p.coins, items: p.items, target: this.target,
       item: { name: this.item.name, emoji: this.item.emoji },
       powerups: p.powerups.map((id) => ({ id, name: POWERUP_BY_ID[id]?.name, emoji: POWERUP_BY_ID[id]?.emoji })),
       effects: p.effects.map((e) => ({ name: EFFECTS[e.id]?.name || e.id, rounds: e.rounds })),
       space: SPACE[this.board.nodes[p.space].type]?.label,
+      you: p.id, where,
     });
   }
 }

@@ -318,6 +318,7 @@ async function startMarathon(players) {
   $('lobby').classList.add('hidden');
   hud.faces.clear();
   hub.players = players;
+  hub.board(null); // no board in this mode, so no map on the phones
   hub.idleAll('Starting!', `Minigames only: ${state.settings.mgRounds} games`);
   const runner = new MinigameRunner({ stage, hub, sfx, root: $('minigame'), hud, speed: fast ? 0.25 : 1, practice: !!state.settings.practice });
   state.runner = runner;
