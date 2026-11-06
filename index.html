@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bogan-o Party</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎉</text></svg>">
+<script src="js/pauseclock.js"></script>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 <style>
   /* Everything is sized in rem, and the root size follows the screen: about 16px on a 1080p TV,
@@ -278,6 +279,15 @@
     .coin { width: 7.5rem; height: 7.5rem; }
     .coin .side { font-size: 3.6rem; }
   }
+  /* pause (js/pauseclock.js stops the game's clock; this is just the cover) */
+  html.paused body *:not(.pause-ui):not(.pause-ui *) { animation-play-state: paused !important; }
+  #pauseOv { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10,5,2,0.62); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); text-align: center; }
+  #pauseOv .ov-in { background: rgba(30,15,6,0.92); border: 0.15rem solid rgba(255,255,255,0.15); border-radius: 1.6rem; padding: 2rem 3rem; }
+  #pauseOv h1 { font-size: 4.5rem; margin: 0; font-style: italic; text-transform: uppercase; letter-spacing: 0.04em; animation: pausepulse 1.6s ease-in-out infinite; }
+  #pauseOv .by { font-size: 1.4rem; font-weight: 800; margin-top: 0.4rem; }
+  #pauseOv .dim { margin-top: 0.8rem; font-size: 1.05rem; }
+  @keyframes pausepulse { 50% { opacity: 0.55; } }
+  .hosttag { display: inline-block; margin-left: 0.35rem; font-size: 0.75rem; padding: 0.05rem 0.4rem; border-radius: 0.5rem; background: #ffd23f; color: #241204; font-weight: 900; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -322,7 +332,8 @@
 <div id="hud" class="hidden"></div>
 <div id="minigame" class="hidden"></div>
 <div id="netStatus" class="hidden"></div>
-<div class="corner"><button id="musicBtn" title="Music">🎸</button><button id="soundBtn">🔊</button><button id="fsBtn">⛶</button></div>
+<div id="pauseOv" class="pause-ui hidden"><div class="ov-in"><h1>⏸ Paused</h1><div class="by" id="pauseBy"></div><div class="dim" id="pauseHint"></div></div></div>
+<div class="corner"><button id="pauseBtn" class="hidden" title="Pause (P)">⏸</button><button id="musicBtn" title="Music">🎸</button><button id="soundBtn">🔊</button><button id="fsBtn">⛶</button></div>
 
 <script type="module" src="js/host/main.js"></script>
 </body>
