@@ -80,9 +80,10 @@ export default {
       pattern: 'BBRBEBBRBBEBRB',
     },
     shops: [7, 27],
+    traps: { 11: 'rock', 33: 'rock' },
     branches: [
-      { name: 'Through the mine', sub: 'Short cut, lots of red', from: 4, to: 14, points: [[-10, 4], [-6, -8]], count: 5, pattern: 'RERRB' },
-      { name: 'Out to Silverton', sub: 'The long way, lots of events', from: 22, to: 30, points: [[28, -46], [54, -40], [60, -14]], count: 9, pattern: 'BEBEBEBEB', shops: [4] },
+      { name: 'Through the mine', sub: 'Short cut, lots of red', from: 4, to: 14, points: [[-10, 4], [-6, -8]], count: 5, pattern: 'RERRB', traps: { 4: 'rock' } },
+      { name: 'Out to Silverton', sub: 'The long way, lots of events', from: 22, to: 30, points: [[28, -46], [54, -40], [60, -14]], count: 9, pattern: 'BEBEBEBEB', shops: [4], traps: { 6: 'rock' } },
     ],
   },
   landmarks: [

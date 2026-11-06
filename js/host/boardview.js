@@ -167,8 +167,11 @@ export class BoardView {
     this.kit = kit;
     // is a spot free for scenery (clear of the board, the landmarks and the middle of the map)?
     const lms = this.map.landmarks || [];
+    // where the trap rigs go (worked out now so the scenery keeps out of their way)
+    this.trapSpots = new Map(this.board.nodes.filter((n) => n.trap).map((n) => [n.idx, this.trapLayout(n, lms)]));
     kit.isClear = (x, z, r = 4) => this.board.nodes.every((n) => Math.hypot(n.x - x, n.z - z) > r + 4)
-      && lms.every((l) => Math.hypot(l.x - x, l.z - z) > (l.flat ?? 16 * (l.scale || 1)) + r);
+      && lms.every((l) => Math.hypot(l.x - x, l.z - z) > (l.flat ?? 16 * (l.scale || 1)) + r)
+      && [...this.trapSpots.values()].every((t) => Math.hypot(t.x - x, t.z - z) > r + 3);
 
     // ----- paths: a gravel (or paved) track with stone edging, one strip per link -----
     const pathM = surf(look.pathTex || 'gravel', { unit: 2.2, tint: look.path ?? 0xffffff });
@@ -244,6 +247,10 @@ export class BoardView {
     this.item.add(glow);
     this.item.visible = false;
     s.add(this.item);
+
+    // ----- trap rigs beside the spaces that have one (js/content/traps.js) -----
+    this.trapRigs = new Map();
+    for (const n of this.board.nodes) if (n.trap) this.trapRigs.set(n.idx, this.buildTrapRig(n));
 
     // highlight rings for aiming
     this.rings = [];
@@ -592,6 +599,229 @@ export class BoardView {
     });
     this.highlight(null);
     this.stage.drop(...motes.map(([m]) => m));
+  }
+
+  // ---------- traps ----------
+  // Which way the road runs at a trap space, and which side of it the rig's plinth goes: away from the
+  // camera if there's room, otherwise whichever side is clearer of landmarks and other spaces.
+  trapLayout(n, lms) {
+    const at = (j) => this.board.nodes[j];
+    const a = at(n.prev[0] ?? n.idx), b = at(n.next[0] ?? n.idx);
+    const yaw = Math.atan2(b.x - a.x, b.z - a.z);
+    const off = n.trap === 'rock' ? 2.2 : 4.4;
+    // local +x points to world (cos yaw, -sin yaw)
+    const far = -Math.sin(yaw) <= 0 ? 1 : -1;
+    const spot = (sx) => {
+      const x = n.x + Math.cos(yaw) * sx * off, z = n.z - Math.sin(yaw) * sx * off;
+      const room = Math.min(...lms.map((l) => Math.hypot(l.x - x, l.z - z) - (l.flat ?? 16 * (l.scale || 1)) * 0.75),
+        ...this.board.nodes.filter((m) => m !== n).map((m) => Math.hypot(m.x - x, m.z - z) - 1.6));
+      return { yaw, sx, x, z, room };
+    };
+    const [p, q] = [spot(far), spot(-far)];
+    return n.trap === 'rock' || p.room >= 2 || p.room >= q.room ? p : q;
+  }
+
+  // A rig next to a trap space, built in the space's own frame: z runs along the road, x across it.
+  buildTrapRig(n) {
+    const k = this.kit;
+    const { yaw, sx } = this.trapSpots.get(n.idx);
+    const g = k.group(n.x, 0, n.z, yaw, 1, this.scene);
+    // world +x and +z in the rig's frame, for things that should face the camera
+    const wx = [Math.cos(yaw), Math.sin(yaw)], wz = [-Math.sin(yaw), Math.cos(yaw)];
+    const facing = (m, x, y, z, out = 0) => { m.position.set(x + wz[0] * out, y, z + wz[1] * out); m.rotation.set(0, -yaw, 0); return m; };
+    const rig = { kind: n.trap, group: g, side: sx, yaw, armed: null };
+    const timber = k.surf('weatherboard', { arg: 0x7a5232, unit: 1.5 });
+    const steel = k.mat(0x6d6f72, { metalness: 0.8, roughness: 0.45 });
+    if (n.trap === 'rock') {
+      // a hardwood gantry over the space with a pulley, and the boulder hauled up on a rope when it's set
+      const H = 9;
+      for (const x of [-2.2, 2.2]) {
+        k.box(0.45, H, 0.45, timber, x, 0, 0, g);
+        k.beam([x, 0, -1.3], [x, 3.2, 0], 0.18, timber, g); // braces
+        k.beam([x, 0, 1.3], [x, 3.2, 0], 0.18, timber, g);
+      }
+      k.box(5.0, 0.36, 0.36, timber, 0, H, 0, g);
+      const wheel = k.cyl(0.42, 0.42, 0.14, steel, 0, H - 0.6, 0, g, {}, 16); wheel.rotation.x = Math.PI / 2;
+      // the rope runs over the pulley and down a post to a cleat
+      k.rod([0.42, H - 0.45, 0], [2.0, H - 0.45, 0], 0.05, 0xc8b68a, g);
+      k.rod([2.05, H - 0.45, 0], [2.05, 1.4, 0], 0.05, 0xc8b68a, g);
+      const rope = k.rod([0, H - 0.6, 0], [0, H - 1.6, 0], 0.06, 0xc8b68a, g);
+      // the boulder: a lumpy chunk of ironstone
+      const THREE = k.THREE;
+      const geo = new THREE.DodecahedronGeometry(1.5, 2);
+      const P = geo.attributes.position;
+      const noise = new ImprovedNoise();
+      for (let i = 0; i < P.count; i++) {
+        const v = new THREE.Vector3(P.getX(i), P.getY(i), P.getZ(i));
+        v.multiplyScalar(1 + noise.noise(v.x * 1.4, v.y * 1.4 + n.idx, v.z * 1.4) * 0.28);
+        P.setXYZ(i, v.x, v.y * 0.85, v.z);
+      }
+      geo.computeVertexNormals();
+      const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, P.getX(i) + P.getZ(i), P.getY(i));
+      const rock = new THREE.Mesh(geo, k.surf('sandstone', { unit: 1.4, tint: 0x9a6a50 }));
+      rock.castShadow = true;
+      g.add(rock);
+      rig.payload = rock; rig.rope = rope; rig.hang = H - 2.9; rig.H = H;
+      // a yellow FALLING ROCKS sign on the far post
+      facing(k.sign('⚠ FALLING\nROCKS', 1.6, 1.3, 0, 0, 0, g, { bg: '#ffd23f', fg: '#1b1b1b', font: '900 190px system-ui, sans-serif' }), sx * 2.2, 3.6, 0, 0.3);
+    } else {
+      // Mall's Balls: a little copy of the sculpture on a plinth beside the road, with a ramp down to the space.
+      // Set it and the top ball is loose, ready to roll.
+      const px = sx * 4.4, R = 1.5;
+      k.cyl(1.6, 1.75, 1.6, k.surf('concrete', { unit: 1 }), px, 0, 0, g, {}, 28);
+      const ramp = k.box(2.6, 0.2, 2.2, k.surf('pavers', { unit: 1.2 }), sx * 2.2, 0.55, 0, g);
+      ramp.rotation.z = sx * 0.5;
+      const chrome = k.mat(0xeef2f6, { metalness: 1, roughness: 0.05 });
+      k.ball(R, chrome, px, 1.6 + R, 0, g); // the bottom ball stays put
+      const ball = k.ball(R, chrome, 0, 0, 0, g);
+      rig.payload = ball; rig.home = new k.THREE.Vector3(px, 1.6 + R * 3, 0); rig.px = px; rig.R = R;
+      facing(k.sign("MALL'S BALLS", 2.0, 0.5, 0, 0, 0, g, { bg: '#6b4a1e', fg: '#ffe6a8' }), px, 0.9, 0, 1.8);
+    }
+    // the flag on top shows whose trap it is
+    const [fx, fz, fy0, fy1] = n.trap === 'rock' ? [sx * 2.2, 0, 9.2, 10.8] : [rig.px + sx * 1.95, 0, 1.6, 8.6];
+    k.rod([fx, fy0, fz], [fx, fy1, fz], 0.05, steel, g);
+    const flag = new k.THREE.Mesh(new k.THREE.PlaneGeometry(1.2, 0.75), new k.THREE.MeshStandardMaterial({ color: 0xffffff, side: k.THREE.DoubleSide, roughness: 0.8 }));
+    const fd = -Math.sign(wx[0] * sx || 1) * 0.62; // hang it out towards the road
+    facing(flag, fx + wx[0] * fd, fy1 - 0.42, fz + wx[1] * fd);
+    g.add(flag);
+    rig.flag = flag;
+    this.setTrap(n.idx, null, rig);
+    return rig;
+  }
+
+  // Show a trap as empty (owner null: up for grabs) or set by owner.
+  setTrap(space, owner, rig = this.trapRigs.get(space)) {
+    if (!rig) return;
+    rig.armed = owner;
+    const p = rig.payload;
+    p.visible = !!owner;
+    if (rig.kind === 'rock') {
+      p.position.set(0, owner ? rig.hang : rig.H - 1.6, 0);
+      rig.rope.visible = !!owner;
+      if (owner) { // haul it up
+        const top = rig.hang;
+        this.tweens.add(0.8, (kk) => { p.position.y = 1.4 + (top - 1.4) * kk; p.rotation.y = kk * 2; }, easeOut);
+      }
+    } else if (owner) {
+      p.position.copy(rig.home).setY(rig.home.y + 4);
+      this.tweens.add(0.5, (kk) => { p.position.y = rig.home.y + 4 * (1 - kk); }, easeOut);
+    }
+    rig.flag.visible = !!owner;
+    if (owner) rig.flag.material.color.set(owner.color || '#ffffff');
+    if (rig.label) this.stage.drop(rig.label);
+    const name = rig.kind === 'rock' ? 'Falling Rock' : "Mall's Balls";
+    rig.label = this.kit.label(owner ? `⚠ ${owner.name}'s trap` : `${name} trap: walk past to set`, 0, rig.kind === 'rock' ? 11.2 : 10, 0, rig.group);
+    rig.label.position.x = rig.kind === 'rock' ? 0 : rig.px;
+    rig.label.scale.multiplyScalar(owner ? 0.9 : 0.7);
+  }
+
+  // An esky lid that pops up over a doll's head. break() snaps it in two and throws the halves off.
+  // side: hold it up on that side (a world direction) instead of over the head, for things coming in low.
+  esky(p, side = null) {
+    const k = this.kit, THREE = k.THREE;
+    const d = this.dolls.get(p.id);
+    const g = new THREE.Group();
+    const halves = [-1, 1].map((sx) => {
+      const h = new THREE.Group();
+      k.box(1.05, 0.16, 1.3, 0x1f63c6, sx * 0.53, 0, 0, h, { roughness: 0.5 });
+      k.box(0.95, 0.1, 1.15, 0xf6f6f2, sx * 0.53, 0.16, 0, h, { roughness: 0.4 });
+      k.box(0.3, 0.12, 0.2, 0x1f63c6, sx * 0.53, 0.26, 0.35, h); // handle
+      g.add(h);
+      return h;
+    });
+    const base = d.group.position.clone().setY(side ? 1.7 : 3.2);
+    const lift = side ? side.clone().setY(0).normalize().multiplyScalar(1.0) : new THREE.Vector3(0, 1.1, 0);
+    if (side) g.rotation.set(0, Math.atan2(-lift.z, lift.x), Math.PI / 2); // stood on edge, facing the way it's coming from
+    g.position.copy(base);
+    g.scale.setScalar(0.01);
+    this.scene.add(g);
+    const api = {
+      pop: (speed = 1) => this.tweens.add(0.25 * speed, (kk) => { g.scale.setScalar(0.01 + kk * 1.1); g.position.copy(base).addScaledVector(lift, kk); }, easeOut),
+      break: async (speed = 1) => {
+        this.shake = 0.35;
+        await this.tweens.add(0.7 * speed, (kk) => halves.forEach((h, i) => {
+          const sx = i ? 1 : -1;
+          h.position.set(sx * kk * 2.6, Math.sin(kk * Math.PI) * 1.4 - kk * kk * 3, 0);
+          h.rotation.z = sx * kk * 4;
+        }));
+        this.stage.drop(g);
+      },
+      group: g,
+    };
+    return api;
+  }
+
+  // A power-up hits someone holding a shield: the lid takes it and breaks.
+  async shieldBlock(p, speed = 1) {
+    const lid = this.esky(p);
+    await lid.pop(speed);
+    await this.wait(0.25 * speed);
+    await lid.break(speed);
+  }
+
+  wait(s) { return this.tweens.add(s, () => {}); }
+
+  // A trap goes off on p. blocked: they've got a shield, so the lid takes it.
+  async springTrap(space, kind, p, blocked, speed = 1, sound = () => {}) {
+    const rig = this.trapRigs.get(space);
+    if (!rig) return;
+    const d = this.dolls.get(p.id);
+    this.focusSpace(space);
+    const pay = rig.payload;
+    const lid = blocked ? this.esky(p, rig.kind === 'rock' ? null : new THREE.Vector3(Math.cos(rig.yaw) * rig.side, 0, -Math.sin(rig.yaw) * rig.side)) : null;
+    if (lid) await lid.pop(speed);
+    // where the doll is, in the rig's frame (they might be standing off centre)
+    const local = rig.group.worldToLocal(d.group.position.clone());
+    const squash = async () => {
+      this.shake = 0.6;
+      d.flinch();
+      const base = d.group.scale.clone();
+      await this.tweens.add(0.12 * speed, (kk) => d.group.scale.set(base.x * (1 + kk * 0.5), base.y * (1 - kk * 0.8), base.z * (1 + kk * 0.5)));
+      await this.wait(0.5 * speed);
+      await this.tweens.add(0.45 * speed, (kk) => { const b = Math.sin(kk * Math.PI * 3) * (1 - kk) * 0.25; d.group.scale.set(base.x * (1.5 - kk * 0.5 - b), base.y * (0.2 + kk * 0.8 + b), base.z * (1.5 - kk * 0.5 - b)); }, easeOut);
+      d.group.scale.copy(base);
+    };
+    if (rig.kind === 'rock') {
+      rig.rope.visible = false; // snap
+      const y0 = pay.position.y, x0 = pay.position.x, z0 = pay.position.z;
+      const stop = blocked ? 5.9 : 1.5;
+      await this.tweens.add(0.42 * speed, (kk) => { pay.position.set(x0 + (local.x - x0) * kk, y0 + (stop - y0) * kk * kk, z0 + (local.z - z0) * kk); pay.rotation.x = kk * 0.6; });
+      sound('slam');
+      if (blocked) {
+        sound('clank');
+        const bx = local.x + rig.side * 3.2;
+        await Promise.all([lid.break(speed), this.tweens.add(0.7 * speed, (kk) => { pay.position.set(local.x + (bx - local.x) * kk, stop + Math.sin(kk * Math.PI) * 1.5 - (stop - 1.2) * kk, local.z); pay.rotation.z = -rig.side * kk * 3; })]);
+      } else {
+        this.explode(space, 0, 0xb58a5a, speed, 0.45);
+        await squash();
+      }
+      await this.wait(0.3 * speed);
+      await this.tweens.add(0.5 * speed, (kk) => pay.scale.setScalar(Math.max(0.01, 1 - kk)));
+    } else {
+      // roll off the plinth, down the ramp, across the space and away down the other side
+      const from = pay.position.clone();
+      const R = rig.R;
+      const edge = new THREE.Vector3(rig.side * 3.2, R, local.z);
+      const hit = new THREE.Vector3(local.x + rig.side * (blocked ? R + 1.25 : 0), R, local.z);
+      const out = new THREE.Vector3(-rig.side * 8, R, local.z);
+      sound('creak');
+      await this.tweens.add(0.5 * speed, (kk) => { pay.position.lerpVectors(from, edge, kk); pay.position.y = from.y + (edge.y - from.y) * kk; pay.rotation.z += rig.side * 0.15; }, (kk) => kk * kk);
+      await this.tweens.add(0.25 * speed, (kk) => { pay.position.lerpVectors(edge, hit, kk); pay.rotation.z += rig.side * 0.3; });
+      sound('slam');
+      if (blocked) {
+        sound('clank');
+        const back = hit.clone().setX(rig.side * 4);
+        await Promise.all([lid.break(speed), this.tweens.add(0.6 * speed, (kk) => { pay.position.lerpVectors(hit, back, easeOut(kk)); })]);
+      } else {
+        const sq = squash();
+        await this.tweens.add(0.6 * speed, (kk) => { pay.position.lerpVectors(hit, out, kk); pay.rotation.z += rig.side * 0.3; });
+        await sq;
+      }
+      await this.tweens.add(0.4 * speed, (kk) => pay.scale.setScalar(Math.max(0.01, 1 - kk)));
+    }
+    pay.visible = false;
+    pay.scale.setScalar(1);
+    pay.rotation.set(0, 0, 0);
   }
 
   update(dt) {

@@ -7,6 +7,7 @@ import { chooseItemSpace, leaderOf, turnOrderFrom, spacesWithin, spacesApart, SP
 import { POWERUPS, POWERUP_BY_ID } from '../content/powerups/index.js';
 import { EFFECTS } from '../content/powerups/effects.js';
 import { Drinks } from './drinks.js';
+import { TRAPS } from '../content/traps.js';
 
 export const RULES = {
   startCoins: 10,
@@ -27,6 +28,7 @@ export class Game {
     this.round = 0;
     this.itemSpace = null;
     this.piles = new Map(); // space -> { n, prop }: coins knocked loose by power-ups, waiting to be picked up
+    this.traps = new Map(); // space -> the player who set the trap there (only armed traps are in here)
     this.turn = null;
     this.rolled = new Set();
     this.over = false;
@@ -208,6 +210,7 @@ export class Game {
       if (this.piles.has(to)) this.pickUpPile(p, to);
       if (to === this.itemSpace) await this.offerItem(p);
       else if (this.board.nodes[to].type === 'shop' && left > 1) await this.shop(p, true);
+      if (this.board.nodes[to].trap && !this.over) await this.offerTrap(p, to);
     }
     this.view.setStepsLeft(p, 0);
   }
@@ -235,6 +238,7 @@ export class Game {
 
   async landOn(p) {
     const node = this.board.nodes[p.space];
+    if (node.trap) await this.springTrap(p, p.space);
     if (node.type === 'blue') { this.coins(p, RULES.blueCoins, 'blue'); this.setMood(p, 'happy'); }
     else if (node.type === 'red') { this.coins(p, RULES.redCoins, 'red'); this.setMood(p, 'sad'); }
     else if (node.type === 'shop') await this.shop(p, false);
@@ -286,6 +290,69 @@ export class Game {
     if (p.items >= this.target) { this.finish(p); return; }
     await this.placeItem();
     this.view.focus(p);
+  }
+
+  // ================= traps =================
+  // Walking past (or landing on) an empty trap spot: pay to set it. Armed ones you just step over.
+  async offerTrap(p, space) {
+    const kind = TRAPS[this.board.nodes[space].trap];
+    if (!kind || this.traps.has(space) || p.coins < kind.price) return;
+    this.view.focusSpace(space);
+    const ans = await this.ask(p, {
+      title: `${kind.emoji} ${kind.name} trap`,
+      body: `Set it for ${kind.price} coins? The next person to land here (not you) pays you up to ${kind.take} coins. A shield blocks it. You have ${p.coins}.`,
+      options: [{ id: 'yes', label: `Set it for ${kind.price} 🪙`, tone: 'go' }, { id: 'no', label: 'Keep moving' }],
+      bot: () => (p.coins >= kind.price + 6 && this.rng() < 0.5 ? 'yes' : 'no'), fallback: 'no',
+    });
+    if (ans !== 'yes' || p.coins < kind.price) return;
+    p.coins -= kind.price;
+    this.traps.set(space, p);
+    this.sfx.play('creak');
+    this.view.setTrap?.(space, p);
+    this.setMood(p, 'happy');
+    this.refresh();
+    this.toast(`${kind.emoji} ${p.name} set the ${kind.name} trap`);
+  }
+
+  // Landing on someone else's armed trap: it goes off. Your coins go to whoever set it, unless a shield takes it.
+  async springTrap(p, space) {
+    const owner = this.traps.get(space);
+    if (!owner || owner === p) return;
+    const id = this.board.nodes[space].trap, kind = TRAPS[id];
+    this.traps.delete(space);
+    const blocked = this.hasShield(p);
+    this.view.focusSpace(space);
+    await this.banner(`${kind.emoji} It's a trap!`, `${owner.name} set it`, { ms: 900, small: true });
+    this.sfx.play('whoosh');
+    await this.view.springTrap?.(space, id, p, blocked, this.speed, (s) => this.sfx.play(s));
+    this.view.setTrap?.(space, null);
+    if (await this.shieldBlocks(p, owner, { animate: false })) {
+      this.setMood(owner, 'angry');
+      await this.banner('🛡️ Blocked!', `${p.name}'s shield took the hit and broke. ${owner.name} gets nothing.`, { ms: 1800, small: true });
+      return;
+    }
+    this.view.flinch(p);
+    const took = -this.coins(p, -kind.take, 'trap');
+    if (took) this.coins(owner, took, 'trap', { quiet: true });
+    this.setMood(p, 'angry'); this.setMood(owner, 'happy');
+    this.refresh();
+    await this.banner(kind.hit(p.name), took ? `${took} coins to ${owner.name}` : `${p.name} was skint anyway`, { ms: 1900 });
+  }
+
+  // ================= shields =================
+  hasShield(p) { return p.powerups.includes('shield'); }
+
+  // Call before a power-up or trap hits o. If o holds a shield (and the hit isn't their own doing), the
+  // shield breaks and this returns true: skip the hit.
+  async shieldBlocks(o, by, { animate = true } = {}) {
+    if (o === by || !this.hasShield(o)) return false;
+    o.powerups.splice(o.powerups.indexOf('shield'), 1);
+    if (animate) { this.sfx.play('clank'); await this.view.shieldBlock?.(o, this.speed); }
+    this.view.floatText(o, '🛡️ Blocked!', '#7fd8ff');
+    this.toast(`🛡️ ${o.name}'s shield blocked it and broke`);
+    this.refresh();
+    await this.wait(400);
+    return true;
   }
 
   // ================= shop =================
