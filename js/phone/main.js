@@ -2,6 +2,7 @@
 // all game rules live on the TV (see js/host/hub.js for the message list).
 import { PhoneNet } from '../net.js';
 import { keepAwake } from './wakelock.js';
+import { wantOrientation } from './orient.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -43,7 +44,7 @@ let holdUntil = 0, heldT = 0;
 let rollMod = null;
 const loadRoll = () => (rollMod ||= import('./roll.js').catch(() => { rollMod = null; return null; }));
 
-function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); }
+function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); if (id !== 'vGame') wantOrientation(null); }
 
 function onMsg(m) {
   switch (m.t) {
@@ -199,6 +200,7 @@ function renderScreen() {
   if (tiltStop) { tiltStop(); tiltStop = null; }
   if (rollStop) { rollStop(); rollStop = null; }
   const s = screen, el = $('screen');
+  wantOrientation(padOrientation(s));
   // live pads take the whole screen (no scrolling), so they fit a phone held sideways
   $('vGame').classList.toggle('pad', (s.t === 'pad' && s.kind !== 'touchpad') || (s.t === 'prompt' && s.kind === 'roll'));
   if (s.t === 'prompt' && s.kind === 'roll') { renderRoll(s, el); return; }
@@ -230,6 +232,15 @@ function renderScreen() {
     else renderButtons(s, el);
     if (s.practice) practiceStrip(s, el);
   }
+}
+
+// which way the phone should be held for a screen: live game pads play sideways (a pad can ask with
+// { hold: 'portrait' | 'landscape' }); menus, prompts and the dice roll work either way
+const SIDEWAYS_KINDS = new Set(['stick', 'gyro', 'tilt', 'touchpad']);
+function padOrientation(s) {
+  if (s?.t !== 'pad') return null;
+  if (s.hold === 'portrait' || s.hold === 'landscape') return s.hold;
+  return s.sideways || SIDEWAYS_KINDS.has(s.kind) ? 'landscape' : null;
 }
 
 // A roll: the dice sit at the bottom of the screen; grab them and flick them up off the top to throw.
