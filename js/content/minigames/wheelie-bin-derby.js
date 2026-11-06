@@ -18,10 +18,10 @@ export default {
   id: 'wheelie-bin-derby',
   name: 'Wheelie Bin Derby',
   blurb: 'Bin night on the steepest street in town. Ride a wheelie bin to the bottom. First one down wins.',
-  howTo: 'Push your stick left and right to steer your bin. Press KICK for a burst of speed (every few seconds). Bins out for collection, parked cars and potholes will wipe you out. Plank ramps send you flying, and speed humps bounce you if you hit them fast. First to the bottom of the hill wins.',
-  padText: 'Stick to steer, KICK for speed',
+  howTo: 'Tilt your phone like a steering wheel (or push the stick) to steer your bin. Press KICK for a burst of speed (every few seconds). Bins out for collection, parked cars and potholes will wipe you out. Plank ramps send you flying, and speed humps bounce you if you hit them fast. First to the bottom of the hill wins.',
+  padText: 'Tilt to steer, KICK for speed',
   duration: 70,
-  pad: { kind: 'stick', buttons: [{ bit: BTN.KICK, label: '🦶 KICK', tone: 'go' }] },
+  pad: { kind: 'stick', tilt: true, buttons: [{ bit: BTN.KICK, label: '🦶 KICK', tone: 'go' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -198,7 +198,7 @@ export default {
               if (o.kind === 'ramp') { R.vy = 4 + R.v * 0.25; R.y = 0.05; R.v += 1.2; pop(wpos, 'AIR!', '#5cff9d', 0.7); sfx.play('boing'); }
               else if (o.kind === 'hump') { if (R.v > 9) { R.vy = 3.2; R.y = 0.05; R.v *= 0.8; pop(wpos, 'BOING', '#ffd23f', 0.6); sfx.play('boing'); } else R.v *= 0.92; }
               else if (o.kind === 'hole') { R.v *= 0.55; R.vy = 1.5; R.y = 0.02; R.doll.flinch(); pop(wpos, 'POTHOLE', '#ffffff', 0.6); sfx.play('bonk'); }
-              else { R.v *= 0.25; R.crash = 1.1; R.doll.flinch(); pop(wpos, 'STACKED IT!', '#ff5a5a', 0.75); sfx.play('bonk'); if (o.kind === 'bin' && o.mesh) { o.mesh.rotation.z = (R.x > o.x ? -1 : 1) * 1.3; o.mesh.position.y = 0.3; o.kind = 'down'; } R.x += Math.sign(R.x - (o.x || 0) || 1) * 0.6; }
+              else { R.v *= 0.25; R.crash = 1.1; R.doll.flinch(); pop(wpos, 'STACKED IT!', '#ff5a5a', 0.75); sfx.play('crash'); if (o.kind === 'bin' && o.mesh) { o.mesh.rotation.z = (R.x > o.x ? -1 : 1) * 1.3; o.mesh.position.y = 0.3; o.kind = 'down'; } R.x += Math.sign(R.x - (o.x || 0) || 1) * 0.6; }
             }
             if (!o) R.lastHit = null;
           }

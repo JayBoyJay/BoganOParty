@@ -137,7 +137,7 @@ export default {
     const reach = (K) => REACH * DOLL / 0.62 + (K.jumpT >= 0 && K.jumpT < LEAP_T ? Math.sin(K.jumpT / LEAP_T * Math.PI) * LEAP : 0);
     const takeBall = (K, isMark) => {
       holder = K; marked = isMark; phase = 'kick'; phaseT = KICK_T; meter = 0; meterDir = 1; landRing.material.opacity = 0;
-      if (isMark) { K.marks++; pop(K.x, 4.4, K.z, 'MARK! +1', '#ffd23f', 0.8); sfx.play('cheers'); K.doll.setArms(1.6, 0); K.armT = 0.8; }
+      if (isMark) { K.marks++; pop(K.x, 4.4, K.z, 'MARK! +1', '#ffd23f', 0.8); sfx.play('crowd'); K.doll.setArms(1.6, 0); K.armT = 0.8; }
       else { pop(K.x, 4.4, K.z, 'CRUMBED IT', '#9ad8ff', 0.7); sfx.play('item'); }
       drawBoard();
       K.vx = K.vz = 0; K.y = 0; K.jumpT = -1;
@@ -165,7 +165,7 @@ export default {
     };
     const result = (text, color, pts, kind) => {
       shot.done = true; phase = 'show'; phaseT = SHOW_T; arrow.visible = false;
-      if (kind === 'goal') { holder.goals++; sfx.play('hallelujah'); holder.doll.bounce(1.5); }
+      if (kind === 'goal') { holder.goals++; sfx.play('crowd'); holder.doll.bounce(1.5); }
       else if (kind === 'behind') { holder.behinds++; sfx.play('coin'); }
       else sfx.play('lose');
       banner(text, color, 1); drawBoard();
@@ -236,7 +236,7 @@ export default {
             if (phaseT <= 0) {
               if (round >= ROUNDS || mg.timeLeft() < FLY_T + KICK_T + SHOW_T + 1) {
                 finishAt = tAll; const top = Math.max(...kickers.map(total));
-                banner(`${kickers.filter((K) => total(K) === top).map((K) => K.p.name).join(' & ')} TAKES THE CHOCOLATES`, '#ffd23f', 0.75); sfx.play('cheers');
+                banner(`${kickers.filter((K) => total(K) === top).map((K) => K.p.name).join(' & ')} TAKES THE CHOCOLATES`, '#ffd23f', 0.75); sfx.play('crowd');
               } else { phase = 'pre'; phaseT = 0.6; }
             }
           }

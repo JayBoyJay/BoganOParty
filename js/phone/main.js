@@ -2,6 +2,7 @@
 // all game rules live on the TV (see js/host/hub.js for the message list).
 import { PhoneNet } from '../net.js';
 import { keepAwake } from './wakelock.js';
+import { wantOrientation } from './orient.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -43,7 +44,7 @@ let holdUntil = 0, heldT = 0;
 let rollMod = null;
 const loadRoll = () => (rollMod ||= import('./roll.js').catch(() => { rollMod = null; return null; }));
 
-function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); }
+function show(id) { for (const s of ['vConnect', 'vLobby', 'vGame']) $(s).classList.toggle('hidden', s !== id); if (id !== 'vGame') wantOrientation(null); }
 
 function onMsg(m) {
   switch (m.t) {
@@ -66,6 +67,7 @@ function onMsg(m) {
       if (screen?.t !== 'pad' || screen.id !== m.id) break;
       if ('pin' in m) pinBar(m);
       if ('btn' in m) relabel(m);
+      if ('rod' in m) rodSay?.(m);
       if ('lit' in m) { const b = document.querySelector(`[data-b="${CSS.escape(m.lit)}"]`); b?.classList.toggle('lit', !!m.on); b?.classList.toggle('off', !m.on); } // e.g. Burger Boys' PISS button once the bar is full
       break;
   }
@@ -199,6 +201,7 @@ function renderScreen() {
   if (tiltStop) { tiltStop(); tiltStop = null; }
   if (rollStop) { rollStop(); rollStop = null; }
   const s = screen, el = $('screen');
+  wantOrientation(padOrientation(s));
   // live pads take the whole screen (no scrolling), so they fit a phone held sideways
   $('vGame').classList.toggle('pad', (s.t === 'pad' && s.kind !== 'touchpad') || (s.t === 'prompt' && s.kind === 'roll'));
   if (s.t === 'prompt' && s.kind === 'roll') { renderRoll(s, el); return; }
@@ -227,9 +230,19 @@ function renderScreen() {
     else if (s.kind === 'slider') renderSlider(s, el);
     else if (s.kind === 'touchpad') renderTouchpad(s, el);
     else if (s.kind === 'gyro') renderGyro(s, el);
+    else if (s.kind === 'rod') renderRod(s, el);
     else renderButtons(s, el);
     if (s.practice) practiceStrip(s, el);
   }
+}
+
+// which way the phone should be held for a screen: live game pads play sideways (a pad can ask with
+// { hold: 'portrait' | 'landscape' }); menus, prompts and the dice roll work either way
+const SIDEWAYS_KINDS = new Set(['stick', 'gyro', 'tilt', 'touchpad']);
+function padOrientation(s) {
+  if (s?.t !== 'pad') return null;
+  if (s.hold === 'portrait' || s.hold === 'landscape') return s.hold;
+  return s.sideways || SIDEWAYS_KINDS.has(s.kind) ? 'landscape' : null;
 }
 
 // A roll: the dice sit at the bottom of the screen; grab them and flick them up off the top to throw.
@@ -370,10 +383,17 @@ async function askMotion() {
 
 // a thumbstick on the left and held buttons on the right (fighting games). Sends the stick as x/y in
 // -1..1 (y up) and the buttons as a bitmask of the ones held down: { b: 'stick', x, y, h }
+// A pad with `tilt: true` also steers by tilting the phone (on by default, a button swaps back to the
+// stick). Tilt sends the same { b: 'stick', x, y } as the thumb, so the game can't tell the difference.
 function renderStick(s, el) {
   const nb = s.buttons?.length || 0;
+  const canTilt = !!s.tilt;
+  let tiltOn = canTilt && store.get('tiltmode') !== '0';
   el.innerHTML = `<div class="stickpad ${nb ? '' : 'nobtns'}"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
-    <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
+    <div class="stickzone" id="stickzone"><div class="base"><i class="ar u"></i><i class="ar r"></i><i class="ar d"></i><i class="ar l"></i><div class="well"></div></div><div class="knob"><div class="cap"></div></div>
+      ${canTilt ? `<div class="tiltview" id="tiltview"><div class="tiltwheel" id="tiltwheel"><i></i></div><div class="tiltnote" id="tiltnote">Tilt your phone like a steering wheel</div>
+        <div class="tiltsmall"><button id="tiltperm" class="go hidden">Turn on tilt</button><button id="tiltctr">⌖ Centre</button></div></div>
+        <button class="tiltswap" id="tiltswap"></button>` : ''}</div>
     <div class="stickbtns n${Math.min(nb, 4)}">${(s.buttons || []).map((b) => `<button data-bit="${b.bit}"${b.id ? ` data-b="${esc(b.id)}"` : ''} class="${b.tone === 'go' ? 'go' : ''} ${b.off ? 'off' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
   let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
   const push = (force) => {
@@ -382,26 +402,39 @@ function renderStick(s, el) {
     last = key; lastSent = now;
     sendFast({ t: 'in', id: s.id, b: 'stick', x: +sx.toFixed(2), y: +sy.toFixed(2), h: held });
   };
+  // A real joystick drawn in the middle of the zone, always on screen. Touch anywhere in the zone and the
+  // knob follows your thumb out from the centre; let go and it springs back.
   const zone = $('stickzone'), base = zone.querySelector('.base'), knob = zone.querySelector('.knob');
-  let sid = null, ox = 0, oy = 0;
-  const R = 60;
-  zone.onpointerdown = (e) => {
-    e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
-    const r = zone.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top;
-    for (const n of [base, knob]) { n.style.left = ox + 'px'; n.style.top = oy + 'px'; n.style.display = 'block'; }
-    zone.querySelector('.ghost').style.display = 'none';
-  };
-  zone.onpointermove = (e) => {
-    if (e.pointerId !== sid) return;
+  let sid = null, cx = 0, cy = 0, R = 60;
+  const size = () => {
     const r = zone.getBoundingClientRect();
-    let dx = e.clientX - r.left - ox, dy = e.clientY - r.top - oy;
+    const m = Math.min(r.width, r.height);
+    const d = Math.max(90, Math.min(m * 0.86, m - 8, 320)) | 0;
+    zone.style.setProperty('--d', d + 'px');
+    cx = r.width / 2; cy = r.height / 2; R = d * 0.34;
+  };
+  size();
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(size) : null;
+  ro?.observe(zone);
+  const place = (dx, dy) => { knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; };
+  const move = (e) => {
+    const r = zone.getBoundingClientRect();
+    let dx = e.clientX - r.left - cx, dy = e.clientY - r.top - cy;
     const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
-    knob.style.left = ox + dx + 'px'; knob.style.top = oy + dy + 'px';
+    place(dx, dy);
     sx = dx / R; sy = -dy / R;
     push(false);
   };
-  const end = (e) => { if (e.pointerId !== sid) return; sid = null; sx = sy = 0; knob.style.left = ox + 'px'; knob.style.top = oy + 'px'; push(true); };
+  zone.onpointerdown = (e) => {
+    if (tiltOn || e.target.closest('button')) return;
+    e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
+    size(); zone.classList.add('on'); move(e);
+  };
+  zone.onpointermove = (e) => { if (e.pointerId === sid && !tiltOn) move(e); };
+  const end = (e) => { if (e.pointerId !== sid) return; sid = null; sx = sy = 0; zone.classList.remove('on'); place(0, 0); push(true); };
   zone.onpointerup = end; zone.onpointercancel = end;
+  let tiltDone = () => {};
+  if (canTilt) tiltDone = stickTilt(zone, () => tiltOn, (on) => { tiltOn = on; sx = sy = 0; push(true); }, (x, y) => { sx = x; sy = y; push(false); });
   for (const b of el.querySelectorAll('[data-bit]')) {
     const bit = Number(b.dataset.bit);
     b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('dn'); held |= bit; push(true); buzz(12); };
@@ -409,7 +442,61 @@ function renderStick(s, el) {
     b.onpointerup = up; b.onpointercancel = up;
   }
   const keep = setInterval(() => push(true), 200);
-  tiltStop = () => clearInterval(keep);
+  tiltStop = () => { clearInterval(keep); ro?.disconnect(); tiltDone(); };
+}
+
+// Tilt steering for the stick pad. Uses deviceorientation's beta/gamma only (no compass, so no drift)
+// and works out from them how far the screen's own left-right edge is rolled off level (steer, x) and
+// how far its top edge leans forward from where it was at the start or on Centre (y, forward = up).
+// That holds whichever way the phone is turned and however upright or flat it's held.
+const TILT_FULL = 32, PITCH_FULL = 25, TILT_DEAD = 2.5; // degrees for a full push, and the slack in the middle
+function stickTilt(zone, isOn, setOn, out) {
+  const view = $('tiltview'), wheel = $('tiltwheel'), note = $('tiltnote'), swap = $('tiltswap'), perm = $('tiltperm');
+  const D = Math.PI / 180;
+  let got = false, ref = null, rx = 0, ry = 0, lastT = 0, waitT = 0;
+  const shape = (a, full) => { const m = Math.max(0, Math.abs(a) - TILT_DEAD) / (full - TILT_DEAD); return Math.sign(a) * Math.min(1, m); };
+  const paint = () => {
+    const on = isOn();
+    zone.classList.toggle('tilting', on);
+    swap.textContent = on ? '🕹 Use the stick' : '📱 Use tilt';
+  };
+  const onOrient = (e) => {
+    if (e.beta == null || e.gamma == null) return;
+    if (!got) { got = true; motionOk = true; perm.classList.add('hidden'); note.textContent = 'Tilt your phone like a steering wheel'; }
+    if (!isOn()) return;
+    const cB = Math.cos(e.beta * D), sB = Math.sin(e.beta * D), cG = Math.cos(e.gamma * D), sG = Math.sin(e.gamma * D);
+    const th = screenAngle() * D, st = Math.sin(th), ct = Math.cos(th);
+    // height (world up) of the page's right and top edges and of the screen's face, from the spec's Z-X'-Y'' rotation
+    const rightZ = -cB * sG * ct - sB * st, upZ = -cB * sG * st + sB * ct, faceZ = cB * cG;
+    const roll = Math.asin(Math.max(-1, Math.min(1, rightZ))) / D; // right edge up = steering left
+    const pitch = Math.atan2(upZ, faceZ) / D; // 90 = held upright, 0 = flat on its back
+    if (ref == null) ref = pitch;
+    const now = performance.now(), dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0.016; lastT = now;
+    const k = 1 - Math.exp(-dt * 18); // takes out hand shake without feeling laggy
+    rx += (-roll - rx) * k; ry += (ref - pitch - ry) * k;
+    const x = shape(rx, TILT_FULL), y = shape(ry, PITCH_FULL);
+    wheel.style.transform = `rotate(${(x * TILT_FULL).toFixed(1)}deg) translateY(${(-y * 18).toFixed(1)}px)`;
+    out(+x.toFixed(2), +y.toFixed(2));
+  };
+  addEventListener('deviceorientation', onOrient);
+  // iPhones only send tilt after a button press asks for it
+  const DO = window.DeviceOrientationEvent;
+  const needsAsk = typeof DO?.requestPermission === 'function' || typeof window.DeviceMotionEvent?.requestPermission === 'function';
+  if (!motionOk && needsAsk) {
+    perm.classList.remove('hidden');
+    perm.onclick = async () => {
+      try { if (typeof DO?.requestPermission === 'function') await DO.requestPermission(); } catch { /* denied */ }
+      await askMotion();
+      if (motionOk) perm.classList.add('hidden');
+    };
+  }
+  // no readings at all (a laptop, or tilt switched off in the browser): say so, the stick is a press away
+  const check = () => { if (!got && isOn() && !needsAsk) note.textContent = 'No tilt on this phone. Use the stick instead.'; };
+  waitT = setTimeout(check, 1500);
+  $('tiltctr').onclick = () => { ref = null; rx = ry = 0; buzz(15); };
+  swap.onclick = () => { const on = !isOn(); store.set('tiltmode', on ? '1' : '0'); ref = null; rx = ry = 0; setOn(on); paint(); buzz(15); };
+  paint();
+  return () => { removeEventListener('deviceorientation', onOrient); clearTimeout(waitT); };
 }
 
 // Joe Master's kick-out bar: covers the pad while you're pinned. The TV sends the bar; the phone runs its
@@ -618,6 +705,107 @@ function renderGyro(s, el) {
   draw(); push(true);
   const keep = setInterval(() => push(true), 250);
   tiltStop = () => { removeEventListener('deviceorientation', onOrient); clearInterval(keep); };
+}
+
+// Fishing rod (Fishing Off the Jetty). The phone is the rod and the screen is the reel:
+//  - flick the phone forward (top edge away from you) to cast: a harder flick goes further { b: 'cast', v: 0..1 }
+//  - when the TV says there's a bite, pull the phone back towards you to hook it { b: 'hook' }
+//  - wind the reel handle round in circles with your thumb to reel in { b: 'crank', v: turns a second }
+// The flick and pull come from how fast the screen's top edge tips forward or back (deviceorientation
+// beta/gamma, so no compass). A phone without motion gets CAST / HOOK buttons instead.
+// The TV tells the pad what's happening with { rod: 'ready' | 'wait' | 'bite' | 'fight' | 'run' | 'rig' }.
+let rodSay = null;
+const ROD_TXT = {
+  ready: ['🎣 FLICK TO CAST', 'Flick the phone forward. Harder goes further'],
+  flying: ['…', ''], wait: ['WAITING…', 'Watch your float'],
+  bite: ['BITE! PULL BACK!', 'Yank the phone back towards you'],
+  fight: ['WIND THE REEL', 'Circle your thumb round the reel'], run: ["IT'S RUNNING! STOP WINDING", 'Let the line go slack'],
+  rig: ['NEW BAIT', ''],
+};
+function renderRod(s, el) {
+  el.innerHTML = `<div class="rodpad"><div class="padhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span></div>
+    <div class="rodmain"><div class="rodsay" id="rodsay"><h2 id="rodbig"></h2><div class="dim" id="rodsmall"></div>
+      <div class="rodbtns"><button id="rodperm" class="go hidden">Turn on motion</button><button id="rodcast" class="go hidden">🎣 CAST</button><button id="rodhook" class="hidden">🪝 HOOK</button></div></div>
+    <div class="reel" id="reel"><div class="reelplate"><i></i><i></i><i></i></div><div class="reelarm" id="reelarm"><b></b></div><div class="reelhint">WIND</div></div></div></div>`;
+  const reel = $('reel'), arm = $('reelarm'), big = $('rodbig'), small = $('rodsmall');
+  let state = 'ready';
+  const say = () => { const [b, t] = ROD_TXT[state] || ['', '']; big.textContent = b; small.textContent = noMotion && state === 'ready' ? 'Press CAST' : noMotion && state === 'bite' ? 'Press HOOK' : t; $('rodsay').dataset.s = state; };
+  rodSay = (m) => { const was = state; state = m.rod; if (state === 'bite' && was !== 'bite') buzz([60, 40, 60]); say(); };
+  // ----- the reel: angle of your thumb round the centre, turned into turns a second -----
+  let sid = null, lastA = null, spin = 0, ang = 0, lastSent = 0, lastMove = 0;
+  const angleAt = (e) => { const r = reel.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)); };
+  const sendCrank = (force) => { const now = Date.now(); if (!force && now - lastSent < 80) return; lastSent = now; sendFast({ t: 'in', id: s.id, b: 'crank', v: +spin.toFixed(2) }); };
+  reel.onpointerdown = (e) => { e.preventDefault(); sid = e.pointerId; reel.setPointerCapture(sid); lastA = angleAt(e); lastMove = performance.now(); };
+  reel.onpointermove = (e) => {
+    if (e.pointerId !== sid) return;
+    const a = angleAt(e), now = performance.now();
+    let d = a - lastA; d = ((d + Math.PI * 3) % (Math.PI * 2)) - Math.PI; lastA = a;
+    ang += d;
+    const dt = Math.max(0.008, (now - lastMove) / 1000); lastMove = now;
+    const rate = Math.abs(d) / (Math.PI * 2) / dt; // either way round winds it in
+    spin += (Math.min(4, rate) - spin) * Math.min(1, dt * 8);
+    arm.style.transform = `rotate(${ang}rad)`;
+    sendCrank(false);
+  };
+  const stop = (e) => { if (e.pointerId !== sid) return; sid = null; spin = 0; sendCrank(true); };
+  reel.onpointerup = stop; reel.onpointercancel = stop;
+  // a thumb resting still on the reel isn't winding
+  const keep = setInterval(() => { if (sid != null && performance.now() - lastMove > 150) spin *= 0.5; if (sid != null || spin) sendCrank(true); }, 120);
+  // ----- the flick and the pull: how fast the top edge tips -----
+  const D = Math.PI / 180;
+  let got = false, lastP = null, lastT = 0, rate = 0, peak = 0, dir = 0, quietT = 0, noMotion = false;
+  const FLICK = 220, END = 90; // degrees a second to count as a flick, and to call it over
+  const onOrient = (e) => {
+    if (e.beta == null || e.gamma == null) return;
+    if (!got) { got = true; motionOk = true; noMotion = false; $('rodperm').classList.add('hidden'); for (const id of ['rodcast', 'rodhook']) $(id).classList.add('hidden'); say(); }
+    const cB = Math.cos(e.beta * D), sB = Math.sin(e.beta * D), cG = Math.cos(e.gamma * D), sG = Math.sin(e.gamma * D);
+    const th = screenAngle() * D, st = Math.sin(th), ct = Math.cos(th);
+    const upZ = -cB * sG * st + sB * ct, faceZ = cB * cG;
+    const p = Math.atan2(upZ, faceZ) / D, now = performance.now() / 1000;
+    if (lastP != null) {
+      const dt = Math.max(0.005, now - lastT);
+      let dp = p - lastP; dp = ((dp + 540) % 360) - 180;
+      rate = rate * 0.4 + (dp / dt) * 0.6; // + = top coming back towards you, - = tipping forward
+      if (now < quietT) { /* settling after the last one */ }
+      else if (!dir && Math.abs(rate) > FLICK) { dir = Math.sign(rate); peak = Math.abs(rate); }
+      else if (dir) {
+        if (Math.sign(rate) === dir) peak = Math.max(peak, Math.abs(rate));
+        if (Math.sign(rate) !== dir || Math.abs(rate) < END) {
+          if (dir < 0) {
+            send({ t: 'in', id: s.id, b: 'cast', v: +Math.min(1, Math.max(0.08, (peak - FLICK) / 650)).toFixed(2) }); buzz(30);
+            dir = 0; quietT = now + 0.45; // a flick bounces back: don't read the bounce as a pull
+          } else {
+            send({ t: 'in', id: s.id, b: 'hook' }); if (state === 'bite') buzz(40);
+            // a pull back is often the wind-up for a cast, so a flick forward can follow straight on
+            dir = Math.abs(rate) > FLICK && rate < 0 ? -1 : 0; peak = Math.abs(rate);
+          }
+        }
+      }
+    }
+    lastP = p; lastT = now;
+  };
+  addEventListener('deviceorientation', onOrient);
+  const DO = window.DeviceOrientationEvent;
+  const needsAsk = typeof DO?.requestPermission === 'function' || typeof window.DeviceMotionEvent?.requestPermission === 'function';
+  if (!motionOk && needsAsk) {
+    $('rodperm').classList.remove('hidden');
+    $('rodperm').onclick = async () => {
+      try { if (typeof DO?.requestPermission === 'function') await DO.requestPermission(); } catch { /* denied */ }
+      await askMotion();
+      if (motionOk) $('rodperm').classList.add('hidden');
+    };
+  }
+  // no motion at all: buttons instead
+  const fallback = () => {
+    if (got || needsAsk) return;
+    noMotion = true; say();
+    $('rodcast').classList.remove('hidden'); $('rodhook').classList.remove('hidden');
+  };
+  const waitT = setTimeout(fallback, 1500);
+  $('rodcast').onclick = () => { send({ t: 'in', id: s.id, b: 'cast', v: 0.5 + Math.random() * 0.5 }); buzz(30); };
+  $('rodhook').onclick = () => { send({ t: 'in', id: s.id, b: 'hook' }); buzz(30); };
+  say();
+  tiltStop = () => { removeEventListener('deviceorientation', onOrient); clearInterval(keep); clearTimeout(waitT); rodSay = null; };
 }
 
 function renderTilt(s, el) {

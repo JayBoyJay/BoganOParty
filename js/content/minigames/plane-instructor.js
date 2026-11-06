@@ -1,5 +1,5 @@
 // Plane Instructor: the instructor holds their arms out like a plane and banks left and right.
-// Push your stick left and right to match. Every moment you're within the instructor's bounds scores points.
+// Tilt your phone (or push your stick) left and right to match. Every moment you're within the instructor's bounds scores points.
 // Every few seconds the instructor calls a trick (LOOP or SPIN): its icon pops up above them with a ring
 // that fills around it. Press that trick's button as the ring closes; the closer you are, the more it's worth.
 // Get past the halfway mark and your doll takes off and flies on the spot. One minute.
@@ -21,10 +21,10 @@ export default {
   id: 'plane-instructor',
   name: 'Plane Instructor',
   blurb: 'Arms out, copy the instructor. Nail the loops and spins and you might just take off.',
-  howTo: 'Push your stick left and right to bank your arms like the instructor. When a trick icon pops up above the instructor, press LOOP or SPIN to match it just as the ring around it closes. The closer you are, the more points.',
-  padText: 'Stick to bank. Press the trick as its ring closes!',
+  howTo: 'Tilt your phone like a steering wheel (or push the stick) left and right to bank your arms like the instructor. When a trick icon pops up above the instructor, press LOOP or SPIN to match it just as the ring around it closes. The closer you are, the more points.',
+  padText: 'Tilt to bank. Press the trick as its ring closes!',
   duration: 60,
-  pad: { kind: 'stick', buttons: [{ bit: BTN.LOOP, label: '➰ LOOP', tone: 'go' }, { bit: BTN.SPIN, label: '🌀 SPIN' }] },
+  pad: { kind: 'stick', tilt: true, buttons: [{ bit: BTN.LOOP, label: '➰ LOOP', tone: 'go' }, { bit: BTN.SPIN, label: '🌀 SPIN' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, sfx } = mg;
@@ -209,7 +209,7 @@ export default {
           if (running && matched) s.score += RATE * dt;
           s.glow.material.opacity += ((matched ? 0.9 : 0) - s.glow.material.opacity) * Math.min(1, dt * 8);
           // past halfway: take off and fly on the spot
-          if (!s.flying && s.score >= RATE * mg.duration / 2) { s.flying = true; sfx.play('teleport'); }
+          if (!s.flying && s.score >= RATE * mg.duration / 2) { s.flying = true; sfx.play('takeoff'); }
           s.lift += ((s.flying ? 2.0 : 0) - s.lift) * Math.min(1, dt * 1.5);
           const hop = animTrick(s, s.rig, dt);
           s.rig.position.y = PIVOT + s.lift + hop + (s.flying ? Math.sin(t * 3 + s.wobble) * 0.25 : 0);

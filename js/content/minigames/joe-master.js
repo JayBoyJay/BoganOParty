@@ -113,7 +113,7 @@ export default {
     const camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.1, 300);
     const camPos = new THREE.Vector3(0, RING_H + 4, 10), camLook = new THREE.Vector3(0, RING_H + 1, 0), tPos = new THREE.Vector3(), tLook = new THREE.Vector3();
     let shake = 0, hitstop = 0, slowmo = 0, rang = false, simT = 0;
-    const SOUND = { hit: 'bonk', slam: 'boom', finisher: 'bigboom', grab: 'squeak', whoosh: 'step', count: 'beep', kickout: 'boing', elim: 'ko', win: 'hallelujah', pinStart: 'event', pinHit: 'step', pinMiss: 'bonk' };
+    const SOUND = { hit: 'punch', slam: 'slam', finisher: 'bigboom', grab: 'squeak', whoosh: 'swing', count: 'slap', kickout: 'boing', elim: 'ko', win: 'crowd', pinStart: 'event', pinHit: 'tick', pinMiss: 'bonk' };
 
     return {
       camera,

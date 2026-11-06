@@ -125,7 +125,7 @@ export default {
     };
 
     let started = false, winAt = null, t0 = 0, now = 0;
-    const SOUND = { boost: 'teleport', bumper: 'bonk', tramp: 'boing', jump: 'boing', pickup: 'item', power: 'event', portal: 'teleport' };
+    const SOUND = { boost: 'boost', bumper: 'bonk', tramp: 'boing', jump: 'boing', pickup: 'item', power: 'event', portal: 'teleport' };
     return {
       camera: world.camera,
       update(dt, t, running) {
@@ -161,7 +161,7 @@ export default {
       },
       dispose() { overlay.remove(); renderer.shadowMap.autoUpdate = true; },
       input(p, m) {
-        if (m.b === 'boost') { if (sim.boost(p.id)) sfx.play('teleport'); }
+        if (m.b === 'boost') { if (sim.boost(p.id)) sfx.play('boost'); }
         else if (m.b === 'power') sim.usePower(p.id);
       },
       // live race position: the leader has the most

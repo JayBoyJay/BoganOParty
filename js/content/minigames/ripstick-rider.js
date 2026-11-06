@@ -20,10 +20,10 @@ export default {
   id: 'ripstick-rider',
   name: 'Ripstick Rider',
   blurb: 'Wiggle down the street on a ripstick. Dodge the cracks, the pets and the traffic. Last one riding wins.',
-  howTo: 'Keep wiggling your stick left and right to sway and ride: faster sway, faster board. Lean more one way to drift that way. Press PUSH to shove whoever is next to you. Grab a foam sword for a massive shove. Hit anything and you are out.',
-  padText: 'Wiggle the stick to sway! PUSH to shove',
+  howTo: 'Keep rocking your phone left and right like a steering wheel (or wiggle the stick) to sway and ride: faster sway, faster board. Lean more one way to drift that way. Press PUSH to shove whoever is next to you. Grab a foam sword for a massive shove. Hit anything and you are out.',
+  padText: 'Rock the phone side to side to sway! PUSH to shove',
   duration: 90,
-  pad: { kind: 'stick', buttons: [{ bit: BTN.PUSH, label: '👐 PUSH', tone: 'go' }] },
+  pad: { kind: 'stick', tilt: true, buttons: [{ bit: BTN.PUSH, label: '👐 PUSH', tone: 'go' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -260,7 +260,7 @@ export default {
       r.out = true; r.outAt = ++order;
       r.fly = { vx: r.kx * 0.5 + (rng() - 0.5) * 2, vy: why === 'magpie' ? 5 : 4.2, vz: why === 'car' ? -6 : r.v * 0.6, spin: (rng() < 0.5 ? -1 : 1) * (5 + rng() * 4), y: 0, t: 0, why };
       r.doll.flinch();
-      sfx.play(why === 'car' ? 'thud' : why === 'magpie' ? 'squeak' : 'bonk');
+      sfx.play(why === 'car' ? 'thud' : why === 'magpie' ? 'squawk' : 'bonk');
       tmp.set(r.x, 3.2, r.z);
       pop(tmp, { crack: 'TRIPPED!', pet: 'WOOF!', car: 'BEEEEP!', magpie: 'SWOOPED!' }[why] || 'OUT!', '#ff4a3a');
     };

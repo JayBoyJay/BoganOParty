@@ -3,7 +3,8 @@
 // kip. Two heads is HEADS, two tails is TAILS, one of each is ODDS. Heads or tails pays 2 to 1, odds
 // pays even money. A losing bet is gone: no money back, not even when it comes up odds. Your bet
 // size is yours to change every toss, and until the pennies go up you can swap the size or the call.
-// Five tosses, no clock. Most chips at the end wins.
+// Five tosses, no clock. Most chips at the end wins. Lose the lot and you're broke: no free chips,
+// you just watch the rest of the tosses.
 import { addSky } from '../../host/sky.js';
 
 const TOSSES = 5, START = 10;
@@ -16,7 +17,7 @@ export default {
   id: 'two-up',
   name: 'Two-Up',
   blurb: 'Anzac Day in the ring. Back heads, tails or odds with your chips. Five tosses, most chips wins.',
-  howTo: "Each toss, pick how much to bet (1, 3, 5 or ALL IN) and then HEADS, TAILS or ODDS. Two heads is heads, two tails is tails, one of each is odds. Heads or tails pays 2 to 1. Odds pays even money. Lose and your chips are gone, no money back. You can change your bet size every toss, and swap the size or your call right up until the spinner throws. Five tosses. Most chips at the end wins. Go broke and the bar shouts you 2 chips each toss so you can claw back.",
+  howTo: "Each toss, pick how much to bet (1, 3, 5 or ALL IN) and then HEADS, TAILS or ODDS. Two heads is heads, two tails is tails, one of each is odds. Heads or tails pays 2 to 1. Odds pays even money. Lose and your chips are gone, no money back. You can change your bet size every toss, and swap the size or your call right up until the spinner throws. Five tosses. Most chips at the end wins. Go broke and you're out: you sit the rest of the tosses out.",
   padText: 'Pick a bet size, then call it',
   duration: 240, // only a safety net: the game ends after the last toss
   untimed: true,
@@ -96,7 +97,7 @@ export default {
       g.translate(0, 40);
       g.fillStyle = '#ffd23f'; g.font = '900 54px system-ui'; g.fillText(`${P.chips}`, 70, 56);
       g.fillStyle = '#d8c8a8'; g.font = '700 22px system-ui'; g.fillText('chips', 70, 98);
-      const lab = P.broke ? 'BROKE' : !P.call && P.shout ? 'SHOUT' : P.call ? `${P.call.toUpperCase()}` : '...';
+      const lab = P.broke ? 'BROKE' : P.call ? `${P.call.toUpperCase()}` : '...';
       g.fillStyle = P.call === 'heads' ? '#ffd23f' : P.call === 'tails' ? '#9ad8ff' : P.call === 'odds' ? '#c8a8ff' : '#888';
       g.font = '900 40px system-ui'; g.fillText(lab, 222, 56, 180);
       // the bet: what's on once they've called, or the size they've picked while they make up their mind
@@ -138,7 +139,7 @@ export default {
         tAll += dt;
         if (running && finishAt == null) {
           phaseT -= dt;
-          if (phase === 'intro' && phaseT <= 0) { phase = 'bet'; phaseT = BET_T; toss++; banner(`TOSS ${toss} OF ${TOSSES}: PLACE YOUR BETS`, '#ffffff', 0.9); settle = null; for (const P of punters) { P.call = null; P.stake = 0; P.broke = false; if (P.chips <= 0) { P.chips = 2; P.shout = true; } else P.shout = false; drawCard(P); if (P.bot) P.bot.when = 0.8 + rng() * 3.5; } }
+          if (phase === 'intro' && phaseT <= 0) { phase = 'bet'; phaseT = BET_T; toss++; banner(`TOSS ${toss} OF ${TOSSES}: PLACE YOUR BETS`, '#ffffff', 0.9); settle = null; for (const P of punters) { P.call = null; P.stake = 0; P.broke = P.chips <= 0; drawCard(P); if (P.bot) P.bot.when = 0.8 + rng() * 3.5; } }
           else if (phase === 'bet') {
             for (const P of punters) if (P.bot && !P.call && !P.broke) {
               P.bot.when -= dt;
@@ -155,7 +156,7 @@ export default {
           } else if (phase === 'toss' && phaseT <= 0) {
             result = faces[0] && faces[1] ? 'heads' : !faces[0] && !faces[1] ? 'tails' : 'odds';
             banner(result === 'heads' ? 'HEADS!' : result === 'tails' ? 'TAILS!' : 'ODDS!', result === 'heads' ? '#ffd23f' : result === 'tails' ? '#9ad8ff' : '#c8a8ff', 1.5);
-            sfx.play('bigboom');
+            sfx.play('coins');
             for (const P of punters) {
               if (!P.call) continue;
               let back = 0;
@@ -166,13 +167,15 @@ export default {
               if (net > 0) P.doll.bounce(); else if (net < 0) P.doll.flinch();
               drawCard(P);
             }
-            if (punters.some((P) => P.call === result && result !== 'odds')) sfx.play('cheers');
+            if (punters.some((P) => P.call === result && result !== 'odds')) sfx.play('crowd');
             phase = 'show'; phaseT = SHOW_T;
           } else if (phase === 'show' && phaseT <= 0) {
             if (toss >= TOSSES) {
               finishAt = tAll; const top = Math.max(...punters.map((P) => P.chips));
               const w = punters.filter((P) => P.chips === top).map((P) => P.p.name).join(' & ');
               banner(`${w} CLEANS UP`, '#ffd23f', 1); sfx.play('hallelujah');
+            } else if (punters.every((P) => P.chips <= 0)) { // everyone's skint, so there's no one left to bet
+              finishAt = tAll; banner('EVERYONE\'S BROKE', '#ff5a5a', 1); sfx.play('bigboom');
             } else { phase = 'intro'; phaseT = 0.3; }
           }
         }

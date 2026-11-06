@@ -96,7 +96,8 @@ export class Hub {
       const opt = q.options.find((o) => o.id === m.v);
       if (q.options.length && (!opt || opt.disabled)) return true;
       const f = m.fling;
-      q.finish(m.v, f && typeof f === 'object' ? { power: clamp01(Number(f.power) || 0), aim: Math.max(-1, Math.min(1, Number(f.aim) || 0)), spin: Math.max(-1, Math.min(1, Number(f.spin) || 0)) } : undefined);
+      const c1 = (x) => Math.max(-1, Math.min(1, Number(x) || 0));
+      q.finish(m.v, f && typeof f === 'object' ? { power: clamp01(Number(f.power) || 0), aim: c1(f.aim), spin: c1(f.spin), curve: c1(f.curve ?? f.spin), exit: c1(f.exit) } : undefined);
       return true;
     }
     if (m.t === 'in') {

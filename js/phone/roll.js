@@ -60,6 +60,7 @@ export function mountRoll(box, { dice = 1, color = '#ff7a3d', onThrow, onMiss } 
   let raf = 0, last = performance.now(), t = 0;
   const vel = new THREE.Vector3(); // world units/s once thrown
   let spinV = new THREE.Vector3(); // tumble while flying
+  let bend = 0; // curve on the flick
   let trail = []; // recent pointer points [x, y, time]
   let grab = null; // pointer offset from the dice when grabbed
   const q = new THREE.Quaternion(), axis = new THREE.Vector3();
@@ -82,7 +83,7 @@ export function mountRoll(box, { dice = 1, color = '#ff7a3d', onThrow, onMiss } 
     const [x, y] = local(e);
     const p = trail[trail.length - 1];
     trail.push([x, y, performance.now()]);
-    if (trail.length > 12) trail.shift();
+    if (trail.length > 40) trail.shift(); // enough to read a curve in the swipe
     group.position.copy(toWorld(x, y).add(grab));
     // the dice roll under your finger
     const dx = x - p[0], dy = y - p[1];
@@ -107,11 +108,26 @@ export function mountRoll(box, { dice = 1, color = '#ff7a3d', onThrow, onMiss } 
     if (vy < -need && -vy > Math.abs(vx) * 0.6) {
       const power = Math.max(0, Math.min(1, (-vy - need) / (need * 3.5)));
       const aim = Math.max(-1, Math.min(1, vx / -vy));
-      const spin = Math.max(-1, Math.min(1, vx / (need * 4)));
+      // where it leaves the top edge, -1 (left) to 1 (right): that's where it comes in on the TV
+      const exit = Math.max(-1, Math.min(1, ((b[0] + vx * (-b[1] / vy)) / W) * 2 - 1));
+      // curve: how much the swipe turned over its last 0.3 s (+ = bending right, clockwise)
+      const arc = trail.filter((p) => now - p[2] < 300);
+      let curve = 0;
+      if (arc.length >= 5) {
+        const m = arc[Math.floor(arc.length / 2)], p0 = arc[0], pn = arc[arc.length - 1];
+        const len = Math.hypot(pn[0] - p0[0], pn[1] - p0[1]);
+        if (len > shortSide * 0.12) {
+          let d = Math.atan2(pn[1] - m[1], pn[0] - m[0]) - Math.atan2(m[1] - p0[1], m[0] - p0[0]);
+          d = Math.atan2(Math.sin(d), Math.cos(d));
+          curve = Math.max(-1, Math.min(1, d / 0.7));
+          if (Math.abs(curve) < 0.12) curve = 0; // a straight-ish flick is straight
+        }
+      }
       state = 'gone';
       vel.set(vx * 1000 * unit, -vy * 1000 * unit, -3 - power * 6);
-      spinV.set(-vy * 9, vx * 9, (Math.random() - 0.5) * 6);
-      onThrow?.({ power, aim, spin });
+      bend = curve;
+      spinV.set(-vy * 9, vx * 9 + curve * 14, (Math.random() - 0.5) * 6);
+      onThrow?.({ power, aim, spin: curve, curve, exit });
     } else {
       state = 'back';
       onMiss?.();
@@ -136,6 +152,7 @@ export function mountRoll(box, { dice = 1, color = '#ff7a3d', onThrow, onMiss } 
       if (group.position.distanceTo(home) < 0.02) state = 'rest';
     } else if (state === 'gone') {
       group.position.addScaledVector(vel, dt);
+      vel.x += bend * visH * 6 * dt; // a curved flick keeps bending as it flies off
       vel.multiplyScalar(Math.pow(0.6, dt));
       for (const m of meshes) {
         axis.copy(spinV); const ang = axis.length() * dt;

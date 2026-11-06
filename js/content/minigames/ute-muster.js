@@ -23,10 +23,10 @@ export default {
   id: 'ute-muster',
   name: 'Ute Muster',
   blurb: "Get your ute and everything on the back of it across a bumpy paddock. Hay, esky, fridge, swag. Don't lose the esky.",
-  howTo: "Push the stick up to go, down to brake, left and right to steer. Your hay bale, esky, bar fridge and swag are loose on the back and there's no tailgate. Floor it and they slide off the back; hit a hump flat out and they fly off. Every bit of cargo you get to the muster yard is worth 15 points, and the first utes in get a bonus. Mind the gum trees. HORN does nothing useful.",
-  padText: 'Up to go, down to brake, steer',
+  howTo: "Tilt your phone like a steering wheel to steer, lean the top away from you to go and towards you to brake (or use the stick: up to go, down to brake). Your hay bale, esky, bar fridge and swag are loose on the back and there's no tailgate. Floor it and they slide off the back; hit a hump flat out and they fly off. Every bit of cargo you get to the muster yard is worth 15 points, and the first utes in get a bonus. Mind the gum trees. HORN does nothing useful.",
+  padText: 'Tilt to steer, lean forward to go, back to brake',
   duration: 62,
-  pad: { kind: 'stick', buttons: [{ bit: BTN.HORN, label: '📯 HORN' }] },
+  pad: { kind: 'stick', tilt: true, buttons: [{ bit: BTN.HORN, label: '📯 HORN' }] },
 
   create(mg) {
     const { THREE, kit, scene, players, rng, renderer, sfx } = mg;
@@ -250,7 +250,7 @@ export default {
             pop(U.x, hAt(U.x, U.z) + 4, U.z, `#${U.place} ${U.p.name}: ${kept}/4 ON`, U.place === 1 ? '#ffd23f' : '#ffffff', 0.7, 1.4);
             if (finishers === n) finishAt = tAll;
           }
-          if (U.input.held & BTN.HORN) { if (U.honk <= 0) { sfx.play('squeak'); U.honk = 0.5; } }
+          if (U.input.held & BTN.HORN) { if (U.honk <= 0) { sfx.play('horn'); U.honk = 0.5; } }
           U.honk -= dt;
           U.card.position.set(U.x, U.ySus + 3.6, U.z);
           U.doll.update(dt);

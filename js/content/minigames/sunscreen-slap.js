@@ -154,7 +154,7 @@ export default {
     const slap = (R) => {
       if (R.cd > 0 || R.stun > 0) return;
       R.cd = SLAP_CD; splat(R.k, R.x, R.z, SLAP_R, true);
-      sfx.play('bonk'); R.doll.bounce(1.4); R.doll.setArms(1.4, 0); R.armT = 0.3;
+      sfx.play('slap'); R.doll.bounce(1.4); R.doll.setArms(1.4, 0); R.armT = 0.3;
       for (const o of rubbers) {
         if (o === R) continue;
         const dx = o.x - R.x, dz = o.z - R.z, d = Math.hypot(dx, dz);
