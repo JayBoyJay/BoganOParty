@@ -72,6 +72,7 @@
   .pcard .x { position: absolute; top: 0.25rem; right: 0.35rem; background: none; padding: 0.15rem 0.4rem; font-size: 0.85rem; color: var(--dim); }
   .pslot { border: 2px dashed rgba(255,255,255,0.16); border-radius: 0.9rem; padding: 0.6rem; display: flex; align-items: center; gap: 0.75rem; color: rgba(255,255,255,0.4); font-weight: 700; font-size: 0.9rem; }
   .pslot i { width: 3.3rem; height: 3.3rem; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.16); display: grid; place-items: center; font-style: normal; font-size: 1.4rem; }
+  .corner button.off { opacity: 0.4; }
   .corner { position: fixed; right: 1rem; bottom: 1rem; display: flex; gap: 0.5rem; z-index: 30; }
   .corner button { width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; background: rgba(20,10,4,0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   #netStatus { position: fixed; top: 0.6rem; left: 50%; transform: translateX(-50%); background: rgba(160,30,30,0.9); padding: 0.5rem 0.9rem; border-radius: 0.6rem; z-index: 40; max-width: calc(100vw - 2rem); text-align: center; }
@@ -321,7 +322,7 @@
 <div id="hud" class="hidden"></div>
 <div id="minigame" class="hidden"></div>
 <div id="netStatus" class="hidden"></div>
-<div class="corner"><button id="soundBtn">🔊</button><button id="fsBtn">⛶</button></div>
+<div class="corner"><button id="musicBtn" title="Music">🎸</button><button id="soundBtn">🔊</button><button id="fsBtn">⛶</button></div>
 
 <script type="module" src="js/host/main.js"></script>
 </body>
