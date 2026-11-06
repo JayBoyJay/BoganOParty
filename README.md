@@ -26,7 +26,16 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 
 **Getting hit.** There's no health. When a power-up hits you, you drop coins, Mario Party style. They stay on that space as a pile, and anyone who isn't leading can grab the lot by walking over it (the leader just walks past).
 
-**Traps.** Some spaces have a trap rig beside them: a hanging boulder (Falling Rock) or, in Adelaide, a copy of the Mall's Balls with the top ball loose. Walk past or land on an empty one and your phone offers to set it for 6 coins; a flag in your colour goes up. The next person to land on it (not you) gets flattened and pays you up to 10 coins, then the trap is empty again. A shield sets it off but takes the hit, so nobody pays. Maps list their trap spaces with `traps` in the board def; trap kinds live in `js/content/traps.js`.
+**Traps.** Some spaces have a trap rig beside them. Walk past or land on an empty one and your phone offers to set it; a flag in your colour goes up. The next person to land on it (not you) gets got and pays you, then the trap is empty again.
+
+| Trap | Set for | Takes | Where |
+|---|---|---|---|
+| 🪨 Falling Rock | 6 | 10 | A boulder hauled up on a gantry drops on you. Both maps. |
+| 🔮 Mall's Balls | 6 | 10 | The top ball rolls off its plinth and flattens you. Adelaide. |
+| 🐦 Magpie Season | 5 | 8 | The magpie on the SWOOPING MAGPIES sign dive-bombs your head three times. Both maps. |
+| 🕳️ Mine Shaft | 8 | 12 | The ground gives way and you're winched back up. Broken Hill (the mine short cut and Silverton). |
+| 🐨 Drop Bear | 6 | 10 | Drops out of a gum tree onto your head and has a go. Both maps. |
+ A shield sets it off but takes the hit, so nobody pays. Maps list their trap spaces with `traps` in the board def; trap kinds live in `js/content/traps.js`.
 
 ### Power-ups (bought in the shop, used before rolling, max 3)
 

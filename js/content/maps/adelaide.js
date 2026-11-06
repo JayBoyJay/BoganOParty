@@ -65,10 +65,10 @@ export default {
   board: {
     loop: { name: 'North Terrace', count: 42, points: [[0, 32], [-26, 28], [-40, 10], [-38, -14], [-18, -32], [8, -32], [32, -22], [40, 2], [30, 24], [14, 32]], pattern: 'BBRBBEBRBEBB' },
     shops: [8, 30],
-    traps: { 13: 'balls', 27: 'balls', 35: 'rock' },
+    traps: { 6: 'rock', 13: 'balls', 27: 'balls', 35: 'magpie' },
     branches: [
       { name: 'Down Rundle Mall', sub: 'Short cut with a shop', from: 3, to: 13, points: [[-8, 10], [-12, -10]], count: 5, pattern: 'EBEBE', shops: [2] },
-      { name: 'Tram to Glenelg', sub: 'The long way, mostly blue', from: 16, to: 24, points: [[-10, -52], [24, -54], [48, -36]], count: 9, pattern: 'BBEBBBEBB', traps: { 4: 'rock' } },
+      { name: 'Tram to Glenelg', sub: 'The long way, mostly blue', from: 16, to: 24, points: [[-10, -52], [24, -54], [48, -36]], count: 9, pattern: 'BBEBBBEBB', traps: { 1: 'dropbear' } },
     ],
   },
   landmarks: [

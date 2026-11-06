@@ -11,6 +11,7 @@ import { Doll } from './doll.js';
 import { Tweens, easeInOut, easeOut } from './stage.js';
 import { makeD10, restQuaternion } from '../dice3d.js';
 import { gatherColliders, simulateDice } from './dicephys.js';
+import { TRAPS } from '../content/traps.js';
 
 const SPACE_R = 1.25;
 const iconTex = {};
@@ -608,7 +609,7 @@ export class BoardView {
     const at = (j) => this.board.nodes[j];
     const a = at(n.prev[0] ?? n.idx), b = at(n.next[0] ?? n.idx);
     const yaw = Math.atan2(b.x - a.x, b.z - a.z);
-    const off = n.trap === 'rock' ? 2.2 : 4.4;
+    const off = { rock: 2.2, balls: 4.4, magpie: 2.6, mineshaft: 3.0, dropbear: 3.4 }[n.trap] ?? 3;
     // local +x points to world (cos yaw, -sin yaw)
     const far = -Math.sin(yaw) <= 0 ? 1 : -1;
     const spot = (sx) => {
@@ -618,7 +619,8 @@ export class BoardView {
       return { yaw, sx, x, z, room };
     };
     const [p, q] = [spot(far), spot(-far)];
-    return n.trap === 'rock' || p.room >= 2 || p.room >= q.room ? p : q;
+    // tall rigs always go on the far side so they never stand between the camera and a doll
+    return ['rock', 'magpie', 'dropbear'].includes(n.trap) || p.room >= 2 || p.room >= q.room ? p : q;
   }
 
   // A rig next to a trap space, built in the space's own frame: z runs along the road, x across it.
@@ -664,7 +666,7 @@ export class BoardView {
       rig.payload = rock; rig.rope = rope; rig.hang = H - 2.9; rig.H = H;
       // a yellow FALLING ROCKS sign on the far post
       facing(k.sign('⚠ FALLING\nROCKS', 1.6, 1.3, 0, 0, 0, g, { bg: '#ffd23f', fg: '#1b1b1b', font: '900 190px system-ui, sans-serif' }), sx * 2.2, 3.6, 0, 0.3);
-    } else {
+    } else if (n.trap === 'balls') {
       // Mall's Balls: a little copy of the sculpture on a plinth beside the road, with a ramp down to the space.
       // Set it and the top ball is loose, ready to roll.
       const px = sx * 4.4, R = 1.5;
@@ -676,9 +678,56 @@ export class BoardView {
       const ball = k.ball(R, chrome, 0, 0, 0, g);
       rig.payload = ball; rig.home = new k.THREE.Vector3(px, 1.6 + R * 3, 0); rig.px = px; rig.R = R;
       facing(k.sign("MALL'S BALLS", 2.0, 0.5, 0, 0, 0, g, { bg: '#6b4a1e', fg: '#ffe6a8' }), px, 0.9, 0, 1.8);
+      rig.flagAt = [px + sx * 1.95, 0, 1.6, 8.6]; rig.labelAt = [px, 10];
+    } else if (n.trap === 'magpie') {
+      // a council SWOOPING MAGPIES sign on a post, and (in season) the magpie perched on top of it
+      const px = sx * 2.6;
+      k.box(0.16, 4.2, 0.16, steel, px, 0, 0, g);
+      facing(k.sign('⚠ SWOOPING\nMAGPIES', 2.0, 1.4, 0, 0, 0, g, { bg: '#ffd23f', fg: '#1b1b1b', font: '900 170px system-ui, sans-serif' }), px, 3.4, 0, 0.12);
+      const bird = this.magpie();
+      g.add(bird);
+      rig.payload = bird; rig.home = new k.THREE.Vector3(px, 4.25, 0); rig.px = px;
+      rig.flagAt = [px - sx * 0.0, 0, 4.2, 6.0]; rig.labelAt = [px, 8.4];
+    } else if (n.trap === 'mineshaft') {
+      // a hand windlass over the old shaft beside the road, a DANGER sign, and a bucket on the rope when it's set
+      const px = sx * 3.0;
+      for (const z of [-1.1, 1.1]) { k.beam([px - 0.7, 0, z], [px, 2.4, z], 0.2, timber, g); k.beam([px + 0.7, 0, z], [px, 2.4, z], 0.2, timber, g); }
+      const drum = k.cyl(0.32, 0.32, 2.4, timber, px, 2.25, -1.2, g, {}, 14); drum.rotation.x = Math.PI / 2; drum.position.set(px, 2.4, 0);
+      k.rod([px, 2.4, 1.2], [px, 2.4, 1.6], 0.06, steel, g); k.rod([px, 2.4, 1.6], [px, 1.8, 1.6], 0.05, steel, g); // crank
+      k.cyl(1.0, 1.1, 0.25, k.surf('slag', { unit: 1 }), px, 0, 0, g, {}, 18); // spoil round the collar
+      k.cyl(0.75, 0.75, 0.27, 0x0b0907, px, 0, 0, g, {}, 18);
+      facing(k.sign('DANGER\nOPEN SHAFT', 1.7, 1.1, 0, 0, 0, g, { bg: '#c8261e', fg: '#ffffff', font: '900 180px system-ui, sans-serif' }), px + sx * 1.6, 1.2, 0, 0.1);
+      k.box(0.12, 1.2, 0.12, steel, px + sx * 1.6, 0, 0, g);
+      const bucket = new k.THREE.Group();
+      k.cyl(0.32, 0.26, 0.5, 0x7a5a3a, 0, -0.5, 0, bucket, {}, 12);
+      k.rod([0, 0, 0], [0, -0.6, 0], 0.03, 0xc8b68a, bucket);
+      g.add(bucket);
+      rig.payload = bucket; rig.home = new k.THREE.Vector3(px, 2.1, 0); rig.px = px;
+      // the hole that opens under whoever lands on it
+      const hole = new k.THREE.Mesh(new k.THREE.CircleGeometry(1.15, 32), new k.THREE.MeshBasicMaterial({ color: 0x050403, polygonOffset: true, polygonOffsetFactor: -4 }));
+      hole.rotation.x = -Math.PI / 2; hole.position.y = 0.45; hole.visible = false; g.add(hole);
+      rig.hole = hole;
+      rig.flagAt = [px - sx * 0.7, 0, 0, 4.2]; rig.labelAt = [px, 6.4];
+    } else if (n.trap === 'dropbear') {
+      // a big gum with a branch out over the road, and (when it's set) a drop bear waiting on the end of it
+      const px = sx * 3.4;
+      const bark = k.surf('sandstone', { unit: 2, tint: 0xd8d0c0 });
+      k.cyl(0.42, 0.62, 8.5, bark, px, 0, 0, g, {}, 12);
+      k.beam([px, 6.6, 0], [-sx * 0.6, 7.6, 0], 0.32, bark, g);
+      k.beam([px, 5.2, 0], [px + sx * 2, 7.4, 0.6], 0.26, bark, g);
+      const leaf = k.mat(0x4f6b3a, { roughness: 0.9 });
+      for (const [x, y, z, r] of [[px, 9.2, 0, 2.0], [px + sx * 1.6, 8.4, 0.8, 1.5], [-sx * 0.4, 8.6, 0.2, 1.4], [px - sx * 1.4, 8.9, -0.6, 1.5]]) {
+        const c = k.ball(r, leaf, x, y, z, g); c.scale.y = 0.6;
+      }
+      const bear = this.dropBear();
+      g.add(bear);
+      rig.payload = bear; rig.home = new k.THREE.Vector3(0, 7.4, 0); rig.px = px;
+      facing(k.sign('DROP BEARS\nNEXT 2 KM', 1.8, 0.9, 0, 0, 0, g, { bg: '#2e6b3a', fg: '#ffffff', font: '900 150px system-ui, sans-serif' }), px, 2.2, 0, 0.65);
+      rig.flagAt = [px + sx * 0.5, 0, 0, 3.6]; rig.labelAt = [px, 11.2];
     }
+    if (n.trap === 'rock') { rig.flagAt = [sx * 2.2, 0, 9.2, 10.8]; rig.labelAt = [0, 11.2]; }
     // the flag on top shows whose trap it is
-    const [fx, fz, fy0, fy1] = n.trap === 'rock' ? [sx * 2.2, 0, 9.2, 10.8] : [rig.px + sx * 1.95, 0, 1.6, 8.6];
+    const [fx, fz, fy0, fy1] = rig.flagAt;
     k.rod([fx, fy0, fz], [fx, fy1, fz], 0.05, steel, g);
     const flag = new k.THREE.Mesh(new k.THREE.PlaneGeometry(1.2, 0.75), new k.THREE.MeshStandardMaterial({ color: 0xffffff, side: k.THREE.DoubleSide, roughness: 0.8 }));
     const fd = -Math.sign(wx[0] * sx || 1) * 0.62; // hang it out towards the road
@@ -704,15 +753,59 @@ export class BoardView {
       }
     } else if (owner) {
       p.position.copy(rig.home).setY(rig.home.y + 4);
+      p.rotation.set(0, rig.kind === 'magpie' || rig.kind === 'dropbear' ? -rig.yaw : 0, 0); // face the camera
       this.tweens.add(0.5, (kk) => { p.position.y = rig.home.y + 4 * (1 - kk); }, easeOut);
     }
     rig.flag.visible = !!owner;
     if (owner) rig.flag.material.color.set(owner.color || '#ffffff');
     if (rig.label) this.stage.drop(rig.label);
-    const name = rig.kind === 'rock' ? 'Falling Rock' : "Mall's Balls";
-    rig.label = this.kit.label(owner ? `⚠ ${owner.name}'s trap` : `${name} trap: walk past to set`, 0, rig.kind === 'rock' ? 11.2 : 10, 0, rig.group);
-    rig.label.position.x = rig.kind === 'rock' ? 0 : rig.px;
+    const name = TRAPS[rig.kind]?.name || 'Trap';
+    rig.label = this.kit.label(owner ? `⚠ ${owner.name}'s trap` : `${name} trap: walk past to set`, rig.labelAt[0], rig.labelAt[1], 0, rig.group);
     rig.label.scale.multiplyScalar(owner ? 0.9 : 0.7);
+  }
+
+  // An Australian magpie: black with a white nape, white wing bars and a pale beak. userData.flap(t) beats the wings.
+  magpie() {
+    const k = this.kit, THREE = k.THREE;
+    const g = new THREE.Group(), body = new THREE.Group();
+    g.add(body); body.scale.setScalar(2.2);
+    const black = k.mat(0x111214, { roughness: 0.5 }), white = k.mat(0xf2f2ee, { roughness: 0.6 }), beak = k.mat(0xcfd2d6, { roughness: 0.4 });
+    const torso = k.ball(0.32, black, 0, 0.35, 0, body); torso.scale.set(0.8, 0.85, 1.35);
+    const nape = k.ball(0.24, white, 0, 0.55, -0.12, body); nape.scale.set(0.95, 0.7, 1.1);
+    k.ball(0.19, black, 0, 0.66, 0.3, body);
+    const b = k.cone(0.06, 0.32, beak, 0, 0, 0, body, {}, 8); b.rotation.x = Math.PI / 2; b.position.set(0, 0.64, 0.58);
+    for (const sx of [-1, 1]) k.ball(0.035, k.mat(0xa04010), sx * 0.13, 0.7, 0.4, body);
+    const tail = k.box(0.22, 0.05, 0.42, black, 0, 0.26, -0.55, body); tail.rotation.x = -0.35;
+    k.box(0.22, 0.051, 0.12, white, 0, 0.27, -0.42, body).rotation.x = -0.35;
+    for (const sx of [-1, 1]) { k.rod([sx * 0.06, 0.12, 0.05], [sx * 0.07, -0.05, 0.08], 0.022, 0x2a2a2a, body); }
+    const wings = [-1, 1].map((sx) => {
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.22, 0.45, 0); body.add(pivot);
+      k.box(0.62, 0.05, 0.42, black, sx * 0.3, 0, 0, pivot);
+      k.box(0.3, 0.052, 0.14, white, sx * 0.16, 0.002, 0.08, pivot);
+      return { pivot, sx };
+    });
+    g.userData.flap = (t) => wings.forEach(({ pivot, sx }) => { pivot.rotation.z = sx * Math.sin(t * Math.PI * 2) * 0.9; });
+    return g;
+  }
+
+  // A drop bear: a koala gone feral. Grey fur, big fluffy ears, black nose, mad red eyes and fangs.
+  dropBear() {
+    const k = this.kit, THREE = k.THREE;
+    const g = new THREE.Group(), b = new THREE.Group();
+    g.add(b); b.scale.setScalar(1.25);
+    const fur = k.mat(0x8c8c88, { roughness: 1 }), pale = k.mat(0xd8d4cc, { roughness: 1 });
+    const body = k.ball(0.55, fur, 0, 0.55, 0, b); body.scale.set(1, 1.05, 0.9);
+    k.ball(0.32, pale, 0, 0.5, 0.36, b).scale.set(1, 1.2, 0.6);
+    k.ball(0.45, fur, 0, 1.25, 0.05, b);
+    for (const sx of [-1, 1]) {
+      const ear = k.ball(0.24, fur, sx * 0.42, 1.55, 0, b); ear.scale.set(1, 1, 0.5);
+      k.ball(0.15, pale, sx * 0.42, 1.55, 0.06, b).scale.set(1, 1, 0.4);
+      k.ball(0.07, k.mat(0xff1a1a, { emissive: 0xff0000, emissiveIntensity: 1.2 }), sx * 0.16, 1.33, 0.4, b); // mad red eyes
+      k.ball(0.14, fur, sx * 0.45, 0.4, 0.3, b); // paws
+      k.cone(0.03, 0.12, 0xffffff, sx * 0.07, 1.0, 0.43, b, {}, 6).rotation.x = Math.PI;
+    }
+    const nose = k.ball(0.14, k.mat(0x1a1a1a, { roughness: 0.3 }), 0, 1.18, 0.45, b); nose.scale.set(0.85, 1.2, 0.7);
+    return g;
   }
 
   // An esky lid that pops up over a doll's head. break() snaps it in two and throws the halves off.
@@ -729,14 +822,16 @@ export class BoardView {
       g.add(h);
       return h;
     });
-    const base = d.group.position.clone().setY(side ? 1.7 : 3.2);
-    const lift = side ? side.clone().setY(0).normalize().multiplyScalar(1.0) : new THREE.Vector3(0, 1.1, 0);
+    const feet = side === 'feet';
+    if (feet) side = null;
+    const base = d.group.position.clone().setY(side ? 1.7 : feet ? 0.2 : 3.2);
+    const lift = side ? side.clone().setY(0).normalize().multiplyScalar(1.0) : new THREE.Vector3(0, feet ? 0.35 : 1.1, 0);
     if (side) g.rotation.set(0, Math.atan2(-lift.z, lift.x), Math.PI / 2); // stood on edge, facing the way it's coming from
     g.position.copy(base);
     g.scale.setScalar(0.01);
     this.scene.add(g);
     const api = {
-      pop: (speed = 1) => this.tweens.add(0.25 * speed, (kk) => { g.scale.setScalar(0.01 + kk * 1.1); g.position.copy(base).addScaledVector(lift, kk); }, easeOut),
+      pop: (speed = 1) => this.tweens.add(0.25 * speed, (kk) => { g.scale.setScalar((0.01 + kk * 1.1) * (feet ? 1.4 : 1)); g.position.copy(base).addScaledVector(lift, kk); }, easeOut),
       break: async (speed = 1) => {
         this.shake = 0.35;
         await this.tweens.add(0.7 * speed, (kk) => halves.forEach((h, i) => {
@@ -768,7 +863,8 @@ export class BoardView {
     const d = this.dolls.get(p.id);
     this.focusSpace(space);
     const pay = rig.payload;
-    const lid = blocked ? this.esky(p, rig.kind === 'rock' ? null : new THREE.Vector3(Math.cos(rig.yaw) * rig.side, 0, -Math.sin(rig.yaw) * rig.side)) : null;
+    const lidAt = rig.kind === 'balls' ? new THREE.Vector3(Math.cos(rig.yaw) * rig.side, 0, -Math.sin(rig.yaw) * rig.side) : rig.kind === 'mineshaft' ? 'feet' : null;
+    const lid = blocked ? this.esky(p, lidAt) : null;
     if (lid) await lid.pop(speed);
     // where the doll is, in the rig's frame (they might be standing off centre)
     const local = rig.group.worldToLocal(d.group.position.clone());
@@ -797,6 +893,78 @@ export class BoardView {
       }
       await this.wait(0.3 * speed);
       await this.tweens.add(0.5 * speed, (kk) => pay.scale.setScalar(Math.max(0.01, 1 - kk)));
+    } else if (rig.kind === 'magpie') {
+      // takes off, then dive-bombs the head a few times (once if there's a lid in the way) and clears off
+      const from = pay.position.clone(), head = new THREE.Vector3(local.x, 3.9, local.z);
+      const passes = blocked ? 1 : 3;
+      sound('magpie');
+      await this.tweens.add(0.45 * speed, (kk) => { pay.position.set(from.x * (1 - kk), from.y + kk * 4, from.z - kk * 3); pay.userData.flap?.(kk * 12); });
+      for (let i = 0; i < passes; i++) {
+        const a = pay.position.clone(), dir = i % 2 ? -1 : 1;
+        const b = head.clone().add(new THREE.Vector3(dir * 5, 3.5, 2));
+        sound('squawk');
+        await this.tweens.add(0.5 * speed, (kk) => {
+          // a swoop: down through the head and back up the far side
+          const t = kk;
+          pay.position.set(a.x + (b.x - a.x) * t, head.y + (1 - Math.sin(t * Math.PI)) * (t < 0.5 ? a.y - head.y : b.y - head.y) + 0.2, a.z + (b.z - a.z) * t);
+          pay.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+          pay.userData.flap?.(kk * 10 + i);
+          if (Math.abs(t - 0.5) < 0.04 && !pay.userData.hitThis) { pay.userData.hitThis = true; if (blocked) { sound('clank'); } else { d.flinch(); this.shake = 0.25; sound('slap'); } }
+        });
+        pay.userData.hitThis = false;
+      }
+      if (blocked) await lid.break(speed); else d.flinch();
+      const c = pay.position.clone();
+      await this.tweens.add(0.6 * speed, (kk) => { pay.position.set(c.x, c.y + kk * 8, c.z - kk * 10); pay.scale.setScalar(Math.max(0.01, 1 - kk)); pay.userData.flap?.(kk * 12); });
+    } else if (rig.kind === 'mineshaft') {
+      // the ground gives way: a black hole opens under the space and down they go, then get winched back up
+      const hole = rig.hole;
+      hole.position.set(local.x, 0.45, local.z);
+      hole.visible = true;
+      sound('creak');
+      await this.tweens.add(0.3 * speed, (kk) => hole.scale.setScalar(0.05 + kk * 0.95), easeOut);
+      const y0 = d.group.position.y;
+      if (blocked) {
+        sound('clank');
+        await this.tweens.add(0.2 * speed, (kk) => { d.group.position.y = y0 - kk * 0.3; });
+        await this.wait(0.4 * speed);
+        await lid.break(speed);
+        d.group.position.y = y0;
+      } else {
+        p._hopping = true; // keep layout() from snapping the doll back while it's down the hole
+        sound('whoosh');
+        await this.tweens.add(0.45 * speed, (kk) => { d.group.position.y = y0 - kk * kk * 6; });
+        sound('thud');
+        this.shake = 0.4;
+        await this.wait(0.7 * speed);
+        // up on the rope, sooty and sore
+        pay.visible = true; pay.position.copy(rig.home);
+        sound('creak');
+        await this.tweens.add(0.9 * speed, (kk) => { d.group.position.y = y0 - 6 + kk * 6; pay.position.y = rig.home.y - Math.sin(kk * Math.PI) * 0.4; }, easeInOut);
+        d.group.position.y = y0;
+        p._hopping = false;
+        d.flinch();
+      }
+      await this.tweens.add(0.3 * speed, (kk) => hole.scale.setScalar(Math.max(0.01, 1 - kk)));
+      hole.visible = false;
+    } else if (rig.kind === 'dropbear') {
+      // drops out of the gum onto their head and has a go at them, then scarpers
+      const y0 = pay.position.y, from = pay.position.clone();
+      const stop = blocked ? 4.9 : 3.7;
+      sound('yell');
+      await this.tweens.add(0.4 * speed, (kk) => { pay.position.set(from.x + (local.x - from.x) * kk, y0 + (stop - y0) * kk * kk, from.z + (local.z - from.z) * kk); });
+      sound(blocked ? 'clank' : 'thud');
+      if (blocked) {
+        const bx = local.x + rig.side * 3;
+        await Promise.all([lid.break(speed), this.tweens.add(0.6 * speed, (kk) => { pay.position.set(local.x + (bx - local.x) * kk, stop + Math.sin(kk * Math.PI) * 1.4 - (stop - 0.6) * kk, local.z); pay.rotation.z = rig.side * kk * 4; })]);
+      } else {
+        // clings on and thrashes about
+        this.shake = 0.4;
+        for (let i = 0; i < 4; i++) { d.flinch(); sound(i % 2 ? 'slap' : 'squawk'); await this.tweens.add(0.18 * speed, (kk) => { pay.rotation.z = Math.sin(kk * Math.PI * 2) * 0.5; pay.position.y = stop + Math.sin(kk * Math.PI) * 0.3; }); }
+        const bx = local.x + rig.side * 4;
+        await this.tweens.add(0.6 * speed, (kk) => { pay.position.set(local.x + (bx - local.x) * kk, stop + Math.sin(kk * Math.PI) * 1.2 - (stop - 0.6) * kk, local.z); });
+      }
+      await this.tweens.add(0.4 * speed, (kk) => pay.scale.setScalar(Math.max(0.01, 1 - kk)));
     } else {
       // roll off the plinth, down the ramp, across the space and away down the other side
       const from = pay.position.clone();

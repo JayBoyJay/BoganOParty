@@ -10,6 +10,18 @@ export const TRAPS = {
     name: 'Falling Rock', emoji: '🪨', price: 6, take: 10,
     hit: (who) => `A rock fell on ${who}!`,
   },
+  magpie: {
+    name: 'Magpie Season', emoji: '🐦', price: 5, take: 8,
+    hit: (who) => `${who} got swooped by a magpie!`,
+  },
+  mineshaft: {
+    name: 'Mine Shaft', emoji: '🕳️', price: 8, take: 12,
+    hit: (who) => `${who} fell down an old mine shaft!`,
+  },
+  dropbear: {
+    name: 'Drop Bear', emoji: '🐨', price: 6, take: 10,
+    hit: (who) => `A drop bear got ${who}!`,
+  },
   balls: {
     name: "Mall's Balls", emoji: '🔮', price: 6, take: 10,
     hit: (who) => `The Mall's Balls flattened ${who}!`,
