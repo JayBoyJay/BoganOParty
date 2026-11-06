@@ -3,6 +3,8 @@
 import { PhoneNet } from '../net.js';
 import { keepAwake } from './wakelock.js';
 import { wantOrientation } from './orient.js';
+import { mountMap, routeInfo, legendIcon, boardAspect } from './map.js';
+import { SPACE } from '../board.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -22,6 +24,7 @@ if (!/^[a-z0-9]{6,20}$/.test(pid || '')) { pid = Math.random().toString(36).slic
 
 let lobby = null; // last lobby view
 let stats = null;
+let board = null; // the board layout for the map (sent by the TV once a game)
 let screen = null; // last prompt/pad/idle
 let body = store.get('body') || 'smooth';
 let hat = store.get('hat') || 'none';
@@ -57,15 +60,16 @@ function onMsg(m) {
     case 'hostup': $('status').classList.add('hidden'); break;
     case 'kicked': show('vConnect'); $('vConnect').querySelector('p').textContent = 'You were removed from the lobby. Refresh to join again.'; break;
     case 'moved': show('vConnect'); $('vConnect').querySelector('p').textContent = 'This player is now open on another tab or phone.'; break;
-    case 'lobby': lobby = m; screen = null; stats = null; renderLobby(); break;
+    case 'lobby': lobby = m; screen = null; stats = null; closeMap(); renderLobby(); break;
     case 'stats': {
-      const had = hasKeys(); stats = m; renderBar();
+      const had = hasKeys(); stats = m; renderBar(); mapsChanged();
       if (had !== hasKeys() && screen?.t === 'idle') renderScreen(); // Mr Music Maa'm started or wore off
       break;
     }
+    case 'board': board = m; renderBar(); mapsChanged(); break;
     case 'prompt': case 'pad': case 'idle':
       screen = m;
-      if (m.t !== 'idle') buzz(25);
+      if (m.t !== 'idle') { buzz(25); closeMap(); } // something to do: get the map out of the way
       // let a thrown die finish flying off the top before the next screen replaces it
       clearTimeout(heldT);
       if (Date.now() < holdUntil) heldT = setTimeout(renderScreen, holdUntil - Date.now());
@@ -76,6 +80,7 @@ function onMsg(m) {
       if ('pin' in m) pinBar(m);
       if ('btn' in m) relabel(m);
       if ('rod' in m) rodSay?.(m);
+      if ('map' in m) { screen.map = { ...screen.map, ...m.map }; miniMap?.redraw(); } // e.g. the grenade's aim marker
       if ('lit' in m) { const b = document.querySelector(`[data-b="${CSS.escape(m.lit)}"]`); b?.classList.toggle('lit', !!m.on); b?.classList.toggle('off', !m.on); } // e.g. Burger Boys' PISS button once the bar is full
       break;
   }
@@ -196,8 +201,99 @@ $('useBtn').onclick = () => {
 function renderBar() {
   if (!stats) { $('bar').classList.add('hidden'); return; }
   $('bar').classList.remove('hidden');
-  $('bar').innerHTML = `<span class="nm">${esc(lobby?.you?.name || '')}</span><span>${stats.item.emoji} ${stats.items}/${stats.target}</span><span>🪙 ${stats.coins}</span>
+  const canMap = !!(board && stats.where);
+  $('bar').innerHTML = `<span class="nm">${esc(lobby?.you?.name || '')}</span><span>${stats.item.emoji} ${stats.items}/${stats.target}</span><span>🪙 ${stats.coins}</span>${canMap ? '<button class="mapbtn" id="mapOpen">🗺️ Map</button>' : ''}
     <div class="pus">${stats.powerups.length ? stats.powerups.map((p) => `${p.emoji} ${esc(p.name)}`).join(' · ') : 'No power-ups'}${stats.effects.map((e) => ` · ${e.emoji || '🍬'} ${esc(e.name)} (${e.rounds})`).join('')}</div>`;
+  if (canMap) $('mapOpen').onclick = () => { buzz(15); openMap(); };
+}
+
+// ---------------- the board map ----------------
+// The 🗺️ Map button opens a bird's-eye view of the board: the way to the item, how many spaces it
+// is, where everyone is, and what the spaces mean. Power-ups that pick a player or a space show the
+// same map in their prompt (screen.map), with everyone on it.
+let bigMap = null, miniMap = null;
+const meId = () => stats?.you;
+function mapOpts(extra = {}) {
+  return { board, where: stats?.where, me: meId(), ...extra };
+}
+function openMap() {
+  if (!board || !stats?.where) return;
+  $('mapov').classList.remove('hidden');
+  $('mapTitle').textContent = `🗺️ ${board.name}`;
+  document.documentElement.style.setProperty('--map-ar', boardAspect(board).toFixed(3)); // portrait: the map box hugs the board
+  if (!bigMap) bigMap = mountMap($('mapBox'), () => mapOpts({ route: routeInfo(board, stats?.where, meId())?.path, labels: true }));
+  renderMapSide();
+  bigMap.redraw();
+}
+function closeMap() {
+  $('mapov').classList.add('hidden');
+  bigMap?.destroy(); bigMap = null;
+}
+$('mapClose').onclick = closeMap;
+function mapsChanged() {
+  if (bigMap) { renderMapSide(); bigMap.redraw(); }
+  miniMap?.redraw();
+}
+const spaces = (n) => `${n} space${n === 1 ? '' : 's'}`;
+function renderMapSide() {
+  const where = stats?.where, it = board.item, me = meId();
+  const info = routeInfo(board, where, me);
+  let html;
+  if (where?.item == null) html = `<div class="rt"><b>The ${esc(it.name)} hasn't turned up yet.</b></div>`;
+  else if (!info) html = `<div class="rt"><b>Can't find a way to the ${esc(it.name)}.</b></div>`;
+  else if (info.steps === 0) html = `<div class="rt"><b>You're standing on the ${esc(it.emoji)} ${esc(it.name)}!</b></div>`;
+  else {
+    const next = info.forks[0];
+    const turn = !next ? `Straight ahead, no turns to make.`
+      : `${next.in === 0 ? 'At the fork right here' : `In ${spaces(next.in)}, at the fork`}, take <b>${next.side ? '↪' : '⬆'} ${esc(next.name)}</b>${next.sub ? ` <span class="dim">(${esc(next.sub)})</span>` : ''}.`;
+    const later = info.forks.slice(1, 3).map((f) => `then ${f.side ? '↪' : '⬆'} ${esc(f.name)}`).join(', ');
+    html = `<div class="rt"><div class="steps">${info.steps}</div><div><b>spaces to the ${esc(it.emoji)} ${esc(it.name)}</b><div class="dim">About ${info.rolls} roll${info.rolls === 1 ? '' : 's'} of the die</div></div></div>
+      <div class="turnline">🧭 ${turn}${later ? ` <span class="dim">Then ${later.slice(5)}.</span>` : ''}</div>`;
+  }
+  if (it.price && stats) html += `<div class="dim cost">It costs ${it.price} 🪙. ${stats.coins >= it.price ? `You've got ${stats.coins}, enough to buy it.` : `You've got ${stats.coins}, so you need ${it.price - stats.coins} more.`}</div>`;
+  // how far everyone else is from the item
+  if (where?.item != null) {
+    const rows = where.players.map((p) => ({ p, d: routeInfo(board, where, p.id)?.steps })).sort((a, b) => (a.d ?? 999) - (b.d ?? 999));
+    html += `<div class="label">Everyone's walk to the ${esc(it.emoji)}</div><div class="who">${rows.map(({ p, d }) => `<div class="${p.id === me ? 'me' : ''}"><i style="background:${esc(p.color)}"></i><span>${esc(p.name)}${p.id === me ? ' (you)' : ''}</span><b>${d ?? '?'}</b></div>`).join('')}</div>`;
+  }
+  html += '<div class="label">What the map shows</div><div class="legend" id="mapLegend"></div>';
+  $('mapSide').innerHTML = html;
+  const youColor = where?.players?.find((p) => p.id === me)?.color || getComputedStyle(document.documentElement).getPropertyValue('--pc').trim();
+  const legend = [
+    ['start', 'Start'],
+    ['blue', `Blue: ${SPACE.blue.label}`],
+    ['red', `Red: ${SPACE.red.label}`],
+    ['event', 'Event: something random happens'],
+    ['shop', 'Shop: buy power-ups, even just passing'],
+    [it.emoji, `The ${it.name}: walk past it to buy it`],
+    ['🪙', 'Dropped coins: walk over to grab them (not the leader)'],
+    ['you', 'You'],
+    ['them', 'Another player (🎲 = their turn)'],
+    ['route', 'Your quickest way to the item'],
+  ];
+  const lg = $('mapLegend');
+  for (const [k, text] of legend) {
+    const row = document.createElement('div');
+    row.appendChild(legendIcon(k, k === 'you' ? youColor : '#9ad0ff'));
+    const t = document.createElement('span'); t.textContent = text; row.appendChild(t);
+    lg.appendChild(row);
+  }
+}
+// a small map inside a prompt or pad. Taps: on a player picks them (if they're an option),
+// on a space moves an aim marker there (pads with map.tap)
+function addMiniMap(s, box) {
+  if (!board || !stats?.where || !box) return;
+  document.documentElement.style.setProperty('--map-ar', boardAspect(board).toFixed(3));
+  miniMap = mountMap(box, () => mapOpts({ hl: s.map?.hl, cur: s.map?.cur, reach: s.map?.reach, tint: s.map?.tint, labels: true }), (hits, x, y) => {
+    if (s.t === 'prompt') {
+      const p = hits.playerAt(x, y);
+      const b = p && $('screen').querySelector(`[data-o="${CSS.escape(p.id)}"]`);
+      if (b && !b.disabled) b.click();
+    } else if (s.map?.tap) {
+      const sp = hits.spaceAt(x, y);
+      if (sp != null) { send({ t: 'in', id: s.id, b: 'go', s: sp }); buzz(12); }
+    }
+  });
 }
 
 let timerT = null, tiltStop = null, rollStop = null;
@@ -208,6 +304,7 @@ function renderScreen() {
   clearInterval(timerT);
   if (tiltStop) { tiltStop(); tiltStop = null; }
   if (rollStop) { rollStop(); rollStop = null; }
+  miniMap?.destroy(); miniMap = null;
   const s = screen, el = $('screen');
   wantOrientation(padOrientation(s));
   // live pads take the whole screen (no scrolling), so they fit a phone held sideways
@@ -225,13 +322,17 @@ function renderScreen() {
   if (s.t === 'prompt') {
     const roll = s.kind === 'roll';
     const cls = roll || s.options.length === 1 ? 'one' : s.layout === 'list' ? 'list' : '';
+    const withMap = s.map && board && stats?.where;
+    const opts = `<div class="opts ${cls}">${s.options.map((o) => `<button data-o="${esc(o.id)}" class="${o.tone === 'go' ? 'go' : ''} ${roll ? 'roll' : ''}" ${o.disabled ? 'disabled' : ''}>${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div>`;
     el.innerHTML = `<h1>${esc(s.title)}</h1>${s.body ? `<div class="dim">${esc(s.body)}</div>` : ''}${s.timer ? '<div class="timer"><i id="tbar"></i></div>' : '<div style="height:12px"></div>'}
-      <div class="opts ${cls}">${s.options.map((o) => `<button data-o="${esc(o.id)}" class="${o.tone === 'go' ? 'go' : ''} ${roll ? 'roll' : ''}" ${o.disabled ? 'disabled' : ''}>${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div>`;
+      ${withMap ? `<div class="mapq"><div class="pmap" id="pmap"></div>${opts}</div>` : opts}`;
     for (const b of el.querySelectorAll('[data-o]')) b.onclick = () => {
       send({ t: 'answer', id: s.id, v: b.dataset.o });
       buzz(roll ? [40, 30, 80] : 20);
+      miniMap?.destroy(); miniMap = null;
       el.innerHTML = `<div class="idle"><div class="big">${roll ? '🎲' : '👍'}</div><h2>${roll ? 'Rolling…' : 'Sent!'}</h2></div>`;
     };
+    if (withMap) addMiniMap(s, $('pmap'));
     if (s.timer) startTimer(s.timer);
     return;
   }
@@ -354,7 +455,12 @@ function renderButtons(s, el) {
     ${s.lanes
     // a note highway like the one on the TV: each lane is a button, with its coloured pad down at the bottom
     ? `<div class="lanes">${s.buttons.map((b) => `<button data-b="${esc(b.id)}" class="lane" style="--lc:${b.color || 'var(--pc)'}"><i>${esc(b.label)}</i></button>`).join('')}</div>`
-    : `<div class="prows">${rows.map((r) => `<div class="prow" style="flex:${r.some((b) => b.tall) ? 2 : r.every((b) => b.small) ? 0.7 : 1}">${r.map(btn).join('')}</div>`).join('')}</div>`}</div>`;
+    : (() => {
+      const prows = `<div class="prows">${rows.map((r) => `<div class="prow" style="flex:${r.some((b) => b.tall) ? 2 : r.every((b) => b.small) ? 0.7 : 1}">${r.map(btn).join('')}</div>`).join('')}</div>`;
+      // power-ups that aim at the board show it, with everyone on it; tap a space to jump the marker there
+      return s.map && board && stats?.where ? `<div class="padbody"><div class="pmap" id="pmap">${s.map.tap ? '<span class="maphint">Tap a space to aim there</span>' : ''}</div>${prows}</div>` : prows;
+    })()}</div>`;
+  if (s.map) addMiniMap(s, $('pmap'));
   const defs = new Map((s.buttons || []).map((b) => [String(b.id), b]));
   for (const b of el.querySelectorAll('[data-b]')) {
     const def = defs.get(b.dataset.b);
