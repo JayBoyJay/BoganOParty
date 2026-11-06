@@ -16,13 +16,24 @@
 </head>
 <body>
 <h1>Sound lab</h1>
-<p>Every sound effect in the game, synthesised live. Tap to play.</p>
+<p>Every song and sound effect in the game, synthesised live. Tap to play; tap a song again to stop it.</p>
 <div id="groups"></div>
 <script type="module">
 // Plays every sound in js/host/sfx.js. Open /sfx-lab.html while the server runs (or on GitHub Pages).
 import { Sfx, SOUNDS } from './js/host/sfx.js';
-const sfx = new Sfx();
+import { Music } from './js/host/music.js';
+import { SONGS } from './js/content/music.js';
+const sfx = new Sfx(), music = new Music(sfx);
 const root = document.getElementById('groups');
+{
+  const h = document.createElement('h2'); h.textContent = 'music'; root.append(h);
+  const row = document.createElement('div'); row.className = 'row'; root.append(row);
+  for (const s of SONGS) {
+    const b = document.createElement('button'); b.textContent = `${s.title} (${s.scenes.join(', ')})`;
+    b.onclick = () => { const on = b.dataset.on; row.querySelectorAll('button').forEach((x) => delete x.dataset.on); if (on) return music.stop(); music.preview(s.id); b.dataset.on = 1; };
+    row.append(b);
+  }
+}
 for (const [group, names] of Object.entries(SOUNDS)) {
   const h = document.createElement('h2'); h.textContent = group; root.append(h);
   const row = document.createElement('div'); row.className = 'row'; root.append(row);
