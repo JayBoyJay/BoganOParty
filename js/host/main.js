@@ -157,6 +157,17 @@ function onNet(m) {
       if (state.phase === 'board') g.setMood(p, msg.mood, 3000);
       break;
     }
+    case 'note': {
+      // Mr Music Maa'm: notes from a phone keyboard, on the board only, while the effect lasts
+      const g = state.game;
+      if (!p || !g?.board || state.phase !== 'board' || !g.players.includes(p) || !p.effects?.some((e) => e.id === 'music')) return;
+      const now = performance.now();
+      if (now - (p._noteAt || 0) < 70) return; // no machine-gunning
+      p._noteAt = now;
+      music.playerNote(msg.n, g.players.indexOf(p));
+      if (now - (p._noteFx || 0) > 350) { p._noteFx = now; g.view.floatText(p, '🎵', p.color); }
+      break;
+    }
     case 'again': if (state.phase === 'over') backToLobby(); break;
   }
 }
@@ -380,6 +391,20 @@ const origHandle = hub.handle.bind(hub);
 hub.handle = (pid, m) => { if (m.t === 'answer' && m.id === -1) { if (state.phase === 'over') backToLobby(); return true; } return origHandle(pid, m); };
 
 $('contentList').innerHTML = `${MAPS.length} maps · ${POWERUPS.length} power-ups · ${MINIGAMES.length} minigame${MINIGAMES.length === 1 ? '' : 's'}`;
+// CPU players who buy Mr Music Maa'm noodle a little run now and then
+setInterval(() => {
+  const g = state.game;
+  if (state.phase !== 'board' || !g?.board) return;
+  for (const p of g.players) {
+    if (!p.bot || !p.effects?.some((e) => e.id === 'music') || Math.random() > 0.35) continue;
+    let n = Math.floor(Math.random() * 8);
+    for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
+      setTimeout(() => { music.playerNote(n, g.players.indexOf(p)); if (i === 0) g.view.floatText(p, '🎵', p.color); }, i * 220);
+      n = Math.max(0, Math.min(7, n + (Math.random() < 0.5 ? -1 : 1) * (Math.random() < 0.7 ? 1 : 2)));
+    }
+  }
+}, 1800);
+
 setupLobbyControls();
 music.play('lobby');
 showLobbyBoard();

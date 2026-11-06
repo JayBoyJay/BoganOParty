@@ -53,6 +53,10 @@
   .opts button.full { grid-column: 1 / -1; }
   .timer { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 8px 0 12px; }
   .timer i { display: block; height: 100%; background: var(--gold); transform-origin: left; }
+  .keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .keys button { background: var(--kc); color: #1a1208; font-weight: 800; font-size: 18px; padding: 22px 4px; border-radius: 12px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .keys button.hit { animation: keyhit 0.18s ease-out; }
+  @keyframes keyhit { from { transform: scale(0.9); filter: brightness(1.4); } to { transform: none; filter: none; } }
   .emotes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 18px; }
   .emotes button { font-size: 30px; padding: 10px; }
   .idle { text-align: center; padding: 30px 10px; }

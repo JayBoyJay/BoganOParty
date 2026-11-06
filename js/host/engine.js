@@ -76,6 +76,7 @@ export class Game {
       for (const e of [...p.effects]) {
         const def = EFFECTS[e.id];
         if (def?.onRoundEnd) await def.onRoundEnd(this, p, e);
+        if (e.fresh) { e.fresh = false; continue; } // bought mid-round: this round doesn't count
         e.rounds--;
         if (e.rounds <= 0) { p.effects = p.effects.filter((x) => x !== e); this.toast(`${p.name}'s ${def?.name || e.id} wore off`); }
       }
@@ -305,18 +306,20 @@ export class Game {
       title: '🛒 Power-up shop', body: full ? `Your bag is full (${RULES.maxPowerups} max).` : `You have ${p.coins} coins.`,
       layout: 'list',
       options: [
-        ...forSale.map((pu) => ({ id: pu.id, label: `${pu.emoji} ${pu.name} — ${pu.price} 🪙`, sub: pu.short, disabled: full || p.coins < pu.price })),
+        ...forSale.map((pu) => ({ id: pu.id, label: `${pu.emoji} ${pu.name} — ${pu.price} 🪙`, sub: pu.short, disabled: (full && !pu.instant) || p.coins < pu.price })),
         { id: 'leave', label: 'Leave the shop' },
       ],
       bot: () => {
-        const afford = forSale.filter((pu) => !full && p.coins >= pu.price && p.coins - pu.price >= 5);
+        const afford = forSale.filter((pu) => (!full || pu.instant) && p.coins >= pu.price && p.coins - pu.price >= 5);
         return afford.length && this.rng() < 0.8 ? afford[Math.floor(this.rng() * afford.length)].id : 'leave';
       },
       fallback: 'leave',
     });
     const pu = POWERUP_BY_ID[ans];
-    if (!pu || full || p.coins < pu.price) return;
+    if (!pu || (full && !pu.instant) || p.coins < pu.price) return;
     p.coins -= pu.price;
+    // instant ones (Mr Music Maa'm) start on the spot instead of going in the bag
+    if (pu.onBuy) { this.refresh(); this.sfx.play('coin'); await pu.onBuy(this, p); this.refresh(); return; }
     p.powerups.push(pu.id);
     this.refresh();
     this.sfx.play('coin');
@@ -512,7 +515,7 @@ export class Game {
       coins: p.coins, items: p.items, target: this.target,
       item: { name: this.item.name, emoji: this.item.emoji },
       powerups: p.powerups.map((id) => ({ id, name: POWERUP_BY_ID[id]?.name, emoji: POWERUP_BY_ID[id]?.emoji })),
-      effects: p.effects.map((e) => ({ name: EFFECTS[e.id]?.name || e.id, rounds: e.rounds })),
+      effects: p.effects.map((e) => ({ id: e.id, name: EFFECTS[e.id]?.name || e.id, emoji: EFFECTS[e.id]?.emoji || '✨', rounds: e.rounds })),
       space: SPACE[this.board.nodes[p.space].type]?.label,
     });
   }

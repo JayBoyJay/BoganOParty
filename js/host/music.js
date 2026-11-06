@@ -123,7 +123,7 @@ export class Music {
     dry.connect(this.master); wet.connect(this.sfx.verbIn);
     const chords = song.chords.map(parseChord), seed = Math.floor(Math.random() * 1e9);
     this.cur = {
-      song, chords, bus: { dry, wet }, step: 0, next: t, dur: 60 / song.bpm / 4,
+      song, chords, bus: { dry, wet }, step: 0, next: t, t0: t, dur: 60 / song.bpm / 4,
       tunes: [makeTune(song, chords, seed), makeTune(song, chords, seed + 7)],
       bars: Math.max(16, Math.round(SONG_MINUTES * song.bpm / 4 / 16) * 16),
     };
@@ -148,6 +148,32 @@ export class Music {
       this.sfx.withBus(S.bus, () => this.playStep(S, S.step, S.next));
       S.next += S.dur; S.step++;
     }
+  }
+
+  // ---- Mr Music Maa'm: a player's phone keyboard ------------------------------------------
+  // Note n (0-7, low to high) in the current song's key, landed on the next 16th so it sits in time.
+  // voice (0..) picks one of a few bell/keys sounds so two players on the keys sound different.
+  playerNote(n, voice = 0) {
+    if (!this.unlocked || !this.master) return;
+    const c = this.ctx, S = this.cur, song = S?.song;
+    const key = pcOf(song?.key || 'C'), scale = SCALES[song?.scale || 'majorPent'];
+    const notes = []; for (let m = 60 + key; notes.length < 8; m++) if (scale.includes((m - 60 - key + 120) % 12)) notes.push(m);
+    const f = hz(notes[Math.max(0, Math.min(7, n | 0))]);
+    let t = c.currentTime + 0.02;
+    if (S) t = S.t0 + Math.ceil((t - S.t0) / S.dur) * S.dur;
+    if (!this.keysBus) {
+      const dry = c.createGain(), wet = c.createGain(); dry.gain.value = 1; wet.gain.value = 0.8;
+      dry.connect(this.master); wet.connect(this.sfx.verbIn); this.keysBus = { dry, wet };
+    }
+    const sfx = this.sfx;
+    sfx.withBus(this.keysBus, () => {
+      switch (voice % 4) {
+        case 0: sfx.fm({ when: t, f, ratio: 2, index: 1.2, d: 0.6, vol: 0.12, verb: 0.3 }); break; // electric piano
+        case 1: sfx.osc({ when: t, type: 'square', f, hold: 0.12, d: 0.15, vol: 0.05, filt: 'lowpass', ff: 3200, vib: [6, f * 0.006], verb: 0.2 }); break; // chip lead
+        case 2: sfx.fm({ when: t, f: f * 2, ratio: 3.5, index: 1.6, d: 0.5, vol: 0.08, verb: 0.35 }); break; // glockenspiel
+        default: sfx.osc({ when: t, type: 'sawtooth', f, a: 0.01, hold: 0.15, d: 0.2, vol: 0.05, filt: 'lowpass', ff: 2400, ff2: 900, verb: 0.25 }); // synth brass
+      }
+    });
   }
 
   // ---- one 16th note of the song ----------------------------------------------------------
