@@ -29,6 +29,7 @@ const LIST = [
   ['zombies-vs-plants', 'Zombies vs Plants'],
   ['football-boy', 'Football Boy'],
   ['hand-tennis', 'Hand Tennis'],
+  ['the-strait', 'Riayatollah: The Strait'],
 ];
 
 export const MINIGAMES = LIST.map(([id, name]) => ({ id, name }));
