@@ -370,10 +370,17 @@ async function askMotion() {
 
 // a thumbstick on the left and held buttons on the right (fighting games). Sends the stick as x/y in
 // -1..1 (y up) and the buttons as a bitmask of the ones held down: { b: 'stick', x, y, h }
+// A pad with `tilt: true` also steers by tilting the phone (on by default, a button swaps back to the
+// stick). Tilt sends the same { b: 'stick', x, y } as the thumb, so the game can't tell the difference.
 function renderStick(s, el) {
   const nb = s.buttons?.length || 0;
+  const canTilt = !!s.tilt;
+  let tiltOn = canTilt && store.get('tiltmode') !== '0';
   el.innerHTML = `<div class="stickpad ${nb ? '' : 'nobtns'}"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
-    <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
+    <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div>
+      ${canTilt ? `<div class="tiltview" id="tiltview"><div class="tiltwheel" id="tiltwheel"><i></i></div><div class="tiltnote" id="tiltnote">Tilt your phone like a steering wheel</div>
+        <div class="tiltsmall"><button id="tiltperm" class="go hidden">Turn on tilt</button><button id="tiltctr">⌖ Centre</button></div></div>
+        <button class="tiltswap" id="tiltswap"></button>` : ''}</div>
     <div class="stickbtns n${Math.min(nb, 4)}">${(s.buttons || []).map((b) => `<button data-bit="${b.bit}" class="${b.tone === 'go' ? 'go' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
   let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
   const push = (force) => {
@@ -386,13 +393,14 @@ function renderStick(s, el) {
   let sid = null, ox = 0, oy = 0;
   const R = 60;
   zone.onpointerdown = (e) => {
+    if (tiltOn || e.target.closest('button')) return;
     e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
     const r = zone.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top;
     for (const n of [base, knob]) { n.style.left = ox + 'px'; n.style.top = oy + 'px'; n.style.display = 'block'; }
     zone.querySelector('.ghost').style.display = 'none';
   };
   zone.onpointermove = (e) => {
-    if (e.pointerId !== sid) return;
+    if (e.pointerId !== sid || tiltOn) return;
     const r = zone.getBoundingClientRect();
     let dx = e.clientX - r.left - ox, dy = e.clientY - r.top - oy;
     const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
@@ -402,6 +410,8 @@ function renderStick(s, el) {
   };
   const end = (e) => { if (e.pointerId !== sid) return; sid = null; sx = sy = 0; knob.style.left = ox + 'px'; knob.style.top = oy + 'px'; push(true); };
   zone.onpointerup = end; zone.onpointercancel = end;
+  let tiltDone = () => {};
+  if (canTilt) tiltDone = stickTilt(zone, () => tiltOn, (on) => { tiltOn = on; sx = sy = 0; push(true); }, (x, y) => { sx = x; sy = y; push(false); });
   for (const b of el.querySelectorAll('[data-bit]')) {
     const bit = Number(b.dataset.bit);
     b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); b.classList.add('dn'); held |= bit; push(true); buzz(12); };
@@ -409,7 +419,61 @@ function renderStick(s, el) {
     b.onpointerup = up; b.onpointercancel = up;
   }
   const keep = setInterval(() => push(true), 200);
-  tiltStop = () => clearInterval(keep);
+  tiltStop = () => { clearInterval(keep); tiltDone(); };
+}
+
+// Tilt steering for the stick pad. Uses deviceorientation's beta/gamma only (no compass, so no drift)
+// and works out from them how far the screen's own left-right edge is rolled off level (steer, x) and
+// how far its top edge leans forward from where it was at the start or on Centre (y, forward = up).
+// That holds whichever way the phone is turned and however upright or flat it's held.
+const TILT_FULL = 32, PITCH_FULL = 25, TILT_DEAD = 2.5; // degrees for a full push, and the slack in the middle
+function stickTilt(zone, isOn, setOn, out) {
+  const view = $('tiltview'), wheel = $('tiltwheel'), note = $('tiltnote'), swap = $('tiltswap'), perm = $('tiltperm');
+  const D = Math.PI / 180;
+  let got = false, ref = null, rx = 0, ry = 0, lastT = 0, waitT = 0;
+  const shape = (a, full) => { const m = Math.max(0, Math.abs(a) - TILT_DEAD) / (full - TILT_DEAD); return Math.sign(a) * Math.min(1, m); };
+  const paint = () => {
+    const on = isOn();
+    zone.classList.toggle('tilting', on);
+    swap.textContent = on ? '🕹 Use the stick' : '📱 Use tilt';
+  };
+  const onOrient = (e) => {
+    if (e.beta == null || e.gamma == null) return;
+    if (!got) { got = true; motionOk = true; perm.classList.add('hidden'); note.textContent = 'Tilt your phone like a steering wheel'; }
+    if (!isOn()) return;
+    const cB = Math.cos(e.beta * D), sB = Math.sin(e.beta * D), cG = Math.cos(e.gamma * D), sG = Math.sin(e.gamma * D);
+    const th = screenAngle() * D, st = Math.sin(th), ct = Math.cos(th);
+    // height (world up) of the page's right and top edges and of the screen's face, from the spec's Z-X'-Y'' rotation
+    const rightZ = -cB * sG * ct - sB * st, upZ = -cB * sG * st + sB * ct, faceZ = cB * cG;
+    const roll = Math.asin(Math.max(-1, Math.min(1, rightZ))) / D; // right edge up = steering left
+    const pitch = Math.atan2(upZ, faceZ) / D; // 90 = held upright, 0 = flat on its back
+    if (ref == null) ref = pitch;
+    const now = performance.now(), dt = lastT ? Math.min(0.1, (now - lastT) / 1000) : 0.016; lastT = now;
+    const k = 1 - Math.exp(-dt * 18); // takes out hand shake without feeling laggy
+    rx += (-roll - rx) * k; ry += (ref - pitch - ry) * k;
+    const x = shape(rx, TILT_FULL), y = shape(ry, PITCH_FULL);
+    wheel.style.transform = `rotate(${(x * TILT_FULL).toFixed(1)}deg) translateY(${(-y * 18).toFixed(1)}px)`;
+    out(+x.toFixed(2), +y.toFixed(2));
+  };
+  addEventListener('deviceorientation', onOrient);
+  // iPhones only send tilt after a button press asks for it
+  const DO = window.DeviceOrientationEvent;
+  const needsAsk = typeof DO?.requestPermission === 'function' || typeof window.DeviceMotionEvent?.requestPermission === 'function';
+  if (!motionOk && needsAsk) {
+    perm.classList.remove('hidden');
+    perm.onclick = async () => {
+      try { if (typeof DO?.requestPermission === 'function') await DO.requestPermission(); } catch { /* denied */ }
+      await askMotion();
+      if (motionOk) perm.classList.add('hidden');
+    };
+  }
+  // no readings at all (a laptop, or tilt switched off in the browser): say so, the stick is a press away
+  const check = () => { if (!got && isOn() && !needsAsk) note.textContent = 'No tilt on this phone. Use the stick instead.'; };
+  waitT = setTimeout(check, 1500);
+  $('tiltctr').onclick = () => { ref = null; rx = ry = 0; buzz(15); };
+  swap.onclick = () => { const on = !isOn(); store.set('tiltmode', on ? '1' : '0'); ref = null; rx = ry = 0; setOn(on); paint(); buzz(15); };
+  paint();
+  return () => { removeEventListener('deviceorientation', onOrient); clearTimeout(waitT); };
 }
 
 // Joe Master's kick-out bar: covers the pad while you're pinned. The TV sends the bar; the phone runs its
