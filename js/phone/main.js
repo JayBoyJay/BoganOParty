@@ -374,7 +374,7 @@ function renderStick(s, el) {
   const nb = s.buttons?.length || 0;
   el.innerHTML = `<div class="stickpad ${nb ? '' : 'nobtns'}"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
     <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
-    <div class="stickbtns n${Math.min(nb, 4)}">${(s.buttons || []).map((b) => `<button data-bit="${b.bit}" class="${b.tone === 'go' ? 'go' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
+    <div class="stickbtns n${Math.min(nb, 4)}">${(s.buttons || []).map((b) => `<button data-bit="${b.bit}"${b.id ? ` data-b="${esc(b.id)}"` : ''} class="${b.tone === 'go' ? 'go' : ''} ${b.off ? 'off' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
   let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
   const push = (force) => {
     const now = Date.now(), key = `${sx.toFixed(2)},${sy.toFixed(2)},${held}`;

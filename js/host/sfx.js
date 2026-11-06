@@ -69,6 +69,7 @@ export class Sfx {
       case 'yell': this.tone(260, 0.6, { type: 'sawtooth', vol: 0.09, slide: 140 }); this.noise(0.5, 0.12); break;
       case 'horn': this.tone(392, 0.5, { type: 'square', vol: 0.06 }); this.tone(494, 0.5, { type: 'square', vol: 0.05 }); break;
       case 'bark': this.tone(600, 0.08, { type: 'sawtooth', vol: 0.08, slide: -300 }); this.tone(560, 0.08, { type: 'sawtooth', vol: 0.07, slide: -280, delay: 0.16 }); break;
+      case 'wah': this.tone(480, 0.55, { type: 'sawtooth', vol: 0.05, slide: 260 }); this.tone(760, 0.7, { type: 'sawtooth', vol: 0.05, slide: -420, delay: 0.5 }); break; // a giant baby crying
       case 'meow': this.tone(700, 0.4, { type: 'triangle', vol: 0.06, slide: 300 }); break;
       case 'whoosh': this.noise(0.25, 0.16); break;
       case 'trim': this.tone(95, 0.12, { type: 'sawtooth', vol: 0.025 }); break; // a hedge trimmer buzzing
