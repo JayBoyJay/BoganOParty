@@ -260,7 +260,7 @@ export default {
       r.out = true; r.outAt = ++order;
       r.fly = { vx: r.kx * 0.5 + (rng() - 0.5) * 2, vy: why === 'magpie' ? 5 : 4.2, vz: why === 'car' ? -6 : r.v * 0.6, spin: (rng() < 0.5 ? -1 : 1) * (5 + rng() * 4), y: 0, t: 0, why };
       r.doll.flinch();
-      sfx.play(why === 'car' ? 'thud' : why === 'magpie' ? 'squeak' : 'bonk');
+      sfx.play(why === 'car' ? 'thud' : why === 'magpie' ? 'squawk' : 'bonk');
       tmp.set(r.x, 3.2, r.z);
       pop(tmp, { crack: 'TRIPPED!', pet: 'WOOF!', car: 'BEEEEP!', magpie: 'SWOOPED!' }[why] || 'OUT!', '#ff4a3a');
     };

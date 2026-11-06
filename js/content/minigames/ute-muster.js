@@ -250,7 +250,7 @@ export default {
             pop(U.x, hAt(U.x, U.z) + 4, U.z, `#${U.place} ${U.p.name}: ${kept}/4 ON`, U.place === 1 ? '#ffd23f' : '#ffffff', 0.7, 1.4);
             if (finishers === n) finishAt = tAll;
           }
-          if (U.input.held & BTN.HORN) { if (U.honk <= 0) { sfx.play('squeak'); U.honk = 0.5; } }
+          if (U.input.held & BTN.HORN) { if (U.honk <= 0) { sfx.play('horn'); U.honk = 0.5; } }
           U.honk -= dt;
           U.card.position.set(U.x, U.ySus + 3.6, U.z);
           U.doll.update(dt);

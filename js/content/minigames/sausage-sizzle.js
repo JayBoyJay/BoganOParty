@@ -332,7 +332,7 @@ export default {
         if (running) {
           if (!M.fly) { M.t -= dt; if (M.t <= 0) {
             const C = cooks[(rng() * n) | 0], live = C.snags.filter((q) => q.gone <= 0), s = live[(rng() * live.length) | 0];
-            if (s) { M.fly = { C, s, k: 0, from: new THREE.Vector3(-W / 2 - 8, 6, -4), to: new THREE.Vector3(W / 2 + 8, 7, 4) }; bird.visible = true; sfx.play('squeak'); }
+            if (s) { M.fly = { C, s, k: 0, from: new THREE.Vector3(-W / 2 - 8, 6, -4), to: new THREE.Vector3(W / 2 + 8, 7, 4) }; bird.visible = true; sfx.play('magpie'); }
             M.t = 11 + rng() * 8;
           } } else {
             const F = M.fly; F.k += dt / 2.6;
@@ -340,7 +340,7 @@ export default {
             const p = F.k < 0.5 ? F.from.clone().lerp(at, F.k * 2) : at.clone().lerp(F.to, (F.k - 0.5) * 2);
             bird.position.copy(p); bird.lookAt(F.k < 0.5 ? at : F.to);
             for (const w of bird.userData.wings) w.rotation.z = Math.sin(tAll * 30) * 0.6 * (w.position.x > 0 ? 1 : -1);
-            if (F.k >= 0.5 && !F.took) { F.took = true; if (F.s.gone <= 0) { pop(F.s.x, 1.7, F.s.z, 'MAGPIE!', '#ffffff', 0.7); resetSnag(F.s, 1.5); sfx.play('meow'); } }
+            if (F.k >= 0.5 && !F.took) { F.took = true; if (F.s.gone <= 0) { pop(F.s.x, 1.7, F.s.z, 'MAGPIE!', '#ffffff', 0.7); resetSnag(F.s, 1.5); sfx.play('squawk'); } }
             if (F.took) { F.held = F.held || (() => { const m = new THREE.Mesh(snagGeo, [F.s.mats[0].clone(), F.s.mats[1].clone()]); m.scale.setScalar(0.5); bird.add(m); m.position.set(0, -0.15, 0.1); return m; })(); }
             if (F.k >= 1) { if (F.held) bird.remove(F.held); M.fly = null; bird.visible = false; }
           }

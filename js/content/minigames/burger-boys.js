@@ -263,7 +263,7 @@ export default {
         const m = new THREE.Mesh(dropGeo, dropMat); m.visible = false; scene.add(m);
         drops.push({ m, from, to, delay: i * 0.012, life: 0, h: 1.2 + Math.abs(tx - s.x) * 0.15 });
       }
-      mg.sfx.play('whoosh');
+      mg.sfx.play('pour');
       if (target) target.pissed = { by: s, t: PISS_T + 0.1 };
       else pop({ x: tx }, 'MISSED!', '#bbb');
     };
@@ -310,7 +310,7 @@ export default {
         for (const q of all) s.flying.push({ m: q.m, v: new THREE.Vector3((rng() - 0.5) * 4, 2 + rng() * 3, 1.5 + rng() * 2.5), w: new THREE.Vector3(rng() * 8, rng() * 8, rng() * 8), life: 0 });
         s.done = 0; s.lock = RESET_T; s.flash = -1; s.ticketDirty = true;
         s.doll.flinch();
-        pop(s, 'WRONG!', '#ff4a3a'); mg.sfx.play('bonk');
+        pop(s, 'WRONG!', '#ff4a3a'); mg.sfx.play('buzz');
         return;
       }
       const isTop = kind === 'bun' && s.done === o.stack.length - 1;
@@ -329,7 +329,7 @@ export default {
         const burger = s.pieces.splice(0);
         s.flying.push(...burger.map((q) => ({ m: q.m, q, slide: true, life: 0, delay: 0.6 }))); // the top bun still lands before it goes
         s.done = 0; s.k += 1; s.lock = 0.4; s.flash = 1;
-        pop(s, `ORDER UP! +${fillings}`, '#5cff9d'); mg.sfx.play('coin');
+        pop(s, `ORDER UP! +${fillings}`, '#5cff9d'); mg.sfx.play('ding');
         s.doll.bounce(1);
       }
     };

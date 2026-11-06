@@ -308,7 +308,7 @@ export default {
       // the further back you are, the better your luck
       const order = [...cars].sort((a, b) => b.s - a.s), rank = order.indexOf(c) / Math.max(1, cars.length - 1); // 0 leader .. 1 last
       const r = rng(), turbo = 0.25 + rank * 0.35, snail = 0.15 + rank * 0.35;
-      if (r < turbo) { c.boost = TURBO.t; pop(c, 'TURBO!', '#ffb030'); if (!c.p.bot) mg.sfx.play('whoosh'); }
+      if (r < turbo) { c.boost = TURBO.t; pop(c, 'TURBO!', '#ffb030'); if (!c.p.bot) mg.sfx.play('boost'); }
       else if (r < turbo + snail) {
         const ahead = cars.filter((o) => o !== c && !o.finished && o.s > c.s);
         for (const o of ahead) { o.slow = SNAIL.t; pop(o, 'SNAIL\'D', '#c88aff'); }
@@ -316,7 +316,7 @@ export default {
       } else {
         const m = new THREE.Mesh(brickGeo, brickMat); m.castShadow = true; scene.add(m);
         bricks.push({ s: c.s - CAR_L * 1.4, u: c.u, m, owner: c, life: 0 });
-        pop(c, 'LEGO!', '#ff5a4a'); if (!c.p.bot) mg.sfx.play('clank');
+        pop(c, 'LEGO!', '#ff5a4a'); if (!c.p.bot) mg.sfx.play('lego');
       }
     };
 
@@ -383,7 +383,7 @@ export default {
           posAt(wrap(B.s), B.u, B.m.position); B.m.position.y = 0.12; B.m.rotation.y = yawS(wrap(B.s)) + 0.4;
           const hit = cars.find((q) => (q !== B.owner || B.life > 1.5) && Math.abs(wrap(q.s) - wrap(B.s)) < CAR_L * 0.7 && Math.abs(q.u - B.u) < 0.8);
           if (hit || B.life > 25) {
-            if (hit) { hit.spinOut = SPIN_T; hit.v *= 0.5; pop(hit, 'OUCH! LEGO', '#ff5a4a'); mg.sfx.play('bonk'); }
+            if (hit) { hit.spinOut = SPIN_T; hit.v *= 0.5; pop(hit, 'OUCH! LEGO', '#ff5a4a'); mg.sfx.play('lego'); }
             scene.remove(B.m); bricks.splice(i, 1);
           }
         }
