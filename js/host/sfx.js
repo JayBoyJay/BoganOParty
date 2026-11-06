@@ -74,7 +74,11 @@ export class Sfx {
   // filt/ff/ff2/fpath/q (filter type, start freq, end freq or [[t, f], ...] path, Q),
   // am: [rate, depth, endRate, 'square'] tremolo, drive (soft clip)
 
-  _t(at) { return this.ctx.currentTime + 0.01 + (at || 0); }
+  // start time: o.when (absolute, used by the music) or now + o.at
+  _t(o) { return o.when ?? this.ctx.currentTime + 0.01 + (o.at || 0); }
+
+  // run fn with voices routed to another { dry, wet } bus (js/host/music.js plays its notes this way)
+  withBus(bus, fn) { const prev = this.bus; this.bus = bus; try { fn(); } finally { this.bus = prev; } }
   _end(o, t) { return t + (o.a ?? 0.004) + (o.hold || 0) + (o.d ?? 0.2); }
 
   // a frequency-ish param: f, then either a path of [time, value] (linear) or an exponential slide to f2
@@ -126,7 +130,7 @@ export class Sfx {
   }
 
   osc(o) {
-    const c = this.ctx, t = this._t(o.at), end = this._end(o, t), s = c.createOscillator();
+    const c = this.ctx, t = this._t(o), end = this._end(o, t), s = c.createOscillator();
     s.type = o.type || 'sine'; if (o.detune) s.detune.value = o.detune;
     this._path(s.frequency, t, o.f, o.f2, o.glide, o.path, end);
     this._vib(s.frequency, t, end, o.vib);
@@ -134,14 +138,14 @@ export class Sfx {
   }
 
   noise(o) {
-    const c = this.ctx, t = this._t(o.at), end = this._end(o, t), s = c.createBufferSource();
+    const c = this.ctx, t = this._t(o), end = this._end(o, t), s = c.createBufferSource();
     s.buffer = this.noiseBuf; s.loop = true;
     this._chain(s, o, t, end); s.start(t, rnd(0, 1.8)); s.stop(end + 0.03); this._track(s);
   }
 
   // two-operator FM: ratio sets how metallic (whole numbers = bell-ish, odd decimals = clanky)
   fm(o) {
-    const c = this.ctx, t = this._t(o.at), end = this._end(o, t);
+    const c = this.ctx, t = this._t(o), end = this._end(o, t);
     const car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain();
     car.frequency.setValueAtTime(o.f, t); mod.frequency.setValueAtTime(o.f * (o.ratio ?? 2), t);
     mg.gain.setValueAtTime(o.f * (o.index ?? 2), t);
@@ -153,7 +157,7 @@ export class Sfx {
 
   // a sawtooth through two bandpass formants; vowels: [[time, 'o'], [time, 'i'], ...]
   voice(o) {
-    const c = this.ctx, t = this._t(o.at), end = this._end(o, t), s = c.createOscillator();
+    const c = this.ctx, t = this._t(o), end = this._end(o, t), s = c.createOscillator();
     s.type = o.wave || 'sawtooth';
     this._path(s.frequency, t, o.f, o.f2, o.glide, o.path, end);
     this._vib(s.frequency, t, end, o.vib);

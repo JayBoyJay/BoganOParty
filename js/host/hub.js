@@ -4,7 +4,8 @@
 //   TV → phone  { t: 'prompt', id, title, body, options, kind, layout, timer }   pick one, sent back as answer
 //               { t: 'pad', id, kind, title, body, buttons, timer }               live controls, every tap sent
 //               { t: 'idle', title }                                               nothing to do right now
-//               { t: 'stats', ... }                                                coins, items, power-ups
+//               { t: 'stats', ... }                                                coins, items, power-ups, where everyone is
+//               { t: 'board', nodes, roads, item, ... }                            the board for the phone's map (once a game)
 //   phone → TV  { t: 'answer', id, v, fling? }   (fling = how hard/where the die was flicked, roll prompts only)
 //                 { t: 'in', id, b, ...extra }   { t: 'emote', mood }  (a head balloon, see balloons.js)
 //
@@ -60,7 +61,7 @@ export class Hub {
       }
       const secs = prompt.timer || 45;
       timer = setTimeout(fallback, secs * 1000 * Math.max(0.2, this.speed));
-      this.send(p, { t: 'prompt', id, kind: prompt.kind || 'choice', title: prompt.title || '', body: prompt.body || '', layout: prompt.layout || (options.length > 4 ? 'list' : 'grid'), timer: secs, dice: prompt.dice, color: prompt.color,
+      this.send(p, { t: 'prompt', id, kind: prompt.kind || 'choice', title: prompt.title || '', body: prompt.body || '', layout: prompt.layout || (options.length > 4 ? 'list' : 'grid'), timer: secs, dice: prompt.dice, color: prompt.color, map: prompt.map,
         options: options.map(({ id: oid, label, sub, disabled, tone }) => ({ id: oid, label, sub, disabled: !!disabled, tone })) });
     });
   }
@@ -88,6 +89,12 @@ export class Hub {
     if (!p.bot) this.net.send(p.id, { t: 'stats', ...s });
   }
 
+  // the board layout for the phones' map; sent once a game, and again to a phone that reconnects
+  board(data) {
+    this.boardMsg = data ? { t: 'board', ...data } : null;
+    if (this.boardMsg) for (const p of this.players || []) if (!p.bot) this.net.send(p.id, this.boardMsg);
+  }
+
   // phone messages for the game (the lobby handles its own)
   handle(pid, m) {
     if (m.t === 'answer') {
@@ -110,6 +117,9 @@ export class Hub {
 
   reconnect(pid) {
     this.online.add(pid);
+    if (this.boardMsg && (this.players || []).some((p) => p.id === pid)) this.net.send(pid, this.boardMsg);
+    const k = this.lastStats.get(pid);
+    if (k) this.net.send(pid, { t: 'stats', ...JSON.parse(k) });
     const s = this.screens.get(pid);
     if (s) this.net.send(pid, s);
     this.lastStats.delete(pid);

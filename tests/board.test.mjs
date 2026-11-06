@@ -1,7 +1,7 @@
 // node --test tests/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBoard, chooseItemSpace, isSpreadOut, stepsTo, mulberry32, turnOrderFrom } from '../js/board.js';
+import { buildBoard, chooseItemSpace, isSpreadOut, stepsTo, mulberry32, turnOrderFrom, routeTo } from '../js/board.js';
 import { MAPS } from '../js/content/maps/index.js';
 
 const ring = buildBoard({ loop: { points: [[0, 20], [-20, 0], [0, -20], [20, 0]], count: 20, pattern: 'B' } });
@@ -65,4 +65,18 @@ test('minigame placings set the next turn order, ties and no-shows keep their ol
   assert.deepEqual(turnOrderFrom([a, b, c, d], [[c], [a], [d], [b]]), [c, a, d, b]);
   assert.deepEqual(turnOrderFrom([a, b, c, d], [[d, b], [a, c]]), [b, d, a, c]);
   assert.deepEqual(turnOrderFrom([a, b, c, d, e], [[e], [c]]), [e, c, a, b, d]);
+});
+
+test('routeTo walks forward the shortest way, taking the short cut at a fork', () => {
+  for (const m of MAPS) {
+    const b = buildBoard(m.board);
+    for (const n of b.nodes) for (const o of b.nodes) {
+      const path = routeTo(b.nodes, n.idx, o.idx);
+      assert.equal(path.length - 1, stepsTo(b, n.idx, o.idx), `${m.id}: ${n.id} -> ${o.id}`);
+      assert.equal(path[0], n.idx);
+      for (let i = 1; i < path.length; i++) assert.ok(b.nodes[path[i - 1]].next.includes(path[i]));
+    }
+  }
+  assert.deepEqual(routeTo(ring.nodes, 18, 1), [18, 19, 0, 1]);
+  assert.equal(routeTo(ring.nodes, 3, null), null);
 });

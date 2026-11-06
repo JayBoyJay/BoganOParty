@@ -7,6 +7,7 @@ import { chooseItemSpace, leaderOf, turnOrderFrom, spacesWithin, spacesApart, SP
 import { POWERUPS, POWERUP_BY_ID } from '../content/powerups/index.js';
 import { EFFECTS } from '../content/powerups/effects.js';
 import { Drinks } from './drinks.js';
+import { TRAPS } from '../content/traps.js';
 
 export const RULES = {
   startCoins: 10,
@@ -27,6 +28,7 @@ export class Game {
     this.round = 0;
     this.itemSpace = null;
     this.piles = new Map(); // space -> { n, prop }: coins knocked loose by power-ups, waiting to be picked up
+    this.traps = new Map(); // space -> the player who set the trap there (only armed traps are in here)
     this.turn = null;
     this.rolled = new Set();
     this.over = false;
@@ -47,6 +49,7 @@ export class Game {
   // ================= main loop =================
   async play() {
     this.view.placeAll(this.players);
+    this.hub.board?.(this.boardData());
     this.refresh();
     this.hud.setRound(1, this.settings.maxRounds);
     await this.banner(this.map.name, `First to ${this.target} ${this.item.plural} wins`, { ms: 2600 });
@@ -76,6 +79,7 @@ export class Game {
       for (const e of [...p.effects]) {
         const def = EFFECTS[e.id];
         if (def?.onRoundEnd) await def.onRoundEnd(this, p, e);
+        if (e.fresh) { e.fresh = false; continue; } // bought mid-round: this round doesn't count
         e.rounds--;
         if (e.rounds <= 0) { p.effects = p.effects.filter((x) => x !== e); this.toast(`${p.name}'s ${def?.name || e.id} wore off`); }
       }
@@ -204,10 +208,12 @@ export class Game {
       this.view.setStepsLeft(p, left - 1);
       await this.view.hop(p, to, this.speed);
       p.space = to;
+      this.pushStats(); // keeps the phone maps moving with the dolls
       this.sfx.play('step');
       if (this.piles.has(to)) this.pickUpPile(p, to);
       if (to === this.itemSpace) await this.offerItem(p);
       else if (this.board.nodes[to].type === 'shop' && left > 1) await this.shop(p, true);
+      if (this.board.nodes[to].trap && !this.over) await this.offerTrap(p, to);
     }
     this.view.setStepsLeft(p, 0);
   }
@@ -235,6 +241,7 @@ export class Game {
 
   async landOn(p) {
     const node = this.board.nodes[p.space];
+    if (node.trap) await this.springTrap(p, p.space);
     if (node.type === 'blue') { this.coins(p, RULES.blueCoins, 'blue'); this.setMood(p, 'happy'); }
     else if (node.type === 'red') { this.coins(p, RULES.redCoins, 'red'); this.setMood(p, 'sad'); }
     else if (node.type === 'shop') await this.shop(p, false);
@@ -258,6 +265,7 @@ export class Game {
     const pick = chooseItemSpace(this.board, this.players, { spreadGap: this.settings.spreadGap, rng: this.rng, exclude: this.itemSpace != null ? [this.itemSpace] : [] });
     this.itemSpace = pick.space;
     this.lastItemRule = pick;
+    this.pushStats();
     await this.view.setItem(pick.space, this.speed);
     const why = pick.rule === 'furthest-from-leader' ? `Everyone's spread out, so it's as far from ${this.players.find((p) => p.id === pick.leader)?.name || 'the leader'} as it gets` : 'As far from everyone as it gets';
     await this.banner(`${this.item.emoji} The ${this.item.name} has ${first ? 'appeared' : 'moved'}!`, why, { ms: 2000, small: true });
@@ -288,6 +296,69 @@ export class Game {
     this.view.focus(p);
   }
 
+  // ================= traps =================
+  // Walking past (or landing on) an empty trap spot: pay to set it. Armed ones you just step over.
+  async offerTrap(p, space) {
+    const kind = TRAPS[this.board.nodes[space].trap];
+    if (!kind || this.traps.has(space) || p.coins < kind.price) return;
+    this.view.focusSpace(space);
+    const ans = await this.ask(p, {
+      title: `${kind.emoji} ${kind.name} trap`,
+      body: `Set it for ${kind.price} coins? The next person to land here (not you) pays you up to ${kind.take} coins. A shield blocks it. You have ${p.coins}.`,
+      options: [{ id: 'yes', label: `Set it for ${kind.price} 🪙`, tone: 'go' }, { id: 'no', label: 'Keep moving' }],
+      bot: () => (p.coins >= kind.price + 6 && this.rng() < 0.5 ? 'yes' : 'no'), fallback: 'no',
+    });
+    if (ans !== 'yes' || p.coins < kind.price) return;
+    p.coins -= kind.price;
+    this.traps.set(space, p);
+    this.sfx.play('creak');
+    this.view.setTrap?.(space, p);
+    this.setMood(p, 'happy');
+    this.refresh();
+    this.toast(`${kind.emoji} ${p.name} set the ${kind.name} trap`);
+  }
+
+  // Landing on someone else's armed trap: it goes off. Your coins go to whoever set it, unless a shield takes it.
+  async springTrap(p, space) {
+    const owner = this.traps.get(space);
+    if (!owner || owner === p) return;
+    const id = this.board.nodes[space].trap, kind = TRAPS[id];
+    this.traps.delete(space);
+    const blocked = this.hasShield(p);
+    this.view.focusSpace(space);
+    await this.banner(`${kind.emoji} It's a trap!`, `${owner.name} set it`, { ms: 900, small: true });
+    this.sfx.play('whoosh');
+    await this.view.springTrap?.(space, id, p, blocked, this.speed, (s) => this.sfx.play(s));
+    this.view.setTrap?.(space, null);
+    if (await this.shieldBlocks(p, owner, { animate: false })) {
+      this.setMood(owner, 'angry');
+      await this.banner('🛡️ Blocked!', `${p.name}'s shield took the hit and broke. ${owner.name} gets nothing.`, { ms: 1800, small: true });
+      return;
+    }
+    this.view.flinch(p);
+    const took = -this.coins(p, -kind.take, 'trap');
+    if (took) this.coins(owner, took, 'trap', { quiet: true });
+    this.setMood(p, 'angry'); this.setMood(owner, 'happy');
+    this.refresh();
+    await this.banner(kind.hit(p.name), took ? `${took} coins to ${owner.name}` : `${p.name} was skint anyway`, { ms: 1900 });
+  }
+
+  // ================= shields =================
+  hasShield(p) { return p.powerups.includes('shield'); }
+
+  // Call before a power-up or trap hits o. If o holds a shield (and the hit isn't their own doing), the
+  // shield breaks and this returns true: skip the hit.
+  async shieldBlocks(o, by, { animate = true } = {}) {
+    if (o === by || !this.hasShield(o)) return false;
+    o.powerups.splice(o.powerups.indexOf('shield'), 1);
+    if (animate) { this.sfx.play('clank'); await this.view.shieldBlock?.(o, this.speed); }
+    this.view.floatText(o, '🛡️ Blocked!', '#7fd8ff');
+    this.toast(`🛡️ ${o.name}'s shield blocked it and broke`);
+    this.refresh();
+    await this.wait(400);
+    return true;
+  }
+
   // ================= shop =================
   async shop(p, passing) {
     const forSale = POWERUPS.filter((pu) => !pu.hidden && (!pu.drinks || this.drinkOn));
@@ -305,18 +376,20 @@ export class Game {
       title: '🛒 Power-up shop', body: full ? `Your bag is full (${RULES.maxPowerups} max).` : `You have ${p.coins} coins.`,
       layout: 'list',
       options: [
-        ...forSale.map((pu) => ({ id: pu.id, label: `${pu.emoji} ${pu.name} — ${pu.price} 🪙`, sub: pu.short, disabled: full || p.coins < pu.price })),
+        ...forSale.map((pu) => ({ id: pu.id, label: `${pu.emoji} ${pu.name} — ${pu.price} 🪙`, sub: pu.short, disabled: (full && !pu.instant) || p.coins < pu.price })),
         { id: 'leave', label: 'Leave the shop' },
       ],
       bot: () => {
-        const afford = forSale.filter((pu) => !full && p.coins >= pu.price && p.coins - pu.price >= 5);
+        const afford = forSale.filter((pu) => (!full || pu.instant) && p.coins >= pu.price && p.coins - pu.price >= 5);
         return afford.length && this.rng() < 0.8 ? afford[Math.floor(this.rng() * afford.length)].id : 'leave';
       },
       fallback: 'leave',
     });
     const pu = POWERUP_BY_ID[ans];
-    if (!pu || full || p.coins < pu.price) return;
+    if (!pu || (full && !pu.instant) || p.coins < pu.price) return;
     p.coins -= pu.price;
+    // instant ones (Mr Music Maa'm) start on the spot instead of going in the bag
+    if (pu.onBuy) { this.refresh(); this.sfx.play('coin'); await pu.onBuy(this, p); this.refresh(); return; }
     p.powerups.push(pu.id);
     this.refresh();
     this.sfx.play('coin');
@@ -333,7 +406,8 @@ export class Game {
     const others = this.players.filter((o) => (allowSelf || o !== p));
     const options = others.map((o) => ({ id: o.id, label: o.name, sub: describe(o), disabled: !filter(o) }));
     if (!options.some((o) => !o.disabled)) return null;
-    const ans = await this.ask(p, { title, body, options: [...options, { id: 'cancel', label: 'Never mind' }], bot: bot || (() => options.filter((o) => !o.disabled)[0].id) });
+    // map: the phone shows the board with everyone on it, and tapping someone there picks them
+    const ans = await this.ask(p, { title, body, map: {}, options: [...options, { id: 'cancel', label: 'Never mind' }], bot: bot || (() => options.filter((o) => !o.disabled)[0].id) });
     return this.players.find((o) => o.id === ans) || null;
   }
 
@@ -343,9 +417,12 @@ export class Game {
   aim(p, opts) {
     const { from = p.space, title = 'Aim', confirm = 'Confirm', range = Infinity, time = 0, radius = 0, jumpToPlayers = false } = opts;
     const b = this.board;
-    let cur = from, fork = 0;
+    let cur = from, fork = 0, handle = null;
+    const lit = () => (radius ? spacesWithin(b, cur, radius) : [cur]);
+    const reach = Number.isFinite(range) ? b.nodes.filter((n) => spacesApart(b, from, n.idx) <= range).map((n) => n.idx) : null;
     const show = () => {
-      this.view.highlight(radius ? spacesWithin(b, cur, radius) : [cur], 0xff4fd8, cur);
+      this.view.highlight(lit(), 0xff4fd8, cur);
+      handle?.send({ map: { cur, hl: lit(), reach } }); // the marker on the phone's map too
       opts.onMove?.(cur);
     };
     show();
@@ -373,14 +450,16 @@ export class Game {
         ...(jumpToPlayers ? this.players.filter((o) => o !== p).map((o) => ({ id: 'p:' + o.id, label: `→ ${o.name}`, small: true })) : []),
         { id: 'ok', label: confirm, tone: 'go', wide: true },
       ];
-      const handle = this.hub.live(p, { kind: 'buttons', title, body: time ? `Auto in ${time}s` : '', buttons, timer: time || 0 }, (m) => {
+      handle = this.hub.live(p, { kind: 'buttons', title, body: time ? `Auto in ${time}s` : '', buttons, timer: time || 0, map: { cur, hl: lit(), reach, tap: 1 } }, (m) => {
         const node = b.nodes[cur];
-        if (m.b === 'back') step(node.prev[0]);
+        if (m.b === 'go') { const s = Number(m.s); if (Number.isInteger(s) && b.nodes[s] && s !== cur) step(s); } // tapped a space on the phone's map
+        else if (m.b === 'back') step(node.prev[0]);
         else if (m.b === 'fwd') step(node.next[fork % node.next.length]);
         else if (m.b === 'fork') {
           // cycle which forward path ▶ follows, and peek down it
           fork = (fork + 1) % Math.max(1, node.next.length);
           this.view.highlight([cur, node.next[fork]], 0xff4fd8, cur);
+          handle.send({ map: { cur, hl: [cur, node.next[fork]], reach } });
         } else if (m.b?.startsWith('p:')) { const o = this.players.find((x) => x.id === m.b.slice(2)); if (o) step(o.space); }
         else if (m.b === 'ok') finish();
       });
@@ -413,13 +492,13 @@ export class Game {
 
   // Pick one of several directions (each is a list of spaces it covers) with ◀ ▶.
   aimDirection(p, { title, confirm = 'Go!', directions, bot }) {
-    let i = 0;
-    const show = () => this.view.highlight(directions[i].spaces, 0x3de1ff, null);
+    let i = 0, handle = null;
+    const show = () => { this.view.highlight(directions[i].spaces, 0x3de1ff, null); handle?.send({ map: { hl: directions[i].spaces, cur: p.space, tint: '#3de1ff' } }); };
     show();
     return new Promise((resolve) => {
       let done = false;
       const finish = () => { if (done) return; done = true; handle.close(); this.view.highlight(null); resolve(directions[i]); };
-      const handle = this.hub.live(p, { kind: 'buttons', title, body: '', buttons: [{ id: 'l', label: '◀' }, { id: 'r', label: '▶' }, { id: 'ok', label: confirm, tone: 'go', wide: true }] }, (m) => {
+      handle = this.hub.live(p, { kind: 'buttons', title, body: '', map: { hl: directions[i].spaces, cur: p.space, tint: '#3de1ff' }, buttons: [{ id: 'l', label: '◀' }, { id: 'r', label: '▶' }, { id: 'ok', label: confirm, tone: 'go', wide: true }] }, (m) => {
         if (m.b === 'l') { i = (i + directions.length - 1) % directions.length; this.sfx.play('tick'); show(); }
         else if (m.b === 'r') { i = (i + 1) % directions.length; this.sfx.play('tick'); show(); }
         else if (m.b === 'ok') finish();
@@ -485,6 +564,7 @@ export class Game {
       const to = prev[Math.floor(this.rng() * prev.length)];
       await this.view.hop(p, to, this.speed * 0.6);
       p.space = to;
+      this.pushStats();
     }
   }
 
@@ -508,12 +588,35 @@ export class Game {
 
   refresh() {
     this.hud.renderPlayers(this.players, this.turn?.player, this.item);
+    this.pushStats();
+  }
+
+  // The board as the phones draw it on their map: where every space is, what it is and where it leads.
+  boardData() {
+    const r = (v) => Math.round(v * 10) / 10;
+    const def = this.map.board;
+    return {
+      name: this.map.name,
+      item: { name: this.item.name, emoji: this.item.emoji, price: this.item.price },
+      avgRoll: (RULES.diceSides + 1) / 2,
+      roads: { loop: def.loop.name || 'Main road', branches: (def.branches || []).map((b) => ({ name: b.name || 'Side track', sub: b.sub || '' })) },
+      nodes: this.board.nodes.map((n) => ({ x: r(n.x), z: r(n.z), t: n.type, next: n.next, ...(n.branch != null ? { b: n.branch } : {}) })),
+    };
+  }
+
+  // coins, items, power-ups and where everyone is on the board, for each phone's bar and map
+  pushStats() {
+    const where = {
+      players: this.players.map((o) => ({ id: o.id, name: o.name, color: o.color, s: o.space })),
+      item: this.itemSpace, piles: [...this.piles.keys()], turn: this.turn?.player?.id ?? null,
+    };
     for (const p of this.players) this.hub.stats(p, {
       coins: p.coins, items: p.items, target: this.target,
       item: { name: this.item.name, emoji: this.item.emoji },
       powerups: p.powerups.map((id) => ({ id, name: POWERUP_BY_ID[id]?.name, emoji: POWERUP_BY_ID[id]?.emoji })),
-      effects: p.effects.map((e) => ({ name: EFFECTS[e.id]?.name || e.id, rounds: e.rounds })),
+      effects: p.effects.map((e) => ({ id: e.id, name: EFFECTS[e.id]?.name || e.id, emoji: EFFECTS[e.id]?.emoji || '✨', rounds: e.rounds })),
       space: SPACE[this.board.nodes[p.space].type]?.label,
+      you: p.id, where,
     });
   }
 }

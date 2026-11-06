@@ -21,8 +21,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class MinigameRunner {
-  constructor({ stage, hub, sfx, root, hud, rng = Math.random, speed = 1, practice = true }) {
-    Object.assign(this, { stage, hub, sfx, root, hud, rng, speed });
+  constructor({ stage, hub, sfx, music, root, hud, rng = Math.random, speed = 1, practice = true }) {
+    Object.assign(this, { stage, hub, sfx, music, root, hud, rng, speed });
     this.practiceOn = practice;
     this.recent = [];
   }
@@ -144,6 +144,8 @@ export class MinigameRunner {
     const root = this.root;
     this.playing = true; // practice + play: no emote balloons until the results are up
     markPlayed(def.id);
+    const back = this.music?.scene;
+    this.music?.play('minigame');
     this.hud.show(false);
     root.classList.remove('hidden');
     const prevView = this.stage.view;
@@ -223,6 +225,7 @@ export class MinigameRunner {
     root.classList.add('hidden');
     root.innerHTML = '';
     this.hud.show(true);
+    if (back && back !== 'minigame') this.music?.play(back);
     return placings;
   }
 }

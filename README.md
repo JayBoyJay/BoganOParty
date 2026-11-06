@@ -26,6 +26,17 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 
 **Getting hit.** There's no health. When a power-up hits you, you drop coins, Mario Party style. They stay on that space as a pile, and anyone who isn't leading can grab the lot by walking over it (the leader just walks past).
 
+**Traps.** Some spaces have a trap rig beside them. Walk past or land on an empty one and your phone offers to set it; a flag in your colour goes up. The next person to land on it (not you) gets got and pays you, then the trap is empty again.
+
+| Trap | Set for | Takes | Where |
+|---|---|---|---|
+| 🪨 Falling Rock | 6 | 10 | A boulder hauled up on a gantry drops on you. Both maps. |
+| 🔮 Mall's Balls | 6 | 10 | The top ball rolls off its plinth and flattens you. Adelaide. |
+| 🐦 Magpie Season | 5 | 8 | The magpie on the SWOOPING MAGPIES sign dive-bombs your head three times. Both maps. |
+| 🕳️ Mine Shaft | 8 | 12 | The ground gives way and you're winched back up. Broken Hill (the mine short cut and Silverton). |
+| 🐨 Drop Bear | 6 | 10 | Drops out of a gum tree onto your head and has a go. Both maps. |
+ A shield sets it off but takes the hit, so nobody pays. Maps list their trap spaces with `traps` in the board def; trap kinds live in `js/content/traps.js`.
+
 ### Power-ups (bought in the shop, used before rolling, max 3)
 
 | Power-up | Price | What it does |
@@ -35,6 +46,7 @@ Faces double as emotes: while waiting, tap 😐 😁 😢 😡 on your phone to 
 | ✨ Teleport | 10 | Rock paper scissors, best of 3, on both phones. The winner decides whether you swap places. |
 | 🌀 Vacuum | 12 | Point it down any road out of your space. Everyone in the cone loses 1–8 coins to you, with a 1 in 4 chance you also take one of their power-ups. |
 | ✝️ Holy Hand Grenade | 15 | Lob it up to 8 spaces. One, two… three! Knocks 10/6/3 coins loose by distance, and a knock-back for anyone close. It can hit you too. |
+| 🛡️ Esky Lid Shield | 8 | Just hold it. The next time someone else's Sugar Bomb, Vacuum, Holy Hand Grenade or trap hits you, the lid takes it and breaks instead. It doesn't stop your own grenade. |
 | 🍺 Drink Voucher | 15 | Drinking on only. Pick anyone: they drink. |
 | 🍻 Group Drink Discount | 30 | Drinking on only. Everyone drinks, you included. |
 | 🔄 Reverse Card | 8 | Drinking on only. Just hold it: the next time someone sends you a drink you can bounce it straight back (and if they've got one too, they can bounce it again). |
@@ -81,7 +93,7 @@ Phones: games played with the stick or tilt suggest turning the phone sideways (
 Everything is plain JavaScript modules with no build step. Each kind of content is one file plus one line in a list.
 
 - **Map:** copy `js/content/maps/broken-hill.js`, change the id, name, item, colours, board layout, landmarks and events, and add it to `js/content/maps/index.js`. The board is a loop of control points plus branches that leave and rejoin the loop; spaces are spread along them automatically. A landmark can name a real model with `glb: 'assets/models/thing.glb'` and it's loaded instead of the built-in placeholder.
-- **Power-up:** copy `js/content/powerups/coin-flip.js`, write its `use(game, player)`, and add it to `js/content/powerups/index.js`. The game object gives you `ask`, `pickPlayer`, `aim` (move a target around the board), `aimDirection`, `banner`, `coins`, `damage`, `addEffect`, `knockBack`, `teleport` and `view` effects. Lasting effects (like Sugar Rush) live in `effects.js`.
+- **Power-up:** copy `js/content/powerups/coin-flip.js`, write its `use(game, player)`, and add it to `js/content/powerups/index.js`. The game object gives you `ask`, `pickPlayer`, `aim` (move a target around the board), `aimDirection`, `banner`, `coins`, `damage`, `addEffect`, `knockBack`, `teleport` and `view` effects. Lasting effects (like Sugar Rush) live in `effects.js`. `pickPlayer`, `aim` and `aimDirection` show the board map on the phone with everyone on it; give any other `ask` a `map: { hl: [spaces] }` to do the same.
 - **Minigame:** copy `js/content/minigames/plane-instructor.js` to `<id>.js` and add `[id, name]` to `js/content/minigames/index.js` (the file is only downloaded when the game is picked). It builds its own scene, takes phone input (`pad` decides the controls: `tilt` (optionally with buttons under it), `buttons` (optionally coloured), `stick` for a thumbstick plus held buttons, `slider` for a tall up-and-down slider, or `touchpad` for a sideways screen that maps onto the TV) and returns scores. The runner handles the title card, ready-up, countdown, timer and results, and frees everything in the scene afterwards (pass anything you make outside the scene, like a render target, to `mg.track()`). For indoor reflections use `mg.env((env) => { ...add a box room and bright panels... })`.
 
 ## Project layout
