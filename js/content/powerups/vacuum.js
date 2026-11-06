@@ -1,6 +1,6 @@
 // Vacuum: point it down the board (any way out of your space) and suck. Everyone in the cone
 // loses a random handful of coins to you, and there's a 1 in 4 chance you also nick one of
-// their power-ups.
+// their power-ups. A shield blocks it.
 const REACH = 4;
 
 export default {
@@ -23,6 +23,7 @@ export default {
     if (!hit.length) { await game.banner('Sucked up nothing', 'Just dust and a few chip crumbs', { ms: 1400, small: true }); return; }
     const lines = [];
     for (const o of hit) {
+      if (await game.shieldBlocks(o, p)) { lines.push(`${o.name}: blocked 🛡️`); continue; }
       const want = 1 + Math.floor(game.rng() * 8);
       const took = -game.coins(o, -want, 'vacuum');
       if (took) game.coins(p, took, 'vacuum');

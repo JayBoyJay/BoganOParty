@@ -48,6 +48,7 @@ const typeAt = (pattern, i) => CODE[pattern[i % pattern.length]] || 'blue';
 //   loop: { points: [[x, z], ...], count, pattern: 'BBRBE...' },
 //   branches: [{ from, to, points: [[x, z], ...], count, pattern }],   // from/to are loop indices
 //   shops: [loop index, ...],
+//   traps: { loop index: kind, ... },   // trap rigs (js/content/traps.js); branches take `traps` too
 // }
 export function buildBoard(def) {
   const nodes = [];
@@ -57,6 +58,7 @@ export function buildBoard(def) {
   loop.forEach((n, i) => n.next.push(loop[(i + 1) % loop.length].idx));
   loop[0].type = 'start';
   for (const i of def.shops || []) loop[i].type = 'shop';
+  for (const [i, kind] of Object.entries(def.traps || {})) loop[i].trap = kind;
   (def.branches || []).forEach((b, bi) => {
     const a = loop[b.from], z = loop[b.to];
     const pts = resample(densify([[a.x, a.z], ...b.points, [z.x, z.z]], false), b.count, false);
@@ -68,6 +70,7 @@ export function buildBoard(def) {
     });
     prev.next.push(z.idx);
     for (const k of b.shops || []) nodes[nodes.length - pts.length + k].type = 'shop';
+    for (const [k, kind] of Object.entries(b.traps || {})) nodes[nodes.length - pts.length + Number(k)].trap = kind;
   });
   const prev = nodes.map(() => []);
   nodes.forEach((n) => n.next.forEach((j) => prev[j].push(n.idx)));

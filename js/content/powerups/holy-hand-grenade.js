@@ -1,7 +1,7 @@
 // Holy Hand Grenade (of Antioch), as in Worms: lob it up to 8 spaces, count to three (not five),
 // and a choir sings before a huge blast. Anyone caught in it drops coins on the spot (most in the middle,
 // fewer further out) for anyone behind to pick up; anyone close gets blown back a couple of spaces.
-// Yes, it can hit you too.
+// Yes, it can hit you too. A shield blocks it (but not your own grenade).
 import { spacesWithin } from '../../board.js';
 
 const RANGE = 8, RADIUS = 2;
@@ -29,6 +29,7 @@ export default {
     const hit = game.playersOn(spacesWithin(b, space, RADIUS));
     if (!hit.length) { await game.banner('Missed!', 'The Lord is merciful today', { ms: 1400, small: true }); return; }
     for (const o of hit) {
+      if (await game.shieldBlocks(o, p)) continue;
       const d = b.near[space][o.space];
       await game.dropCoins(o, COINS[d] ?? 0, 'Holy Hand Grenade');
       if (o !== p) game.setMood(o, 'angry');
