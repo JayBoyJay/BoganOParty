@@ -111,10 +111,23 @@
   .stickhead { grid-column: 1 / -1; font-size: 15px; }
   .stickhead b { font-size: 18px; font-style: italic; text-transform: uppercase; margin-right: 4px; }
   .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); touch-action: none; overflow: hidden; }
-  .stickzone .ghost { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--dim); font-weight: 800; letter-spacing: 0.1em; font-size: 13px; }
-  .stickzone .base, .stickzone .knob { display: none; position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-  .stickzone .base { width: 130px; height: 130px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.25); }
-  .stickzone .knob { width: 62px; height: 62px; background: var(--pc); box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+  .stickzone { --d: 150px; }
+  .stickzone .base { position: absolute; left: 50%; top: 50%; width: var(--d); height: var(--d); transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle at 50% 50%, #15151c 0 30%, #23232e 31% 62%, #30303d 63% 100%); border: 3px solid rgba(255,255,255,0.22);
+    box-shadow: inset 0 6px 18px rgba(0,0,0,0.65), inset 0 -3px 8px rgba(255,255,255,0.06), 0 6px 18px rgba(0,0,0,0.45); }
+  .stickzone .base .well { position: absolute; inset: 22%; border-radius: 50%; border: 2px dashed rgba(255,255,255,0.12); }
+  .stickzone .base .ar { position: absolute; left: 50%; top: 50%; width: 0; height: 0; border: calc(var(--d) * 0.055) solid transparent; opacity: 0.55; }
+  .stickzone .base .ar.u { border-bottom-color: #fff; transform: translate(-50%, calc(var(--d) * -0.5 + 4px)); }
+  .stickzone .base .ar.d { border-top-color: #fff; transform: translate(-50%, calc(var(--d) * 0.5 - 100% - 4px)); }
+  .stickzone .base .ar.l { border-right-color: #fff; transform: translate(calc(var(--d) * -0.5 + 4px), -50%); }
+  .stickzone .base .ar.r { border-left-color: #fff; transform: translate(calc(var(--d) * 0.5 - 100% - 4px), -50%); }
+  .stickzone .knob { position: absolute; left: 50%; top: 50%; width: calc(var(--d) * 0.46); height: calc(var(--d) * 0.46); border-radius: 50%; pointer-events: none;
+    transform: translate(-50%, -50%); transition: transform 0.14s ease-out; background: var(--pc);
+    background-image: radial-gradient(circle at 38% 32%, rgba(255,255,255,0.55), rgba(255,255,255,0) 45%), radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.55), inset 0 -4px 8px rgba(0,0,0,0.3); border: 2px solid rgba(255,255,255,0.35); }
+  .stickzone .knob .cap { position: absolute; inset: 24%; border-radius: 50%; background: repeating-radial-gradient(circle, rgba(0,0,0,0.18) 0 2px, rgba(0,0,0,0) 2px 5px); }
+  .stickzone.on .knob { transition: none; filter: brightness(1.12); }
+  .stickzone.on .base { border-color: rgba(255,255,255,0.4); }
   .stickbtns { display: grid; grid-template-columns: 1fr; grid-auto-rows: 1fr; gap: 10px; touch-action: none; }
   .stickbtns.n3, .stickbtns.n4 { grid-template-columns: 1fr 1fr; }
   .stickbtns.n3 button:first-child { grid-column: 1 / -1; }

@@ -373,7 +373,7 @@ async function askMotion() {
 function renderStick(s, el) {
   const nb = s.buttons?.length || 0;
   el.innerHTML = `<div class="stickpad ${nb ? '' : 'nobtns'}"><div class="stickhead"><b>${esc(s.title)}</b> <span class="dim">${esc(s.body || '')}</span>${SIDEWAYS}</div>
-    <div class="stickzone" id="stickzone"><div class="ghost">MOVE<br>touch and drag</div><div class="base"></div><div class="knob"></div></div>
+    <div class="stickzone" id="stickzone"><div class="base"><i class="ar u"></i><i class="ar r"></i><i class="ar d"></i><i class="ar l"></i><div class="well"></div></div><div class="knob"><div class="cap"></div></div></div>
     <div class="stickbtns n${Math.min(nb, 4)}">${(s.buttons || []).map((b) => `<button data-bit="${b.bit}"${b.id ? ` data-b="${esc(b.id)}"` : ''} class="${b.tone === 'go' ? 'go' : ''} ${b.off ? 'off' : ''}">${esc(b.label)}</button>`).join('')}</div></div>`;
   let sx = 0, sy = 0, held = 0, lastSent = 0, last = '';
   const push = (force) => {
@@ -382,25 +382,35 @@ function renderStick(s, el) {
     last = key; lastSent = now;
     sendFast({ t: 'in', id: s.id, b: 'stick', x: +sx.toFixed(2), y: +sy.toFixed(2), h: held });
   };
+  // A real joystick drawn in the middle of the zone, always on screen. Touch anywhere in the zone and the
+  // knob follows your thumb out from the centre; let go and it springs back.
   const zone = $('stickzone'), base = zone.querySelector('.base'), knob = zone.querySelector('.knob');
-  let sid = null, ox = 0, oy = 0;
-  const R = 60;
-  zone.onpointerdown = (e) => {
-    e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
-    const r = zone.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top;
-    for (const n of [base, knob]) { n.style.left = ox + 'px'; n.style.top = oy + 'px'; n.style.display = 'block'; }
-    zone.querySelector('.ghost').style.display = 'none';
-  };
-  zone.onpointermove = (e) => {
-    if (e.pointerId !== sid) return;
+  let sid = null, cx = 0, cy = 0, R = 60;
+  const size = () => {
     const r = zone.getBoundingClientRect();
-    let dx = e.clientX - r.left - ox, dy = e.clientY - r.top - oy;
+    const m = Math.min(r.width, r.height);
+    const d = Math.max(90, Math.min(m * 0.86, m - 8, 320)) | 0;
+    zone.style.setProperty('--d', d + 'px');
+    cx = r.width / 2; cy = r.height / 2; R = d * 0.34;
+  };
+  size();
+  const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(size) : null;
+  ro?.observe(zone);
+  const place = (dx, dy) => { knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; };
+  const move = (e) => {
+    const r = zone.getBoundingClientRect();
+    let dx = e.clientX - r.left - cx, dy = e.clientY - r.top - cy;
     const d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; }
-    knob.style.left = ox + dx + 'px'; knob.style.top = oy + dy + 'px';
+    place(dx, dy);
     sx = dx / R; sy = -dy / R;
     push(false);
   };
-  const end = (e) => { if (e.pointerId !== sid) return; sid = null; sx = sy = 0; knob.style.left = ox + 'px'; knob.style.top = oy + 'px'; push(true); };
+  zone.onpointerdown = (e) => {
+    e.preventDefault(); sid = e.pointerId; zone.setPointerCapture(sid);
+    size(); zone.classList.add('on'); move(e);
+  };
+  zone.onpointermove = (e) => { if (e.pointerId === sid) move(e); };
+  const end = (e) => { if (e.pointerId !== sid) return; sid = null; sx = sy = 0; zone.classList.remove('on'); place(0, 0); push(true); };
   zone.onpointerup = end; zone.onpointercancel = end;
   for (const b of el.querySelectorAll('[data-bit]')) {
     const bit = Number(b.dataset.bit);
@@ -409,7 +419,7 @@ function renderStick(s, el) {
     b.onpointerup = up; b.onpointercancel = up;
   }
   const keep = setInterval(() => push(true), 200);
-  tiltStop = () => clearInterval(keep);
+  tiltStop = () => { clearInterval(keep); ro?.disconnect(); };
 }
 
 // Joe Master's kick-out bar: covers the pad while you're pinned. The TV sends the bar; the phone runs its
