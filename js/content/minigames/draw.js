@@ -156,7 +156,7 @@ export default {
     const shoot = (c) => {
       const d = duel; if (!d || c.shot) return;
       c.shot = true; c.flashT = 0.12;
-      sfx.play('boom');
+      sfx.play('gunshot');
       if (d.phase === 'wait') {
         // too early: the ref sends the other one through
         const other = c === d.a ? d.b : d.a;

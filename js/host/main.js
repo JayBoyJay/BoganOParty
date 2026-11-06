@@ -343,7 +343,7 @@ async function startMarathon(players) {
 }
 
 function gameOver(players, result) {
-  sfx.play('item');
+  sfx.play('fanfare');
   for (const p of players) {
     if (p.bot) continue;
     hub.send(p, { t: 'prompt', id: -1, kind: 'choice', title: p === result.winner ? '🏆 You won!' : `${result.winner.name} won`, body: `You finished ${result.ranked.indexOf(p) + 1} of ${players.length}.`, options: [{ id: 'again', label: 'Play again', tone: 'go' }], layout: 'grid', timer: 0 });

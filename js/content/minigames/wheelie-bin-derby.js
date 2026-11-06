@@ -198,7 +198,7 @@ export default {
               if (o.kind === 'ramp') { R.vy = 4 + R.v * 0.25; R.y = 0.05; R.v += 1.2; pop(wpos, 'AIR!', '#5cff9d', 0.7); sfx.play('boing'); }
               else if (o.kind === 'hump') { if (R.v > 9) { R.vy = 3.2; R.y = 0.05; R.v *= 0.8; pop(wpos, 'BOING', '#ffd23f', 0.6); sfx.play('boing'); } else R.v *= 0.92; }
               else if (o.kind === 'hole') { R.v *= 0.55; R.vy = 1.5; R.y = 0.02; R.doll.flinch(); pop(wpos, 'POTHOLE', '#ffffff', 0.6); sfx.play('bonk'); }
-              else { R.v *= 0.25; R.crash = 1.1; R.doll.flinch(); pop(wpos, 'STACKED IT!', '#ff5a5a', 0.75); sfx.play('bonk'); if (o.kind === 'bin' && o.mesh) { o.mesh.rotation.z = (R.x > o.x ? -1 : 1) * 1.3; o.mesh.position.y = 0.3; o.kind = 'down'; } R.x += Math.sign(R.x - (o.x || 0) || 1) * 0.6; }
+              else { R.v *= 0.25; R.crash = 1.1; R.doll.flinch(); pop(wpos, 'STACKED IT!', '#ff5a5a', 0.75); sfx.play('crash'); if (o.kind === 'bin' && o.mesh) { o.mesh.rotation.z = (R.x > o.x ? -1 : 1) * 1.3; o.mesh.position.y = 0.3; o.kind = 'down'; } R.x += Math.sign(R.x - (o.x || 0) || 1) * 0.6; }
             }
             if (!o) R.lastHit = null;
           }

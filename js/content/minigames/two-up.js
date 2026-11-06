@@ -155,7 +155,7 @@ export default {
           } else if (phase === 'toss' && phaseT <= 0) {
             result = faces[0] && faces[1] ? 'heads' : !faces[0] && !faces[1] ? 'tails' : 'odds';
             banner(result === 'heads' ? 'HEADS!' : result === 'tails' ? 'TAILS!' : 'ODDS!', result === 'heads' ? '#ffd23f' : result === 'tails' ? '#9ad8ff' : '#c8a8ff', 1.5);
-            sfx.play('bigboom');
+            sfx.play('coins');
             for (const P of punters) {
               if (!P.call) continue;
               let back = 0;
@@ -166,7 +166,7 @@ export default {
               if (net > 0) P.doll.bounce(); else if (net < 0) P.doll.flinch();
               drawCard(P);
             }
-            if (punters.some((P) => P.call === result && result !== 'odds')) sfx.play('cheers');
+            if (punters.some((P) => P.call === result && result !== 'odds')) sfx.play('crowd');
             phase = 'show'; phaseT = SHOW_T;
           } else if (phase === 'show' && phaseT <= 0) {
             if (toss >= TOSSES) {

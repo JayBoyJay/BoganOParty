@@ -209,7 +209,7 @@ export default {
           if (running && matched) s.score += RATE * dt;
           s.glow.material.opacity += ((matched ? 0.9 : 0) - s.glow.material.opacity) * Math.min(1, dt * 8);
           // past halfway: take off and fly on the spot
-          if (!s.flying && s.score >= RATE * mg.duration / 2) { s.flying = true; sfx.play('teleport'); }
+          if (!s.flying && s.score >= RATE * mg.duration / 2) { s.flying = true; sfx.play('takeoff'); }
           s.lift += ((s.flying ? 2.0 : 0) - s.lift) * Math.min(1, dt * 1.5);
           const hop = animTrick(s, s.rig, dt);
           s.rig.position.y = PIVOT + s.lift + hop + (s.flying ? Math.sin(t * 3 + s.wobble) * 0.25 : 0);

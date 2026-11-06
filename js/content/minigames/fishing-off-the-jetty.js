@@ -158,7 +158,7 @@ export default {
       if (F.state !== 'fight') return;
       const kg = F.fish.kg;
       F.dist = Math.max(0, F.dist - dt * 2.4 / (1 + kg * 0.05)); F.tension += dt * (0.45 + kg * 0.06);
-      F.clickT -= dt; if (F.clickT <= 0) { F.clickT = 0.25; sfx.play('tick'); }
+      F.clickT -= dt; if (F.clickT <= 0) { F.clickT = 0.25; sfx.play('reel'); }
     };
     const snap = (F, text, color = '#ff7a5a') => { F.state = 'rig'; F.T = RIG_T; F.fish = null; F.float.visible = false; pop(F.x, DECK + 4.2, 0.4, text, color, 0.6, 0.8); };
     const land = (F) => {
@@ -199,13 +199,13 @@ export default {
           if (F.state === 'flying') {
             const f = Math.min(1, F.T / 0.75);
             F.float.position.set(F.x + (F.fx - F.x) * f, DECK + 3 + Math.sin(f * Math.PI) * 3 - f * (DECK + 3), 0.7 + (F.fz - 0.7) * f);
-            if (f >= 1) { F.state = 'wait'; F.T = 0; F.biteAt = WAIT[0] + rng() * (WAIT[1] - WAIT[0]); sfx.play('thud'); }
+            if (f >= 1) { F.state = 'wait'; F.T = 0; F.biteAt = WAIT[0] + rng() * (WAIT[1] - WAIT[0]); sfx.play('splash'); }
           } else if (F.state === 'wait') {
             F.float.position.set(F.fx, Math.sin(tAll * 2 + F.k) * 0.04, F.fz);
             if (running && F.T >= F.biteAt) {
               const far = Math.min(1, (F.dist - CAST_MIN) / (CAST_MAX - CAST_MIN)), S = pick(far);
               if (S.thief) { snap(F, 'STINGRAY NICKED YOUR BAIT', '#c8d8e8'); sfx.play('lose'); }
-              else { F.fish = { S, kg: S.kg[0] + rng() * (S.kg[1] - S.kg[0]) }; F.state = 'bite'; F.T = 0; sfx.play('squeak'); }
+              else { F.fish = { S, kg: S.kg[0] + rng() * (S.kg[1] - S.kg[0]) }; F.state = 'bite'; F.T = 0; sfx.play('plop'); }
             }
           } else if (F.state === 'bite') {
             F.float.position.set(F.fx, -0.15 - Math.abs(Math.sin(tAll * 18)) * 0.12, F.fz);
@@ -222,7 +222,7 @@ export default {
               else if (F.nextSurge <= 0) { F.surge = 0.7 + rng() * 0.8 + kg * 0.05; F.nextSurge = 1.6 + rng() * 2.6; sfx.play('whoosh'); }
             }
             F.tension = Math.max(0, F.tension - (0.55 + (S.junk ? 0.4 : 0)) * dt);
-            if (F.tension >= 1) { snap(F, 'SNAPPED!'); sfx.play('boom'); F.doll.flinch(); }
+            if (F.tension >= 1) { snap(F, 'SNAPPED!'); sfx.play('snap'); F.doll.flinch(); }
             else {
               const wob = F.surge > 0 ? Math.sin(tAll * 14) * 0.4 : Math.sin(tAll * 4) * 0.15;
               const zz = 0.7 + F.dist, xx = F.x + (F.fx - F.x) * Math.min(1, F.dist / 6) + wob;
