@@ -83,6 +83,11 @@
   .pstrip button { padding: 8px 18px; font-size: 18px; border-radius: 12px; flex: none; }
   .pstrip.done { padding: 8px 14px; justify-content: center; }
   .pstrip.float { position: fixed; z-index: 30; top: max(8px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); margin: 0; background: rgba(20,40,24,0.92); white-space: nowrap; }
+  /* 3-2-1 before a minigame: over the controls but lets touches through, so you can get a grip on the stick */
+  .pcount { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; pointer-events: none; background: rgba(0,0,0,0.45); font-size: min(55vh, 55vw); font-weight: 900; font-style: italic; color: var(--gold); text-shadow: 0 0.06em 0 #7a2a0a; }
+  .pcount.go { color: var(--good); font-size: min(35vh, 30vw); background: transparent; }
+  .pcount i { font-style: inherit; animation: pcpop 1s ease-out both; }
+  @keyframes pcpop { 0% { transform: scale(1.6); opacity: 0; } 15% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.85); opacity: 0.5; } }
   .padhead { font-size: 15px; margin-bottom: 8px; }
   .padhead b { font-size: 18px; font-style: italic; text-transform: uppercase; margin-right: 4px; }
   .btnpad { display: flex; flex-direction: column; }
